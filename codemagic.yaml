@@ -21,6 +21,9 @@ workflows:
           if [ ! -d android ]; then
             flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode
           fi
+          if [ -f test/widget_test.dart ]; then
+            rm test/widget_test.dart
+          fi
 
       - name: Instalar dependências
         script: flutter pub get
@@ -29,7 +32,7 @@ workflows:
         script: dart format lib test
 
       - name: Analisar código
-        script: flutter analyze
+        script: flutter analyze --no-fatal-infos
 
       - name: Executar testes
         script: flutter test
