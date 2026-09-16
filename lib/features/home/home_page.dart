@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
@@ -303,6 +304,8 @@ class _ProfilePage extends StatelessWidget {
     const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.history_rounded), title: Text('Atividade'), trailing: Icon(Icons.chevron_right_rounded)),
     const Divider(),
     const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.collections_bookmark_outlined), title: Text('Coleções'), trailing: Icon(Icons.chevron_right_rounded)),
+    const Divider(),
+    ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout_rounded), title: const Text('Sair da conta'), onTap: () => Supabase.instance.client.auth.signOut()),
   ]));
 }
 

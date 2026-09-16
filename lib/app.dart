@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/update/update_gate.dart';
-import 'features/home/home_page.dart';
+import 'features/auth/auth_gate.dart';
 
 class ProvaSocialApp extends StatelessWidget {
   const ProvaSocialApp({super.key});
@@ -13,7 +13,7 @@ class ProvaSocialApp extends StatelessWidget {
       title: 'Prova Social',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const UpdateGate(child: HomePage()),
+      home: const UpdateGate(child: AuthGate()),
     );
   }
 }
