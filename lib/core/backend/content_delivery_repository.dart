@@ -1,18 +1,16 @@
-import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'content_package_service.dart';
 
 class ContentDeliveryRepository {
-  ContentDeliveryRepository({SupabaseClient? client, http.Client? httpClient})
-      : _client = client ?? Supabase.instance.client,
-        _http = httpClient ?? http.Client();
+  ContentDeliveryRepository({SupabaseClient? client})
+      : _client = client ?? Supabase.instance.client;
 
-  static const signerUrl = String.fromEnvironment('R2_SIGNER_URL');
+  static const bucket = 'exam-content';
   final SupabaseClient _client;
-  final http.Client _http;
+  final Map<String, Uint8List> _memoryCache = {};
 
   Future<Map<String, dynamic>> uploadExamPackage({
     required String examId,
@@ -21,53 +19,51 @@ class ContentDeliveryRepository {
   }) async {
     final session = _client.auth.currentSession;
     if (session == null) throw const AuthException('Faça login para publicar.');
-    if (signerUrl.isEmpty) {
-      throw StateError('O endpoint privado do Cloudflare R2 ainda não foi configurado.');
-    }
+    final objectKey =
+        '${session.user.id}/exams/$examId/content/${package.sha256}.json.gz';
 
-    final signResponse = await _http.post(
-      Uri.parse(signerUrl),
-      headers: {
-        'authorization': 'Bearer ${session.accessToken}',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'examId': examId,
-        'fileName': fileName,
+    await _client.storage.from(bucket).uploadBinary(
+          objectKey,
+          package.bytes,
+          fileOptions: const FileOptions(
+            contentType: 'application/gzip',
+            upsert: false,
+          ),
+        );
+
+    try {
+      return await _client.from('content_files').insert({
+        'owner_id': session.user.id,
+        'exam_id': examId,
+        'provider': 'supabase_storage',
+        'object_key': objectKey,
+        'original_name': fileName,
+        'mime_type': 'application/json',
+        'content_encoding': 'gzip',
         'sha256': package.sha256,
-        'contentType': 'application/json',
-        'contentEncoding': 'gzip',
-        'contentLength': package.bytes.length,
-      }),
-    );
-    if (signResponse.statusCode != 200) {
-      throw StateError('Não foi possível preparar o envio do arquivo.');
+        'uncompressed_bytes': package.uncompressedBytes,
+        'compressed_bytes': package.bytes.length,
+        'status': 'ready',
+      }).select().single();
+    } catch (_) {
+      await _client.storage.from(bucket).remove([objectKey]);
+      rethrow;
     }
+  }
 
-    final signed = Map<String, dynamic>.from(jsonDecode(signResponse.body) as Map);
-    final uploadResponse = await _http.put(
-      Uri.parse(signed['uploadUrl'] as String),
-      headers: const {
-        'content-type': 'application/json',
-        'content-encoding': 'gzip',
-      },
-      body: package.bytes,
-    );
-    if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
-      throw StateError('O envio do arquivo não foi concluído.');
-    }
-
-    return await _client.from('content_files').insert({
-      'owner_id': session.user.id,
-      'exam_id': examId,
-      'object_key': signed['objectKey'],
-      'original_name': fileName,
-      'mime_type': 'application/json',
-      'content_encoding': 'gzip',
-      'sha256': package.sha256,
-      'uncompressed_bytes': package.uncompressedBytes,
-      'compressed_bytes': package.bytes.length,
-      'status': 'ready',
-    }).select().single();
+  Future<Uint8List> downloadPackage(String fileId) async {
+    final cached = _memoryCache[fileId];
+    if (cached != null) return cached;
+    final metadata = await _client
+        .from('content_files')
+        .select('object_key')
+        .eq('id', fileId)
+        .eq('status', 'ready')
+        .single();
+    final bytes = await _client.storage
+        .from(bucket)
+        .download(metadata['object_key'] as String);
+    _memoryCache[fileId] = bytes;
+    return bytes;
   }
 }

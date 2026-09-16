@@ -1,9 +1,9 @@
--- Metadados de pacotes compactados armazenados fora do Supabase (Cloudflare R2).
+-- Metadados de pacotes compactados armazenados no Supabase Storage.
 create table if not exists public.content_files (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id) on delete cascade,
   exam_id uuid references public.exams(id) on delete cascade,
-  provider text not null default 'cloudflare_r2' check (provider in ('cloudflare_r2')),
+  provider text not null default 'supabase_storage',
   object_key text not null unique check (char_length(object_key) between 10 and 500),
   original_name text not null check (char_length(original_name) between 1 and 255),
   mime_type text not null check (char_length(mime_type) between 3 and 120),
@@ -22,6 +22,19 @@ create index if not exists content_files_ready_hash_idx on public.content_files(
 
 alter table public.content_files enable row level security;
 
+alter table public.content_files
+  drop constraint if exists content_files_provider_check;
+alter table public.content_files
+  alter column provider set default 'supabase_storage';
+alter table public.content_files
+  add constraint content_files_provider_check
+  check (provider in ('supabase_storage', 'cloudflare_r2'));
+
+drop policy if exists content_files_read on public.content_files;
+drop policy if exists content_files_owner_insert on public.content_files;
+drop policy if exists content_files_owner_update on public.content_files;
+drop policy if exists content_files_owner_delete on public.content_files;
+
 create policy content_files_read on public.content_files
 for select to anon, authenticated
 using (
@@ -38,7 +51,13 @@ using (
 
 create policy content_files_owner_insert on public.content_files
 for insert to authenticated
-with check (owner_id = (select auth.uid()));
+with check (
+  owner_id = (select auth.uid())
+  and exists (
+    select 1 from public.exams e
+    where e.id = exam_id and e.author_id = (select auth.uid())
+  )
+);
 
 create policy content_files_owner_update on public.content_files
 for update to authenticated
@@ -52,3 +71,70 @@ using (owner_id = (select auth.uid()));
 grant select on public.content_files to anon, authenticated;
 revoke insert, update, delete on public.content_files from anon;
 grant insert, update, delete on public.content_files to authenticated;
+
+-- Bucket privado. O limite de 25 MB também evita uploads acidentais muito grandes.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'exam-content',
+  'exam-content',
+  false,
+  26214400,
+  array[
+    'application/gzip',
+    'application/octet-stream',
+    'image/webp',
+    'image/svg+xml',
+    'image/png',
+    'image/jpeg'
+  ]
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists exam_content_insert on storage.objects;
+drop policy if exists exam_content_read on storage.objects;
+drop policy if exists exam_content_delete on storage.objects;
+
+create policy exam_content_insert on storage.objects
+for insert to authenticated
+with check (
+  bucket_id = 'exam-content'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+  and (
+    (storage.foldername(name))[2] = 'media'
+    or (
+      (storage.foldername(name))[2] = 'exams'
+      and exists (
+        select 1 from public.exams e
+        where e.id::text = (storage.foldername(name))[3]
+          and e.author_id = (select auth.uid())
+      )
+    )
+  )
+);
+
+create policy exam_content_read on storage.objects
+for select to anon, authenticated
+using (
+  bucket_id = 'exam-content'
+  and (
+    (storage.foldername(name))[1] = (select auth.uid())::text
+    or exists (
+      select 1 from public.content_files cf
+      join public.exams e on e.id = cf.exam_id
+      where cf.object_key = name
+        and cf.status = 'ready'
+        and e.status = 'published'
+        and e.is_public
+    )
+  )
+);
+
+create policy exam_content_delete on storage.objects
+for delete to authenticated
+using (
+  bucket_id = 'exam-content'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);

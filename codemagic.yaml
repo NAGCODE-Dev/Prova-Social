@@ -3,11 +3,9 @@ workflows:
     name: Prova Social - Android e Web
     max_build_duration: 60
     environment:
-      groups:
-        - Token
       flutter: stable
       android_signing:
-        - Prova-Key
+        - prova-social-keystore
     triggering:
       events:
         - push
