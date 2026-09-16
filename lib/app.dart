@@ -13,6 +13,8 @@ class ProvaSocialApp extends StatelessWidget {
       title: 'Prova Social',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       home: const UpdateGate(child: AuthGate()),
     );
   }

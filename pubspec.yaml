@@ -1,7 +1,7 @@
 name: prova_social
 description: Plataforma social para encontrar, resolver e compartilhar provas.
 publish_to: none
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -9,6 +9,7 @@ environment:
 dependencies:
   archive: 4.0.7
   crypto: 3.0.6
+  file_picker: 13.1.0
   flutter:
     sdk: flutter
   http: ^1.5.0

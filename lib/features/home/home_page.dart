@@ -6,6 +6,7 @@ import '../../core/widgets/brand.dart';
 import '../../data/sample_exams.dart';
 import '../../domain/models/exam.dart';
 import '../quiz/quiz_page.dart';
+import '../publish/publish_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -34,7 +35,7 @@ class _HomePageState extends State<HomePage> {
         final pages = [
           _HomeFeed(saved: saved, onSave: _toggleSave, onOpen: _openExam),
           _ExplorePage(query: query, category: category, saved: saved, onQuery: (value) => setState(() => query = value), onCategory: (value) => setState(() => category = value), onSave: _toggleSave, onOpen: _openExam),
-          const _PublishPage(),
+          const PublishPage(),
           _LibraryPage(saved: saved, onOpen: _openExam),
           const _ProfilePage(),
         ];
@@ -242,31 +243,6 @@ class SourceBadge extends StatelessWidget {
     decoration: BoxDecoration(color: official ? AppColors.brandSoft : AppColors.surfaceHover, borderRadius: BorderRadius.circular(7)),
     child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(official ? Icons.verified_outlined : Icons.people_outline_rounded, size: 14, color: official ? AppColors.brandHover : AppColors.muted), const SizedBox(width: 5), Text(official ? 'Fonte oficial' : 'Comunidade', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: official ? AppColors.brandHover : AppColors.muted))])),
   );
-}
-
-class _PublishPage extends StatelessWidget {
-  const _PublishPage();
-  @override
-  Widget build(BuildContext context) => _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text('O que você quer publicar?', style: Theme.of(context).textTheme.headlineMedium),
-    const SizedBox(height: 6),
-    const Text('Escolha um formato para começar.', style: TextStyle(color: AppColors.muted)),
-    const SizedBox(height: 28),
-    const _PublishOption(icon: Icons.description_outlined, title: 'Uma prova', subtitle: 'Importe questões, gabarito e informe a origem.'),
-    const SizedBox(height: 12),
-    const _PublishOption(icon: Icons.edit_note_rounded, title: 'Questões', subtitle: 'Publique questões avulsas para a comunidade.'),
-    const SizedBox(height: 12),
-    const _PublishOption(icon: Icons.library_books_outlined, title: 'Uma coleção', subtitle: 'Organize provas e questões por objetivo.'),
-  ]));
-}
-
-class _PublishOption extends StatelessWidget {
-  const _PublishOption({required this.icon, required this.title, required this.subtitle});
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  @override
-  Widget build(BuildContext context) => Card(child: ListTile(contentPadding: const EdgeInsets.all(18), leading: DecoratedBox(decoration: BoxDecoration(color: AppColors.brandSoft, borderRadius: BorderRadius.circular(10)), child: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, color: AppColors.brandHover))), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(subtitle)), trailing: const Icon(Icons.arrow_forward_rounded, color: AppColors.brand), onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fluxo de publicação será conectado ao banco na próxima etapa.')))));
 }
 
 class _LibraryPage extends StatelessWidget {
