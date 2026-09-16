@@ -14,6 +14,10 @@ GitHub Releases.
 - pacote digital em JSON GZip e imagens separadas com deduplicação SHA-256;
 - skeletons contextuais, modo escuro e redução de movimento;
 - atualização pelo GitHub e builds Android/Web pelo Codemagic.
+- feed, busca e biblioteca carregados do Supabase;
+- favoritos persistentes por usuário;
+- respostas salvas localmente durante a prova;
+- restauração da tentativa e sincronização do resultado concluído.
 
 ## Abrir no Firebase Studio/IDX, Android Studio ou VS Code
 

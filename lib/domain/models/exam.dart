@@ -22,12 +22,14 @@ class Exam {
 
 class Question {
   const Question({
+    this.id = '',
     required this.topic,
     required this.statement,
     required this.options,
     required this.correctIndex,
   });
 
+  final String id;
   final String topic;
   final String statement;
   final List<String> options;

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/backend/attempt_draft_store.dart';
+import '../../core/backend/attempt_repository.dart';
 import '../../domain/models/exam.dart';
 import '../result/result_page.dart';
 
@@ -15,6 +17,7 @@ class QuizPage extends StatefulWidget {
 }
 
 class _QuizPageState extends State<QuizPage> {
+  static const draftStore = AttemptDraftStore();
   final answers = <int, int>{};
   final review = <int>{};
   final elapsed = ValueNotifier<int>(0);
@@ -25,7 +28,29 @@ class _QuizPageState extends State<QuizPage> {
   void initState() {
     super.initState();
     timer = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
+    _restoreDraft();
   }
+
+  Future<void> _restoreDraft() async {
+    final draft = await draftStore.load(widget.exam.id);
+    if (draft == null || !mounted) return;
+    setState(() {
+      answers.addAll(draft.answers);
+      review.addAll(draft.review);
+      current = draft.current.clamp(0, widget.exam.questions.length - 1).toInt();
+      elapsed.value = draft.elapsedSeconds;
+    });
+  }
+
+  Future<void> _persistDraft() => draftStore.save(
+        widget.exam.id,
+        AttemptDraft(
+          answers: Map.of(answers),
+          review: Set.of(review),
+          current: current,
+          elapsedSeconds: elapsed.value,
+        ),
+      );
 
   @override
   void dispose() {
@@ -128,8 +153,10 @@ class _QuizPageState extends State<QuizPage> {
                                 key: ValueKey(current),
                                 question: widget.exam.questions[current],
                                 selected: answers[current],
-                                onSelected: (answer) =>
-                                    setState(() => answers[current] = answer),
+                                onSelected: (answer) {
+                                  setState(() => answers[current] = answer);
+                                  _persistDraft();
+                                },
                               ),
                             ),
                           ],
@@ -144,6 +171,7 @@ class _QuizPageState extends State<QuizPage> {
                     review.contains(current)
                         ? review.remove(current)
                         : review.add(current);
+                    _persistDraft();
                   }),
                   onPrevious:
                       current == 0 ? null : () => _selectQuestion(current - 1),
@@ -158,7 +186,10 @@ class _QuizPageState extends State<QuizPage> {
         }),
       );
 
-  void _selectQuestion(int index) => setState(() => current = index);
+  void _selectQuestion(int index) {
+    setState(() => current = index);
+    _persistDraft();
+  }
 
   Future<void> _confirmExit() async {
     final leave = await showDialog<bool>(
@@ -211,6 +242,12 @@ class _QuizPageState extends State<QuizPage> {
       durationSeconds: elapsed.value,
       finishedAt: DateTime.now(),
     );
+    try {
+      await AttemptRepository().saveCompleted(result);
+      await draftStore.clear(widget.exam.id);
+    } catch (_) {
+      await _persistDraft();
+    }
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),

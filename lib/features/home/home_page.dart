@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
-import '../../data/sample_exams.dart';
+import '../../core/backend/exam_repository.dart';
 import '../../domain/models/exam.dart';
 import '../quiz/quiz_page.dart';
 import '../publish/publish_page.dart';
@@ -16,10 +16,38 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final repository = ExamRepository();
   int currentTab = 0;
   String query = '';
   String category = 'Todos';
-  final saved = <String>{'pmesp-2024'};
+  final saved = <String>{};
+  List<Exam> exams = const [];
+  bool loading = true;
+  String? loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContent();
+  }
+
+  Future<void> _loadContent() async {
+    try {
+      final loadedExams = await repository.publishedExamModels();
+      final loadedSaved = await repository.savedExamIds();
+      if (!mounted) return;
+      setState(() {
+        exams = loadedExams;
+        saved
+          ..clear()
+          ..addAll(loadedSaved);
+        loading = false;
+        loadError = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() { loading = false; loadError = '$error'; });
+    }
+  }
 
   static const destinations = [
     (Icons.home_outlined, Icons.home_rounded, 'Início'),
@@ -33,10 +61,10 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 900;
         final pages = [
-          _HomeFeed(saved: saved, onSave: _toggleSave, onOpen: _openExam),
-          _ExplorePage(query: query, category: category, saved: saved, onQuery: (value) => setState(() => query = value), onCategory: (value) => setState(() => category = value), onSave: _toggleSave, onOpen: _openExam),
+          _HomeFeed(exams: exams, loading: loading, error: loadError, onRetry: _loadContent, saved: saved, onSave: _toggleSave, onOpen: _openExam),
+          _ExplorePage(exams: exams, query: query, category: category, saved: saved, onQuery: (value) => setState(() => query = value), onCategory: (value) => setState(() => category = value), onSave: _toggleSave, onOpen: _openExam),
           const PublishPage(),
-          _LibraryPage(saved: saved, onOpen: _openExam),
+          _LibraryPage(exams: exams, saved: saved, onOpen: _openExam),
           const _ProfilePage(),
         ];
         return Scaffold(
@@ -48,7 +76,7 @@ class _HomePageState extends State<HomePage> {
                 decoration: const BoxDecoration(color: AppColors.surface, border: Border(right: BorderSide(color: AppColors.line))),
                 child: SafeArea(child: Column(children: [
                   const Padding(padding: EdgeInsets.fromLTRB(24, 22, 16, 26), child: Align(alignment: Alignment.centerLeft, child: BrandLockup())),
-                  ...List.generate(destinations.length, (index) => _RailItem(data: destinations[index], selected: currentTab == index, onTap: () => setState(() => currentTab = index))),
+                  ...List.generate(destinations.length, (index) => _RailItem(data: destinations[index], selected: currentTab == index, onTap: () => _selectTab(index))),
                   const Spacer(),
                   const Padding(padding: EdgeInsets.all(16), child: _UserTile()),
                 ])),
@@ -60,13 +88,28 @@ class _HomePageState extends State<HomePage> {
           ]),
           bottomNavigationBar: desktop ? null : NavigationBar(
             selectedIndex: currentTab,
-            onDestinationSelected: (value) => setState(() => currentTab = value),
+            onDestinationSelected: _selectTab,
             destinations: destinations.map((item) => NavigationDestination(icon: Icon(item.$1), selectedIcon: Icon(item.$2), label: item.$3)).toList(),
           ),
         );
       });
 
-  void _toggleSave(String id) => setState(() => saved.contains(id) ? saved.remove(id) : saved.add(id));
+  void _selectTab(int value) {
+    setState(() => currentTab = value);
+    if (value == 0 || value == 1 || value == 3) _loadContent();
+  }
+
+  Future<void> _toggleSave(String id) async {
+    final wasSaved = saved.contains(id);
+    setState(() => wasSaved ? saved.remove(id) : saved.add(id));
+    try {
+      wasSaved ? await repository.removeSavedExam(id) : await repository.saveExam(id);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => wasSaved ? saved.add(id) : saved.remove(id));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não foi possível atualizar a biblioteca: $error')));
+    }
+  }
 
   Future<void> _openExam(Exam exam) async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => _ExamDetails(exam: exam, saved: saved.contains(exam.id), onSave: () => _toggleSave(exam.id))));
@@ -125,7 +168,11 @@ class _RailItem extends StatelessWidget {
 }
 
 class _HomeFeed extends StatelessWidget {
-  const _HomeFeed({required this.saved, required this.onSave, required this.onOpen});
+  const _HomeFeed({required this.exams, required this.loading, required this.error, required this.onRetry, required this.saved, required this.onSave, required this.onOpen});
+  final List<Exam> exams;
+  final bool loading;
+  final String? error;
+  final VoidCallback onRetry;
   final Set<String> saved;
   final ValueChanged<String> onSave;
   final ValueChanged<Exam> onOpen;
@@ -135,13 +182,15 @@ class _HomeFeed extends StatelessWidget {
         const SizedBox(height: 6),
         const Text('Escolha uma prova e continue avançando.', style: TextStyle(color: AppColors.muted)),
         const SizedBox(height: 28),
-        const _SectionTitle('Continue de onde parou'),
-        const SizedBox(height: 12),
-        _ContinueCard(exam: sampleExams.first, onTap: () => onOpen(sampleExams.first)),
-        const SizedBox(height: 32),
+        if (loading) const LinearProgressIndicator() else if (error != null) Card(child: ListTile(title: const Text('Não foi possível carregar as provas'), subtitle: Text(error!), trailing: IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded)))) else if (exams.isNotEmpty) ...[
+          const _SectionTitle('Continue estudando'),
+          const SizedBox(height: 12),
+          _ContinueCard(exam: exams.first, onTap: () => onOpen(exams.first)),
+          const SizedBox(height: 32),
+        ],
         const _SectionTitle('Para você'),
         const SizedBox(height: 12),
-        _ExamGrid(exams: sampleExams, saved: saved, onSave: onSave, onOpen: onOpen),
+        if (!loading && exams.isEmpty) const Text('Nenhuma prova publicada ainda.') else _ExamGrid(exams: exams, saved: saved, onSave: onSave, onOpen: onOpen),
       ]));
 }
 
@@ -166,7 +215,8 @@ class _ContinueCard extends StatelessWidget {
 }
 
 class _ExplorePage extends StatelessWidget {
-  const _ExplorePage({required this.query, required this.category, required this.saved, required this.onQuery, required this.onCategory, required this.onSave, required this.onOpen});
+  const _ExplorePage({required this.exams, required this.query, required this.category, required this.saved, required this.onQuery, required this.onCategory, required this.onSave, required this.onOpen});
+  final List<Exam> exams;
   final String query;
   final String category;
   final Set<String> saved;
@@ -179,7 +229,7 @@ class _ExplorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     const categories = ['Todos', 'Concursos', 'ENEM', 'Matemática', 'História'];
     final normalized = query.trim().toLowerCase();
-    final exams = sampleExams.where((exam) => (category == 'Todos' || exam.category == category) && (normalized.isEmpty || '${exam.title} ${exam.description}'.toLowerCase().contains(normalized))).toList();
+    final filtered = exams.where((exam) => (category == 'Todos' || exam.category == category) && (normalized.isEmpty || '${exam.title} ${exam.description}'.toLowerCase().contains(normalized))).toList();
     return _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('O que você quer estudar?', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 18),
@@ -189,7 +239,7 @@ class _ExplorePage extends StatelessWidget {
       const SizedBox(height: 28),
       const _SectionTitle('Provas e questões'),
       const SizedBox(height: 12),
-      if (exams.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 48), child: Center(child: Text('Nenhum resultado encontrado.', style: TextStyle(color: AppColors.muted)))) else _ExamGrid(exams: exams, saved: saved, onSave: onSave, onOpen: onOpen),
+      if (filtered.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 48), child: Center(child: Text('Nenhum resultado encontrado.', style: TextStyle(color: AppColors.muted)))) else _ExamGrid(exams: filtered, saved: saved, onSave: onSave, onOpen: onOpen),
     ]));
   }
 }
@@ -246,12 +296,13 @@ class SourceBadge extends StatelessWidget {
 }
 
 class _LibraryPage extends StatelessWidget {
-  const _LibraryPage({required this.saved, required this.onOpen});
+  const _LibraryPage({required this.exams, required this.saved, required this.onOpen});
+  final List<Exam> exams;
   final Set<String> saved;
   final ValueChanged<Exam> onOpen;
   @override
   Widget build(BuildContext context) {
-    final exams = sampleExams.where((exam) => saved.contains(exam.id)).toList();
+    final savedExams = exams.where((exam) => saved.contains(exam.id)).toList();
     return _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Sua biblioteca', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 18),
@@ -259,7 +310,7 @@ class _LibraryPage extends StatelessWidget {
       const SizedBox(height: 28),
       const _SectionTitle('Provas salvas'),
       const SizedBox(height: 12),
-      if (exams.isEmpty) const Text('Salve uma prova para encontrá-la aqui.', style: TextStyle(color: AppColors.muted)) else _ExamGrid(exams: exams, saved: saved, onSave: (_) {}, onOpen: onOpen),
+      if (savedExams.isEmpty) const Text('Salve uma prova para encontrá-la aqui.', style: TextStyle(color: AppColors.muted)) else _ExamGrid(exams: savedExams, saved: saved, onSave: (_) {}, onOpen: onOpen),
     ]));
   }
 }
