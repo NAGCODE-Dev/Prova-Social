@@ -5,7 +5,7 @@ workflows:
     environment:
       flutter: stable
       android_signing:
-        - prova-social-keystore
+        - Prova-Key
     triggering:
       events:
         - push
