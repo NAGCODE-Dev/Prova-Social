@@ -4,11 +4,17 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      android_signing:
+        - prova-social-keystore
     triggering:
       events:
         - push
+        - tag
       branch_patterns:
         - pattern: main
+          include: true
+          source: true
+        - pattern: '*'
           include: true
           source: true
       cancel_previous_builds: true
@@ -19,6 +25,37 @@ workflows:
             flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode
           fi
           rm -f test/widget_test.dart
+      - name: Configurar assinatura Android
+        script: |
+          cat > android/key.properties <<EOF
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$CM_KEYSTORE_PATH
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('android/app/build.gradle.kts')
+          text = path.read_text()
+          if 'CM_KEYSTORE_PATH' not in text:
+              signing = '''    signingConfigs {
+                  create("release") {
+                      storeFile = file(System.getenv("CM_KEYSTORE_PATH"))
+                      storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("CM_KEY_ALIAS")
+                      keyPassword = System.getenv("CM_KEY_PASSWORD")
+                  }
+              }
+
+          '''
+              text = text.replace('    buildTypes {', signing + '    buildTypes {')
+          text = text.replace(
+              'signingConfig = signingConfigs.getByName("debug")',
+              'signingConfig = signingConfigs.getByName("release")',
+          )
+          path.write_text(text)
+          PY
       - name: Instalar dependências
         script: flutter pub get
       - name: Aplicar ícone do aplicativo
@@ -29,10 +66,30 @@ workflows:
         script: flutter analyze --no-fatal-infos
       - name: Executar testes
         script: flutter test
-      - name: Gerar APKs compactos
+      - name: Gerar APK universal assinado
+        script: |
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            build/app/outputs/flutter-apk/prova-social-android.apk
+      - name: Gerar APKs compactos assinados
         script: flutter build apk --release --split-per-abi
       - name: Gerar versão web
         script: flutter build web --release
+      - name: Publicar GitHub Release
+        script: |
+          if [ -z "${CM_TAG:-}" ]; then
+            echo "Build sem tag: os artefatos não serão publicados como Release."
+            exit 0
+          fi
+          export GH_TOKEN="$GITHUB_TOKEN"
+          gh release create "$CM_TAG" \
+            --repo NAGCODE-Dev/Prova-Social \
+            --title "Prova Social $CM_TAG" \
+            --generate-notes \
+            build/app/outputs/flutter-apk/prova-social-android.apk \
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
     artifacts:
-      - build/app/outputs/flutter-apk/*-release.apk
+      - build/app/outputs/flutter-apk/*.apk
       - build/web/**

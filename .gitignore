@@ -32,3 +32,7 @@ google-services.json
 
 # Android Profiling
 *.hprof
+# Chaves de assinatura Android nunca devem entrar no Git.
+*.keystore
+*.jks
+android/key.properties
