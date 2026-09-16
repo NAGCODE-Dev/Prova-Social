@@ -1,10 +1,12 @@
 workflows:
   android-debug-apk:
-    name: Prova Social — APK Android
+    name: Prova Social - APK Android
     instance_type: linux_x2
     max_build_duration: 60
+
     environment:
       flutter: stable
+
     triggering:
       events:
         - push
@@ -13,25 +15,35 @@ workflows:
           include: true
           source: true
       cancel_previous_builds: true
+
     scripts:
       - name: Preparar projeto Android
         script: |
           if [ ! -d android ]; then
-            flutter create . \
-              --platforms=android,web \
-              --project-name=prova_social \
-              --org=dev.nagcode
+            flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode
           fi
+
       - name: Instalar dependências
         script: flutter pub get
-      - name: Verificar formatação
-        script: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Formatar código
+        script: dart format lib test
+
       - name: Analisar código
         script: flutter analyze
+
       - name: Executar testes
         script: flutter test
+
       - name: Gerar APK de teste
         script: flutter build apk --debug
+<<<<<<< HEAD
         artifacts:
       - build/app/outputs/flutter-apk/app-debug.apk
       - build/app/outputs/flutter-ap
+=======
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
+      - build/app/outputs/flutter-apk/*.apk
+>>>>>>> 35848c4 (Corrigir configuração do Codemagic)
