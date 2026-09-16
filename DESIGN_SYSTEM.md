@@ -32,5 +32,6 @@
 Arquivo → identificação → processamento → revisão → publicação.
 
 O app nunca inventa progresso: enquanto o extrator não estiver conectado, a
-interface informa claramente esse estado. O PDF original não é distribuído;
+interface informa claramente esse estado. Na versão 0.4.0, PDFs pesquisáveis
+são extraídos localmente e digitalizações recebem OCR local no Android. O PDF original não é distribuído;
 JSON GZip e figuras otimizadas são os objetos consumidos pelo app.

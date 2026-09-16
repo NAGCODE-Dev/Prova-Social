@@ -7,7 +7,7 @@ Esta versão não utiliza Cloudflare R2 nem exige variável adicional no Codemag
 ```sh
 cd ~/Prova-Social-repo
 mkdir -p ~/prova-social-supabase
-unzip -o /storage/emulated/0/Download/Prova-Social-interface-focus-pdf-v0.3.0.zip \
+unzip -o /storage/emulated/0/Download/Prova-Social-digitalizacao-v0.4.0.zip \
   -d ~/prova-social-supabase
 cp -r ~/prova-social-supabase/. ~/Prova-Social-repo/
 ```
@@ -17,7 +17,7 @@ cp -r ~/prova-social-supabase/. ~/Prova-Social-repo/
 ```sh
 cd ~/Prova-Social-repo
 git add .
-git commit -m "Aplicar interface Focus Mode e fluxo de PDF"
+git commit -m "Adicionar digitalização e publicação de provas"
 git pull --rebase origin main
 git push origin main
 ```

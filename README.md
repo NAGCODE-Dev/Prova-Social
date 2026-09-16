@@ -49,10 +49,12 @@ No Codemagic:
 - `supabase`: esquema, políticas e funções de armazenamento
 - `test`: testes das regras principais
 
-## Estado do PDF
+## Estado do PDF — versão 0.4.0
 
-As telas de seleção e identificação estão prontas. A extração automática/OCR
-ainda precisa ser conectada; a interface informa isso claramente e não simula
-resultados. O PDF original não é distribuído aos alunos.
+PDFs pesquisáveis são lidos no próprio dispositivo. No Android, páginas sem
+camada de texto são renderizadas e processadas localmente por OCR. O importador
+identifica questões numeradas, alternativas A–E e abre uma revisão manual de
+enunciados e gabarito. A versão Web mantém a extração textual e encaminha PDFs
+digitalizados para o aplicativo Android. O PDF original não é distribuído.
 
 Nenhuma chave ou segredo deve ser incluído no repositório.
