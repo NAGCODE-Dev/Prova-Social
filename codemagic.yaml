@@ -1,11 +1,9 @@
 workflows:
-  android-debug-apk:
-    name: Prova Social - APK Android
+  android-release:
+    name: Prova Social - Android e Web
     max_build_duration: 60
-
     environment:
       flutter: stable
-
     triggering:
       events:
         - push
@@ -14,32 +12,27 @@ workflows:
           include: true
           source: true
       cancel_previous_builds: true
-
     scripts:
-      - name: Preparar projeto Android
+      - name: Preparar plataformas
         script: |
-          if [ ! -d android ]; then
+          if [ ! -d android ] || [ ! -d web ]; then
             flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode
           fi
-          if [ -f test/widget_test.dart ]; then
-            rm test/widget_test.dart
-          fi
-
+          rm -f test/widget_test.dart
       - name: Instalar dependências
         script: flutter pub get
-
+      - name: Aplicar ícone do aplicativo
+        script: dart run flutter_launcher_icons
       - name: Formatar código
         script: dart format lib test
-
       - name: Analisar código
         script: flutter analyze --no-fatal-infos
-
       - name: Executar testes
         script: flutter test
-
-      - name: Gerar APK de teste
-        script: flutter build apk --debug
-
+      - name: Gerar APKs compactos
+        script: flutter build apk --release --split-per-abi
+      - name: Gerar versão web
+        script: flutter build web --release
     artifacts:
-      - build/app/outputs/flutter-apk/app-debug.apk
-      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/flutter-apk/*-release.apk
+      - build/web/**
