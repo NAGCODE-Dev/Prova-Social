@@ -38,6 +38,14 @@ workflows:
           keyAlias=$CM_KEY_ALIAS
           storeFile=$CM_KEYSTORE_PATH
           EOF
+          cat > android/app/proguard-rules.pro <<'EOF'
+          # O app usa somente o reconhecedor latino, incluído pelo plugin.
+          # Os demais reconhecedores são módulos opcionais e não fazem parte do APK.
+          -dontwarn com.google.mlkit.vision.text.chinese.**
+          -dontwarn com.google.mlkit.vision.text.devanagari.**
+          -dontwarn com.google.mlkit.vision.text.japanese.**
+          -dontwarn com.google.mlkit.vision.text.korean.**
+          EOF
           python3 - <<'PY'
           from pathlib import Path
 
@@ -78,10 +86,31 @@ workflows:
                   'signingConfig = signingConfigs.getByName("debug")',
                   'signingConfig = signingConfigs.getByName("release")',
               )
+              release_marker = '        release {'
+              proguard_line = (
+                  '            proguardFiles('
+                  'getDefaultProguardFile("proguard-android-optimize.txt"), '
+                  '"proguard-rules.pro")\n'
+              )
           else:
               text = text.replace(
                   'signingConfig signingConfigs.debug',
                   'signingConfig signingConfigs.release',
+              )
+              release_marker = '        release {'
+              proguard_line = (
+                  "            proguardFiles getDefaultProguardFile("
+                  "'proguard-android-optimize.txt'), 'proguard-rules.pro'\n"
+              )
+          if 'proguard-rules.pro' not in text:
+              if release_marker not in text:
+                  raise SystemExit(
+                      'Bloco release não encontrado na configuração Android.'
+                  )
+              text = text.replace(
+                  release_marker,
+                  release_marker + '\n' + proguard_line,
+                  1,
               )
           path.write_text(text)
           PY
