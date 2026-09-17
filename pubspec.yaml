@@ -4,7 +4,7 @@ publish_to: none
 version: 0.5.0+5
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"\n  flutter: ">=3.47.0"
 
 dependencies:
   archive: 4.0.9
@@ -13,9 +13,9 @@ dependencies:
   flutter:
     sdk: flutter
   google_mlkit_text_recognition: 0.17.1
-  http: ^1.5.0
+  http: 1.6.0
   image: 4.10.1
-  package_info_plus: ^8.3.1
+  package_info_plus: 10.2.1
   path_provider: 2.1.5
   pdfrx: 2.6.1
   shared_preferences: 2.5.3
