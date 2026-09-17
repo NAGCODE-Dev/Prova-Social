@@ -26,8 +26,9 @@ class QuestionParser {
         .replaceAll('\r', '\n')
         .replaceAll(RegExp(r'[ \t]+'), ' ');
     final starts = RegExp(
-      r'(?m)^\s*(?:quest[aã]o\s*)?(\d{1,3})\s*(?:[.:–)]|-)+\s*',
+      r'^\s*(?:quest[aã]o\s*)?(\d{1,3})\s*(?:[.:–)]|-)+\s*',
       caseSensitive: false,
+      multiLine: true,
     ).allMatches(normalized).toList();
     final questions = <ImportedQuestion>[];
     for (var index = 0; index < starts.length; index++) {
@@ -43,7 +44,8 @@ class QuestionParser {
 
   ImportedQuestion? _parseBlock(String block) {
     final optionPattern = RegExp(
-      r'(?m)^\s*(?:\(|\[)?([A-Ea-e])(?:\)|\]|[.:-])\s+',
+      r'^\s*(?:\(|\[)?([A-Ea-e])(?:\)|\]|[.:-])\s+',
+      multiLine: true,
     );
     final matches = optionPattern.allMatches(block).toList();
     if (matches.length < 2) {
