@@ -45,7 +45,12 @@ class _HomePageState extends State<HomePage> {
         loadError = null;
       });
     } catch (error) {
-      if (mounted) setState(() { loading = false; loadError = '$error'; });
+      if (mounted) {
+        setState(() {
+          loading = false;
+          loadError = '$error';
+        });
+      }
     }
   }
 

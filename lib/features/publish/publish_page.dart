@@ -382,12 +382,12 @@ class _PdfPreparationPageState extends State<PdfPreparationPage> {
                         controller: source,
                         decoration: const InputDecoration(labelText: 'Banca ou origem')),
                     const SizedBox(height: AppSpacing.md),
-                    const Row(children: [
+                    Row(children: [
                       Expanded(
                         child: TextField(
                           controller: year,
                           keyboardType: TextInputType.number,
-                          decoration: InputDecoration(labelText: 'Ano'),
+                          decoration: const InputDecoration(labelText: 'Ano'),
                         ),
                       ),
                       SizedBox(width: AppSpacing.md),
@@ -395,8 +395,9 @@ class _PdfPreparationPageState extends State<PdfPreparationPage> {
                         child: TextField(
                           controller: duration,
                           keyboardType: TextInputType.number,
-                          decoration:
-                              InputDecoration(labelText: 'Duração em minutos'),
+                          decoration: const InputDecoration(
+                            labelText: 'Duração em minutos',
+                          ),
                         ),
                       ),
                     ]),
@@ -619,16 +620,30 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     for (var option = 0; option < question.options.length; option++)
-                      RadioListTile<int>(
-                        value: option,
-                        groupValue: question.correctIndex,
-                        onChanged: (value) => setState(() => question.correctIndex = value),
+                      ListTile(
+                        onTap: () => setState(
+                          () => question.correctIndex = option,
+                        ),
+                        leading: Icon(
+                          option == question.correctIndex
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: option == question.correctIndex
+                              ? AppColors.brand
+                              : null,
+                        ),
                         title: TextFormField(
                           initialValue: question.options[option],
-                          decoration: InputDecoration(labelText: 'Alternativa ${String.fromCharCode(65 + option)}'),
-                          onChanged: (value) => question.options[option] = value,
+                          decoration: InputDecoration(
+                            labelText:
+                                'Alternativa ${String.fromCharCode(65 + option)}',
+                          ),
+                          onChanged: (value) =>
+                              question.options[option] = value,
                         ),
-                        subtitle: option == question.correctIndex ? const Text('Resposta correta') : null,
+                        subtitle: option == question.correctIndex
+                            ? const Text('Resposta correta')
+                            : null,
                       ),
                   ],
                 ),

@@ -62,7 +62,9 @@ class ExamRepository {
 
   Future<void> saveExam(String examId) async {
     final user = _client.auth.currentUser;
-    if (user == null) throw const AuthException('Faça login para salvar provas.');
+    if (user == null) {
+      throw const AuthException('Faça login para salvar provas.');
+    }
     await _client.from('favorites').upsert({
       'user_id': user.id,
       'exam_id': examId,

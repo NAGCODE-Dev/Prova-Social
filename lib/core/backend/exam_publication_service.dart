@@ -19,7 +19,9 @@ class ExamPublicationService {
     int? year,
   }) async {
     final user = _client.auth.currentUser;
-    if (user == null) throw const AuthException('Entre na conta para publicar.');
+    if (user == null) {
+      throw const AuthException('Entre na conta para publicar.');
+    }
 
     final exam = await _client
         .from('exams')
