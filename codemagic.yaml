@@ -19,14 +19,19 @@ workflows:
           source: true
       cancel_previous_builds: true
     scripts:
-      - name: Preparar plataformas
+      - name: Preparar plataforma e assinatura Android
         script: |
-          if [ ! -d android ] || [ ! -d web ]; then
-            flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode
-          fi
+          set -e
+          flutter create . \
+            --platforms=android,web \
+            --project-name=prova_social \
+            --org=dev.nagcode \
+            --no-pub
+          test -d android
+          test -d web
+          test -f android/app/build.gradle.kts -o -f android/app/build.gradle
           rm -f test/widget_test.dart
-      - name: Configurar assinatura Android
-        script: |
+          mkdir -p android
           cat > android/key.properties <<EOF
           storePassword=$CM_KEYSTORE_PASSWORD
           keyPassword=$CM_KEY_PASSWORD
@@ -36,10 +41,17 @@ workflows:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('android/app/build.gradle.kts')
+          candidates = [
+              Path('android/app/build.gradle.kts'),
+              Path('android/app/build.gradle'),
+          ]
+          path = next((item for item in candidates if item.exists()), None)
+          if path is None:
+              raise SystemExit('Gradle Android não foi gerado pelo flutter create.')
           text = path.read_text()
           if 'CM_KEYSTORE_PATH' not in text:
-              signing = '''    signingConfigs {
+              if path.suffix == '.kts':
+                  signing = '''    signingConfigs {
                   create("release") {
                       storeFile = file(System.getenv("CM_KEYSTORE_PATH"))
                       storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
@@ -49,11 +61,28 @@ workflows:
               }
 
           '''
+              else:
+                  signing = '''    signingConfigs {
+                  release {
+                      storeFile file(System.getenv("CM_KEYSTORE_PATH"))
+                      storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("CM_KEY_ALIAS")
+                      keyPassword System.getenv("CM_KEY_PASSWORD")
+                  }
+              }
+
+          '''
               text = text.replace('    buildTypes {', signing + '    buildTypes {')
-          text = text.replace(
-              'signingConfig = signingConfigs.getByName("debug")',
-              'signingConfig = signingConfigs.getByName("release")',
-          )
+          if path.suffix == '.kts':
+              text = text.replace(
+                  'signingConfig = signingConfigs.getByName("debug")',
+                  'signingConfig = signingConfigs.getByName("release")',
+              )
+          else:
+              text = text.replace(
+                  'signingConfig signingConfigs.debug',
+                  'signingConfig signingConfigs.release',
+              )
           path.write_text(text)
           PY
       - name: Instalar dependências
