@@ -1,7 +1,7 @@
 name: prova_social
 description: Plataforma social para encontrar, resolver e compartilhar provas.
 publish_to: none
-version: 0.6.0+6
+version: 0.6.1+7
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
