@@ -1,24 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home/home_page.dart';
-import 'auth_page.dart';
+import '../onboarding/onboarding_page.dart';
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) => StreamBuilder<AuthState>(
-        stream: Supabase.instance.client.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          final session = snapshot.data?.session ??
-              Supabase.instance.client.auth.currentSession;
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            child: session == null
-                ? const AuthPage(key: ValueKey('auth'))
-                : const HomePage(key: ValueKey('home')),
-          );
-        },
-      );
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool? completed;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => completed = preferences.getBool('onboarding_complete') ?? false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (completed == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return completed! ? const HomePage() : const OnboardingPage();
+  }
 }

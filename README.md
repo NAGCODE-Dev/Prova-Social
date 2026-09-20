@@ -48,7 +48,7 @@ No Codemagic:
 
 - `lib/core`: tema, backend, atualização e componentes compartilhados
 - `lib/domain`: modelos e regras da aplicação
-- `lib/data`: dados demonstrativos e integração progressiva com Supabase
+- `lib/core/backend`: integração real com autenticação e dados do Supabase
 - `lib/features`: páginas agrupadas por funcionalidade
 - `supabase`: esquema, políticas e funções de armazenamento
 - `test`: testes das regras principais

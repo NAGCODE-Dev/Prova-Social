@@ -10,7 +10,7 @@ class AttemptRepository {
 
   Future<void> saveCompleted(ExamResult result) async {
     final user = _client.auth.currentUser;
-    if (user == null || result.exam.id.startsWith('sample-')) return;
+    if (user == null) return;
     final attempt = await _client.from('attempts').insert({
       'user_id': user.id,
       'exam_id': result.exam.id,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +9,7 @@ import '../../core/backend/exam_repository.dart';
 import '../../domain/models/exam.dart';
 import '../quiz/quiz_page.dart';
 import '../publish/publish_page.dart';
+import '../auth/auth_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -24,11 +27,24 @@ class _HomePageState extends State<HomePage> {
   List<Exam> exams = const [];
   bool loading = true;
   String? loadError;
+  StreamSubscription<AuthState>? authSubscription;
 
   @override
   void initState() {
     super.initState();
+    authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      if (mounted) {
+        setState(() {});
+        _loadContent();
+      }
+    });
     _loadContent();
+  }
+
+  @override
+  void dispose() {
+    authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadContent() async {
@@ -69,7 +85,12 @@ class _HomePageState extends State<HomePage> {
           _HomeFeed(exams: exams, loading: loading, error: loadError, onRetry: _loadContent, saved: saved, onSave: _toggleSave, onOpen: _openExam),
           _ExplorePage(exams: exams, query: query, category: category, saved: saved, onQuery: (value) => setState(() => query = value), onCategory: (value) => setState(() => category = value), onSave: _toggleSave, onOpen: _openExam),
           const PublishPage(),
-          _LibraryPage(exams: exams, saved: saved, onOpen: _openExam),
+          _LibraryPage(
+            exams: exams,
+            saved: saved,
+            onOpen: _openExam,
+            onSignIn: _openLogin,
+          ),
           const _ProfilePage(),
         ];
         return Scaffold(
@@ -99,12 +120,18 @@ class _HomePageState extends State<HomePage> {
         );
       });
 
-  void _selectTab(int value) {
+  Future<void> _selectTab(int value) async {
+    if (value == 2 && !await _requireAccount('publicar uma prova')) {
+      return;
+    }
     setState(() => currentTab = value);
     if (value == 0 || value == 1 || value == 3) _loadContent();
   }
 
   Future<void> _toggleSave(String id) async {
+    if (!await _requireAccount('salvar provas na sua biblioteca')) {
+      return;
+    }
     final wasSaved = saved.contains(id);
     setState(() => wasSaved ? saved.remove(id) : saved.add(id));
     try {
@@ -118,6 +145,59 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openExam(Exam exam) async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => _ExamDetails(exam: exam, saved: saved.contains(exam.id), onSave: () => _toggleSave(exam.id))));
+  }
+
+  Future<void> _openLogin() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AuthPage(closeAfterAuth: true),
+      ),
+    );
+    if (mounted) {
+      await _loadContent();
+      setState(() {});
+    }
+  }
+
+  Future<bool> _requireAccount(String reason) async {
+    if (Supabase.instance.client.auth.currentUser != null) return true;
+    final shouldOpen = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.person_outline_rounded,
+                size: 36, color: AppColors.brand),
+            const SizedBox(height: 16),
+            Text('Use sua conta',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(
+              'Você pode explorar e fazer provas sem login. Entre apenas para $reason.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Entrar ou criar conta'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Continuar explorando'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (shouldOpen != true || !mounted) return false;
+    await _openLogin();
+    return Supabase.instance.client.auth.currentUser != null;
   }
 }
 
@@ -135,12 +215,31 @@ class _DesktopTopBar extends StatelessWidget {
 class _HeaderActions extends StatelessWidget {
   const _HeaderActions();
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+    final name = user?.userMetadata?['display_name']?.toString().trim();
+    final initials = (name == null || name.isEmpty)
+        ? null
+        : name.split(RegExp(r'\s+')).take(2).map((part) => part[0]).join();
+    return Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(onPressed: () {}, tooltip: 'Notificações', icon: const Icon(Icons.notifications_none_rounded)),
         const SizedBox(width: 4),
-        const CircleAvatar(radius: 18, backgroundColor: AppColors.brandSoft, child: Text('NA', style: TextStyle(color: AppColors.brandHover, fontSize: 11, fontWeight: FontWeight.w800))),
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: AppColors.brandSoft,
+          child: initials == null
+              ? const Icon(Icons.person_outline_rounded,
+                  size: 19, color: AppColors.brandHover)
+              : Text(initials.toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.brandHover,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  )),
+        ),
         const SizedBox(width: 12),
       ]);
+  }
 }
 
 class _SearchBox extends StatelessWidget {
@@ -183,40 +282,15 @@ class _HomeFeed extends StatelessWidget {
   final ValueChanged<Exam> onOpen;
   @override
   Widget build(BuildContext context) => _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Olá, Nikolas', style: Theme.of(context).textTheme.headlineMedium),
+        Text('Encontre sua próxima prova', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 6),
-        const Text('Escolha uma prova e continue avançando.', style: TextStyle(color: AppColors.muted)),
+        const Text('Materiais publicados pela comunidade, com origem visível.', style: TextStyle(color: AppColors.muted)),
         const SizedBox(height: 28),
-        if (loading) const LinearProgressIndicator() else if (error != null) Card(child: ListTile(title: const Text('Não foi possível carregar as provas'), subtitle: Text(error!), trailing: IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded)))) else if (exams.isNotEmpty) ...[
-          const _SectionTitle('Continue estudando'),
-          const SizedBox(height: 12),
-          _ContinueCard(exam: exams.first, onTap: () => onOpen(exams.first)),
-          const SizedBox(height: 32),
-        ],
-        const _SectionTitle('Para você'),
+        if (loading) const LinearProgressIndicator() else if (error != null) Card(child: ListTile(title: const Text('Não foi possível carregar as provas'), subtitle: Text(error!), trailing: IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded)))),
+        const _SectionTitle('Publicadas recentemente'),
         const SizedBox(height: 12),
         if (!loading && exams.isEmpty) const Text('Nenhuma prova publicada ainda.') else _ExamGrid(exams: exams, saved: saved, onSave: onSave, onOpen: onOpen),
       ]));
-}
-
-class _ContinueCard extends StatelessWidget {
-  const _ContinueCard({required this.exam, required this.onTap});
-  final Exam exam;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const SourceBadge(official: true),
-          const SizedBox(height: 14),
-          Text(exam.title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 14),
-          const Row(children: [Expanded(child: LinearProgressIndicator(value: .64, minHeight: 6, backgroundColor: AppColors.line, color: AppColors.brand, borderRadius: BorderRadius.all(Radius.circular(6)))), SizedBox(width: 12), Text('64%', style: TextStyle(fontWeight: FontWeight.w700))]),
-          const SizedBox(height: 10),
-          const Text('51 de 80 questões · Continuar', style: TextStyle(color: AppColors.muted)),
-        ]))),
-      );
 }
 
 class _ExplorePage extends StatelessWidget {
@@ -256,16 +330,13 @@ class _ExamGrid extends StatelessWidget {
   final ValueChanged<String> onSave;
   final ValueChanged<Exam> onOpen;
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
-    final count = constraints.maxWidth >= 1000 ? 3 : constraints.maxWidth >= 620 ? 2 : 1;
-    return GridView.builder(
+  Widget build(BuildContext context) => ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: exams.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: count, mainAxisExtent: 286, crossAxisSpacing: 16, mainAxisSpacing: 16),
       itemBuilder: (_, index) => ExamCard(exam: exams[index], saved: saved.contains(exams[index].id), onSave: () => onSave(exams[index].id), onOpen: () => onOpen(exams[index])),
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
     );
-  });
 }
 
 class ExamCard extends StatelessWidget {
@@ -275,41 +346,147 @@ class ExamCard extends StatelessWidget {
   final VoidCallback onSave;
   final VoidCallback onOpen;
   @override
-  Widget build(BuildContext context) => Card(child: InkWell(onTap: onOpen, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Row(children: [const SourceBadge(official: false), const Spacer(), IconButton(onPressed: onSave, tooltip: 'Salvar', icon: Icon(saved ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: saved ? AppColors.brand : AppColors.muted))]),
-    const SizedBox(height: 8),
-    Text(exam.category.toUpperCase(), style: const TextStyle(color: AppColors.brandHover, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .8)),
-    const SizedBox(height: 8),
-    Text(exam.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleLarge),
-    const SizedBox(height: 8),
-    Text(exam.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.muted)),
-    const Spacer(),
-    Text('${exam.questions.length} questões · ${exam.durationMinutes} min', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-    const SizedBox(height: 12),
-    Row(children: [Expanded(child: Text('${exam.attempts} fizeram', style: const TextStyle(color: AppColors.muted, fontSize: 12))), const Icon(Icons.arrow_forward_rounded, size: 20, color: AppColors.brand)]),
-  ]))));
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: Theme.of(context).colorScheme.outline),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.brandSoft,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: const Icon(Icons.menu_book_rounded,
+                      color: AppColors.brandHover),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              exam.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const SourceBadge(official: false, compact: true),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${exam.category} · ${exam.questions.length} questões · ${exam.durationMinutes} min',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        exam.author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: onSave,
+                  tooltip: saved ? 'Remover dos salvos' : 'Salvar',
+                  icon: Icon(
+                    saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                    color: saved ? AppColors.brand : AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class SourceBadge extends StatelessWidget {
-  const SourceBadge({required this.official, super.key});
+  const SourceBadge({required this.official, this.compact = false, super.key});
   final bool official;
+  final bool compact;
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(color: official ? AppColors.brandSoft : AppColors.surfaceHover, borderRadius: BorderRadius.circular(7)),
-    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(official ? Icons.verified_outlined : Icons.people_outline_rounded, size: 14, color: official ? AppColors.brandHover : AppColors.muted), const SizedBox(width: 5), Text(official ? 'Fonte oficial' : 'Comunidade', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: official ? AppColors.brandHover : AppColors.muted))])),
+    child: Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 3 : 5,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(
+          official ? Icons.verified_outlined : Icons.people_outline_rounded,
+          size: 13,
+          color: official ? AppColors.brandHover : AppColors.muted,
+        ),
+        if (!compact) ...[
+          const SizedBox(width: 5),
+          Text(
+            official ? 'Fonte oficial' : 'Comunidade',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: official ? AppColors.brandHover : AppColors.muted,
+            ),
+          ),
+        ],
+      ]),
+    ),
   );
 }
 
 class _LibraryPage extends StatelessWidget {
-  const _LibraryPage({required this.exams, required this.saved, required this.onOpen});
+  const _LibraryPage({
+    required this.exams,
+    required this.saved,
+    required this.onOpen,
+    required this.onSignIn,
+  });
   final List<Exam> exams;
   final Set<String> saved;
   final ValueChanged<Exam> onOpen;
+  final VoidCallback onSignIn;
   @override
   Widget build(BuildContext context) {
     final savedExams = exams.where((exam) => saved.contains(exam.id)).toList();
+    final signedIn = Supabase.instance.client.auth.currentUser != null;
     return _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Sua biblioteca', style: Theme.of(context).textTheme.headlineMedium),
+      if (!signedIn) ...[
+        const SizedBox(height: 10),
+        const Text(
+          'Entre para sincronizar provas salvas entre seus aparelhos.',
+          style: TextStyle(color: AppColors.muted),
+        ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: onSignIn,
+          icon: const Icon(Icons.login_rounded),
+          label: const Text('Entrar para sincronizar'),
+        ),
+      ],
       const SizedBox(height: 18),
       const Wrap(spacing: 8, runSpacing: 8, children: [Chip(label: Text('Salvas')), Chip(label: Text('Em andamento')), Chip(label: Text('Concluídas')), Chip(label: Text('Coleções'))]),
       const SizedBox(height: 28),
@@ -323,30 +500,100 @@ class _LibraryPage extends StatelessWidget {
 class _ProfilePage extends StatelessWidget {
   const _ProfilePage();
   @override
-  Widget build(BuildContext context) => _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Row(children: [CircleAvatar(radius: 36, backgroundColor: AppColors.brandSoft, child: Text('NA', style: TextStyle(color: AppColors.brandHover, fontSize: 18, fontWeight: FontWeight.w800))), SizedBox(width: 18), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Nikolas Ayres', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)), SizedBox(height: 4), Text('Estudando para evoluir uma questão por vez.', style: TextStyle(color: AppColors.muted))]))]),
-    const SizedBox(height: 28),
-    const Text('Seguindo', style: TextStyle(fontWeight: FontWeight.w700)),
-    const SizedBox(height: 10),
-    const Wrap(spacing: 8, children: [Chip(label: Text('PM-SP')), Chip(label: Text('VUNESP')), Chip(label: Text('Matemática'))]),
-    const SizedBox(height: 30),
-    const Row(children: [Expanded(child: _ProfileStat('1.483', 'questões')), Expanded(child: _ProfileStat('74%', 'de acerto')), Expanded(child: _ProfileStat('31', 'provas'))]),
-    const SizedBox(height: 30),
-    const Divider(),
-    const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.history_rounded), title: Text('Atividade'), trailing: Icon(Icons.chevron_right_rounded)),
-    const Divider(),
-    const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.collections_bookmark_outlined), title: Text('Coleções'), trailing: Icon(Icons.chevron_right_rounded)),
-    const Divider(),
-    ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout_rounded), title: const Text('Sair da conta'), onTap: () => Supabase.instance.client.auth.signOut()),
-  ]));
-}
-
-class _ProfileStat extends StatelessWidget {
-  const _ProfileStat(this.value, this.label);
-  final String value;
-  final String label;
-  @override
-  Widget build(BuildContext context) => Column(children: [Text(value, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)), Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12))]);
+  Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      return _PageScroll(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Perfil', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 28),
+            const Icon(Icons.person_outline_rounded,
+                size: 52, color: AppColors.brand),
+            const SizedBox(height: 18),
+            Text('Você está explorando sem conta',
+                style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            const Text(
+              'Fazer provas continua liberado. Entre para publicar, salvar e sincronizar resultados.',
+              style: TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AuthPage(closeAfterAuth: true),
+                ),
+              ),
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('Entrar ou criar conta'),
+            ),
+          ],
+        ),
+      );
+    }
+    final displayName = user.userMetadata?['display_name']?.toString().trim();
+    final name = displayName == null || displayName.isEmpty
+        ? 'Estudante'
+        : displayName;
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+    return _PageScroll(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: AppColors.brandSoft,
+            child: Text(initials,
+                style: const TextStyle(
+                  color: AppColors.brandHover,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                )),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 3),
+                Text(user.email ?? '',
+                    style: const TextStyle(color: AppColors.muted)),
+              ],
+            ),
+          ),
+        ]),
+        const SizedBox(height: 28),
+        const Divider(),
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.history_rounded),
+          title: Text('Atividade'),
+          subtitle: Text('Seus resultados aparecerão quando houver dados'),
+          trailing: Icon(Icons.chevron_right_rounded),
+        ),
+        const Divider(),
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.collections_bookmark_outlined),
+          title: Text('Coleções'),
+          trailing: Icon(Icons.chevron_right_rounded),
+        ),
+        const Divider(),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.logout_rounded),
+          title: const Text('Sair da conta'),
+          onTap: () => Supabase.instance.client.auth.signOut(),
+        ),
+      ]),
+    );
+  }
 }
 
 class _ExamDetails extends StatelessWidget {
@@ -358,7 +605,7 @@ class _ExamDetails extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const BrandLockup()),
     body: _PageScroll(maxWidth: 820, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SourceBadge(official: true),
+      const SourceBadge(official: false),
       const SizedBox(height: 22),
       Text(exam.category.toUpperCase(), style: const TextStyle(color: AppColors.brandHover, fontWeight: FontWeight.w800, letterSpacing: 1)),
       const SizedBox(height: 8),
@@ -380,7 +627,7 @@ class _ExamDetails extends StatelessWidget {
       const SizedBox(height: 26),
       const _SectionTitle('Origem'),
       const SizedBox(height: 10),
-      const Text('Material demonstrativo · procedência identificada', style: TextStyle(color: AppColors.muted)),
+      Text('Enviado por ${exam.author}', style: const TextStyle(color: AppColors.muted)),
       const SizedBox(height: 26),
       const _SectionTitle('Discussão · 0'),
     ])),
@@ -413,5 +660,25 @@ class _SectionTitle extends StatelessWidget {
 class _UserTile extends StatelessWidget {
   const _UserTile();
   @override
-  Widget build(BuildContext context) => const Row(children: [CircleAvatar(radius: 18, backgroundColor: AppColors.brandSoft, child: Text('NA', style: TextStyle(color: AppColors.brandHover, fontSize: 10, fontWeight: FontWeight.w800))), SizedBox(width: 10), Expanded(child: Text('Nikolas', style: TextStyle(fontWeight: FontWeight.w700))), Icon(Icons.more_horiz_rounded)]);
+  Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+    final name = user?.userMetadata?['display_name']?.toString().trim();
+    return Row(children: [
+      const CircleAvatar(
+        radius: 18,
+        backgroundColor: AppColors.brandSoft,
+        child: Icon(Icons.person_outline_rounded,
+            size: 18, color: AppColors.brandHover),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text(
+          name == null || name.isEmpty ? 'Visitante' : name,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      const Icon(Icons.more_horiz_rounded),
+    ]);
+  }
 }

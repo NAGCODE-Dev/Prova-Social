@@ -31,6 +31,44 @@ workflows:
           test -d web
           test -f android/app/build.gradle.kts -o -f android/app/build.gradle
           rm -f test/widget_test.dart
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest_path = Path('android/app/src/main/AndroidManifest.xml')
+          manifest = manifest_path.read_text()
+          manifest = manifest.replace(
+              'android:label="prova_social"',
+              'android:label="Prova Social"',
+          )
+          if 'android.permission.INTERNET' not in manifest:
+              manifest = manifest.replace(
+                  '<application',
+                  '<uses-permission android:name="android.permission.INTERNET"/>\n'
+                  '    <application',
+                  1,
+              )
+          if 'provasocial' not in manifest:
+              intent_filter = '''
+                <intent-filter>
+                    <action android:name="android.intent.action.VIEW" />
+                    <category android:name="android.intent.category.DEFAULT" />
+                    <category android:name="android.intent.category.BROWSABLE" />
+                    <data
+                        android:scheme="provasocial"
+                        android:host="login-callback" />
+                </intent-filter>'''
+              manifest = manifest.replace(
+                  '</activity>',
+                  intent_filter + '\n            </activity>',
+                  1,
+              )
+          manifest_path.write_text(manifest)
+
+          web_manifest_path = Path('web/manifest.json')
+          web_manifest = web_manifest_path.read_text()
+          web_manifest = web_manifest.replace('prova_social', 'Prova Social')
+          web_manifest_path.write_text(web_manifest)
+          PY
           mkdir -p android
           cat > android/key.properties <<EOF
           storePassword=$CM_KEYSTORE_PASSWORD

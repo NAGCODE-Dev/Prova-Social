@@ -18,6 +18,7 @@ class AuthRepository {
         email: email.trim(),
         password: password,
         data: {'display_name': displayName.trim()},
+        emailRedirectTo: 'provasocial://login-callback',
       );
 
   Future<AuthResponse> signIn({

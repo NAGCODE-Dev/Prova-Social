@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/backend/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
+import '../home/home_page.dart';
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key});
+  const AuthPage({this.closeAfterAuth = false, super.key});
+
+  final bool closeAfterAuth;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -21,12 +26,24 @@ class _AuthPageState extends State<AuthPage> {
   var _createAccount = false;
   var _loading = false;
   var _hidePassword = true;
+  StreamSubscription<AuthState>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = _auth.changes.listen((state) {
+      if (widget.closeAfterAuth && state.session != null && mounted) {
+        _closeWithSuccess();
+      }
+    });
+  }
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
     _name.dispose();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
@@ -57,6 +74,17 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  void _closeWithSuccess() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop(true);
+    } else {
+      navigator.pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      );
+    }
+  }
+
   String _friendlyMessage(AuthException error) {
     switch (error.code) {
       case 'invalid_credentials':
@@ -79,6 +107,15 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+        appBar: widget.closeAfterAuth
+            ? AppBar(
+                leading: IconButton(
+                  onPressed: () => Navigator.maybePop(context),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: 'Fechar',
+                ),
+              )
+            : null,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -88,11 +125,35 @@ class _AuthPageState extends State<AuthPage> {
                 child: Form(
                   key: _formKey,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    const Align(alignment: Alignment.centerLeft, child: BrandLockup()),
-                    const SizedBox(height: 48),
-                    Text(_createAccount ? 'Crie sua conta' : 'Entre para continuar', style: Theme.of(context).textTheme.headlineMedium),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: BrandLockup(),
+                    ),
+                    const SizedBox(height: 36),
+                    Text(
+                      _createAccount ? 'Crie sua conta' : 'Acesse sua conta',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
                     const SizedBox(height: 8),
-                    Text(_createAccount ? 'Salve provas, acompanhe resultados e participe das discussões.' : 'Sua biblioteca e seu progresso ficam sincronizados.', style: const TextStyle(color: AppColors.muted, height: 1.45)),
+                    Text(
+                      _createAccount
+                          ? 'Publique materiais, salve provas e sincronize seu progresso.'
+                          : 'Entre somente quando quiser publicar, salvar ou sincronizar.',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    const _AccountBenefit(
+                      Icons.cloud_done_outlined,
+                      'Progresso protegido e disponível em outros aparelhos',
+                    ),
+                    const SizedBox(height: 10),
+                    const _AccountBenefit(
+                      Icons.upload_file_outlined,
+                      'Publicação e biblioteca pessoal',
+                    ),
                     const SizedBox(height: 32),
                     if (_createAccount) ...[
                       TextFormField(
@@ -146,11 +207,36 @@ class _AuthPageState extends State<AuthPage> {
                       onPressed: _loading ? null : () => setState(() => _createAccount = !_createAccount),
                       child: Text(_createAccount ? 'Já tenho uma conta' : 'Criar uma conta'),
                     ),
+                    if (widget.closeAfterAuth) ...[
+                      const SizedBox(height: 4),
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => Navigator.maybePop(context),
+                        child: const Text('Agora não'),
+                      ),
+                    ],
                   ]),
                 ),
               ),
             ),
           ),
         ),
+      );
+}
+
+class _AccountBenefit extends StatelessWidget {
+  const _AccountBenefit(this.icon, this.text);
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, size: 20, color: AppColors.brand),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyMedium)),
+        ],
       );
 }

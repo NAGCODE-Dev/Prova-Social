@@ -28,16 +28,14 @@ class PublishPage extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
                   LayoutBuilder(builder: (context, constraints) {
-                    final horizontal = constraints.maxWidth >= 680;
                     final options = [
                       _PublishChoice(
                         icon: Icons.picture_as_pdf_outlined,
                         title: 'Importar PDF',
                         description:
                             'Extraia texto e figuras, confira as questões e publique.',
-                        action: 'Selecionar PDF',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const PdfImportPage(),
@@ -49,7 +47,6 @@ class PublishPage extends StatelessWidget {
                         title: 'Importar JSON',
                         description:
                             'Use um arquivo já estruturado no formato Prova Social.',
-                        action: 'Selecionar JSON',
                         onTap: () => _notReady(context),
                       ),
                       _PublishChoice(
@@ -57,32 +54,16 @@ class PublishPage extends StatelessWidget {
                         title: 'Criar manualmente',
                         description:
                             'Monte questões e alternativas usando o editor.',
-                        action: 'Abrir editor',
                         onTap: () => _notReady(context),
                       ),
                     ];
-                    if (!horizontal) {
-                      return Column(
-                        children: options
-                            .map((item) => Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: AppSpacing.md,
-                                  ),
-                                  child: item,
-                                ))
-                            .toList(),
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    return Column(
                       children: options
-                          .map((item) => Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                    right: AppSpacing.md,
-                                  ),
-                                  child: item,
+                          .map((item) => Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.sm,
                                 ),
+                                child: item,
                               ))
                           .toList(),
                     );
@@ -109,51 +90,60 @@ class _PublishChoice extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.description,
-    required this.action,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String description;
-  final String action;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: Theme.of(context).colorScheme.outline),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadius.md),
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                DecoratedBox(
+                Container(
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: AppColors.brandSoft,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Icon(icon, color: AppColors.brandHover),
+                  child: Icon(icon, color: AppColors.brandHover),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 3),
+                      Text(
+                        description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(action,
-                    style: const TextStyle(
-                      color: AppColors.brandHover,
-                      fontWeight: FontWeight.w700,
-                    )),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.muted),
               ],
             ),
           ),
@@ -226,8 +216,8 @@ class _PdfImportPageState extends State<PdfImportPage> {
                         onTap: selecting ? null : pickPdf,
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                         child: Container(
-                          constraints: const BoxConstraints(minHeight: 220),
-                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          constraints: const BoxConstraints(minHeight: 144),
+                          padding: const EdgeInsets.all(AppSpacing.lg),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.surface,
                             border: Border.all(
@@ -256,7 +246,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
                                             MainAxisAlignment.center,
                                         children: [
                                           Icon(Icons.upload_file_rounded,
-                                              size: 48,
+                                              size: 36,
                                               color: AppColors.brand),
                                           SizedBox(height: AppSpacing.md),
                                           Text('Toque para selecionar o PDF',
@@ -273,7 +263,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
                                             MainAxisAlignment.center,
                                         children: [
                                           const Icon(Icons.check_circle_rounded,
-                                              size: 48,
+                                              size: 36,
                                               color: AppColors.brand),
                                           const SizedBox(height: AppSpacing.md),
                                           Text(file!.name,

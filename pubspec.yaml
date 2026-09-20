@@ -1,7 +1,7 @@
 name: prova_social
 description: Plataforma social para encontrar, resolver e compartilhar provas.
 publish_to: none
-version: 0.5.0+5
+version: 0.6.0+6
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
@@ -38,6 +38,6 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: assets/branding/app_icon.png
-  adaptive_icon_background: "#16A36A"
+  adaptive_icon_background: "#0A0F0D"
   adaptive_icon_foreground: assets/branding/app_icon.png
   min_sdk_android: 21
