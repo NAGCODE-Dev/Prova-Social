@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
 
 class BrandMark extends StatelessWidget {
   const BrandMark({this.size = 40, super.key});
