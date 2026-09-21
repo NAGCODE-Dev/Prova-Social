@@ -8,31 +8,53 @@ class AttemptRepository {
 
   final SupabaseClient _client;
 
-  Future<void> saveCompleted(ExamResult result) async {
-    final user = _client.auth.currentUser;
-    if (user == null) return;
-    final attempt = await _client.from('attempts').insert({
-      'user_id': user.id,
-      'exam_id': result.exam.id,
-      'duration_seconds': result.durationSeconds,
-      'correct_count': result.correct,
-      'total_count': result.exam.questions.length,
-      'score_percent': result.scorePercent,
-      'completed_at': result.finishedAt.toUtc().toIso8601String(),
-    }).select('id').single();
-    final attemptId = attempt['id'] as String;
-    final rows = <Map<String, Object?>>[];
-    for (var index = 0; index < result.exam.questions.length; index++) {
-      final question = result.exam.questions[index];
-      if (question.id.isEmpty) continue;
-      rows.add({
-        'attempt_id': attemptId,
-        'question_id': question.id,
-        'selected_index': result.answers[index],
-        'is_correct': result.answers[index] == question.correctIndex,
-        'marked_for_review': result.markedForReview.contains(index),
-      });
+  Future<ExamResult> submit({
+    required Exam exam,
+    required Map<int, int> answers,
+    required Set<int> markedForReview,
+    required int durationSeconds,
+    required DateTime finishedAt,
+  }) async {
+    final payload = <String, int>{};
+    for (var index = 0; index < exam.questions.length; index++) {
+      final questionId = exam.questions[index].id;
+      final selected = answers[index];
+      if (questionId.isNotEmpty && selected != null) {
+        payload[questionId] = selected;
+      }
     }
-    if (rows.isNotEmpty) await _client.from('attempt_answers').insert(rows);
+    final response = await _client.rpc<Map<String, dynamic>>(
+      'submit_exam_attempt',
+      params: {
+        'p_exam_id': exam.id,
+        'p_answers': payload,
+        'p_review_question_ids': markedForReview
+            .where((index) => index >= 0 && index < exam.questions.length)
+            .map((index) => exam.questions[index].id)
+            .where((id) => id.isNotEmpty)
+            .toList(),
+        'p_duration_seconds': durationSeconds,
+      },
+    );
+    final rawReview = List<Map<String, dynamic>>.from(
+      response['review'] as List<dynamic>? ?? const [],
+    );
+    final keys = <String, int>{
+      for (final item in rawReview)
+        item['question_id'] as String: item['correct_index'] as int,
+    };
+    final correctedQuestions = exam.questions
+        .map((question) => question.copyWith(correctIndex: keys[question.id]))
+        .toList(growable: false);
+    if (correctedQuestions.any((question) => question.correctIndex == null)) {
+      throw StateError('O servidor não devolveu o gabarito completo da prova.');
+    }
+    return ExamResult(
+      exam: exam.copyWith(questions: correctedQuestions),
+      answers: Map.of(answers),
+      markedForReview: Set.of(markedForReview),
+      durationSeconds: durationSeconds,
+      finishedAt: finishedAt,
+    );
   }
 }

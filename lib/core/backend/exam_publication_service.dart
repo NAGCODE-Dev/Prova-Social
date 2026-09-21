@@ -1,18 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../import/question_parser.dart';
-import 'digital_exam_service.dart';
 
 class ExamPublicationService {
-  ExamPublicationService({SupabaseClient? client, DigitalExamService? digital})
-      : _client = client ?? Supabase.instance.client,
-        _digital = digital ?? DigitalExamService();
+  ExamPublicationService({SupabaseClient? client})
+      : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
-  final DigitalExamService _digital;
 
   Future<String> publish({
     required String title,
+    required String category,
     required String source,
     required int durationMinutes,
     required List<ImportedQuestion> questions,
@@ -23,56 +21,36 @@ class ExamPublicationService {
       throw const AuthException('Entre na conta para publicar.');
     }
 
-    final exam = await _client
-        .from('exams')
-        .insert({
-          'author_id': user.id,
-          'title': title,
-          'description': 'Prova importada e revisada pela comunidade.',
-          'category': 'Concursos',
-          'source_name': source,
-          'source_type': 'community',
-          'year': year,
-          'duration_minutes': durationMinutes,
-          'status': 'draft',
-          'is_public': false,
-        })
-        .select('id')
-        .single();
-    final examId = exam['id'] as String;
-
-    final rows = List.generate(questions.length, (index) {
-      final question = questions[index];
-      return {
-        'exam_id': examId,
-        'position': index + 1,
-        'statement': question.statement.trim(),
-        'options': question.options.map((text) => text.trim()).toList(),
-        'correct_index': question.correctIndex,
-      };
-    });
-    await _client.from('questions').insert(rows);
-
-    await _digital.upload(
-      examId: examId,
-      manifest: {
-        'title': title,
-        'source': source,
-        'year': year,
-        'durationMinutes': durationMinutes,
-        'questionCount': questions.length,
+    if (questions.isEmpty ||
+        questions.any((question) =>
+            question.statement.trim().length < 2 ||
+            question.options.length < 2 ||
+            question.correctIndex == null ||
+            question.correctIndex! < 0 ||
+            question.correctIndex! >= question.options.length)) {
+      throw const FormatException('Revise todas as questões e o gabarito.');
+    }
+    final examId = await _client.rpc<String>(
+      'publish_exam',
+      params: {
+        'p_title': title.trim(),
+        'p_category': category.trim(),
+        'p_source': source.trim(),
+        'p_source_type': 'community',
+        'p_year': year,
+        'p_duration_minutes': durationMinutes,
+        'p_questions': questions
+            .map((question) => {
+                  'topic': 'Geral',
+                  'statement': question.statement.trim(),
+                  'options': question.options
+                      .map((text) => text.trim())
+                      .toList(growable: false),
+                  'correct_index': question.correctIndex,
+                })
+            .toList(growable: false),
       },
-      questions: List.generate(
-        questions.length,
-        (index) => questions[index].toJson(index + 1),
-      ),
     );
-
-    await _client.from('exams').update({
-      'status': 'published',
-      'is_public': true,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', examId);
     return examId;
   }
 }

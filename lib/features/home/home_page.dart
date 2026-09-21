@@ -306,7 +306,15 @@ class _ExplorePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const categories = ['Todos', 'Concursos', 'ENEM', 'Matemática', 'História'];
+    final categories = <String>[
+      'Todos',
+      ...(exams
+          .map((exam) => exam.category.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort()),
+    ];
     final normalized = query.trim().toLowerCase();
     final filtered = exams.where((exam) => (category == 'Todos' || exam.category == category) && (normalized.isEmpty || '${exam.title} ${exam.description}'.toLowerCase().contains(normalized))).toList();
     return _PageScroll(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

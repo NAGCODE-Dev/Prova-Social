@@ -74,6 +74,41 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _loading = true);
+    try {
+      final opened = await _auth.signInWithGoogle();
+      if (!opened && mounted) {
+        _message('Não foi possível abrir o login do Google.', error: true);
+      }
+    } on AuthException catch (error) {
+      if (mounted) _message(_friendlyMessage(error), error: true);
+    } catch (_) {
+      if (mounted) {
+        _message('Não foi possível iniciar o login do Google.', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final email = _email.text.trim();
+    if (!RegExp(r'^.+@.+\..+$').hasMatch(email)) {
+      _message('Digite seu e-mail antes de recuperar a senha.', error: true);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await _auth.sendPasswordReset(email);
+      if (mounted) _message('Enviamos o link de recuperação para seu e-mail.');
+    } on AuthException catch (error) {
+      if (mounted) _message(_friendlyMessage(error), error: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   void _closeWithSuccess() {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -155,6 +190,24 @@ class _AuthPageState extends State<AuthPage> {
                       'Publicação e biblioteca pessoal',
                     ),
                     const SizedBox(height: 32),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _signInWithGoogle,
+                      icon: const Icon(Icons.account_circle_outlined),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 13),
+                        child: Text('Continuar com Google'),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('ou use seu e-mail'),
+                      ),
+                      Expanded(child: Divider()),
+                    ]),
+                    const SizedBox(height: 18),
                     if (_createAccount) ...[
                       TextFormField(
                         controller: _name,
@@ -202,6 +255,14 @@ class _AuthPageState extends State<AuthPage> {
                             : Text(_createAccount ? 'Criar conta' : 'Entrar'),
                       ),
                     ),
+                    if (!_createAccount)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _loading ? null : _resetPassword,
+                          child: const Text('Esqueci minha senha'),
+                        ),
+                      ),
                     const SizedBox(height: 14),
                     TextButton(
                       onPressed: _loading ? null : () => setState(() => _createAccount = !_createAccount),

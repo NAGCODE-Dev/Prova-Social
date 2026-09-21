@@ -22,7 +22,7 @@ class _QuizPageState extends State<QuizPage> {
   final answers = <int, int>{};
   final review = <int>{};
   final elapsed = ValueNotifier<int>(0);
-  late final Timer timer;
+  Timer? timer;
   int current = 0;
 
   @override
@@ -55,7 +55,7 @@ class _QuizPageState extends State<QuizPage> {
 
   @override
   void dispose() {
-    timer.cancel();
+    timer?.cancel();
     elapsed.dispose();
     super.dispose();
   }
@@ -235,24 +235,32 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Future<void> _finish() async {
-    timer.cancel();
-    final result = ExamResult(
-      exam: widget.exam,
-      answers: Map.of(answers),
-      markedForReview: Set.of(review),
-      durationSeconds: elapsed.value,
-      finishedAt: DateTime.now(),
-    );
+    timer?.cancel();
     try {
-      await AttemptRepository().saveCompleted(result);
+      final result = await AttemptRepository().submit(
+        exam: widget.exam,
+        answers: Map.of(answers),
+        markedForReview: Set.of(review),
+        durationSeconds: elapsed.value,
+        finishedAt: DateTime.now(),
+      );
       await draftStore.clear(widget.exam.id);
-    } catch (_) {
+      if (!mounted) return;
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),
+      );
+    } catch (error) {
       await _persistDraft();
+      if (!mounted) return;
+      timer = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Não foi possível corrigir agora. Seu progresso foi mantido. $error',
+          ),
+        ),
+      );
     }
-    if (!mounted) return;
-    await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),
-    );
   }
 }
 

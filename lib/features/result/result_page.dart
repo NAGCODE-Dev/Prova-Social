@@ -57,7 +57,12 @@ class ResultPage extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text('Sua resposta: ${selected == null ? 'Em branco' : question.options[selected]}', style: const TextStyle(color: AppColors.muted)),
                       if (!correct) ...[
-                        Text('Gabarito: ${question.options[question.correctIndex]}', style: const TextStyle(color: AppColors.muted)),
+                        Text(
+                          question.correctIndex == null
+                              ? 'Gabarito indisponível'
+                              : 'Gabarito: ${question.options[question.correctIndex!]}',
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
                       ],
                     ]))),
                   );

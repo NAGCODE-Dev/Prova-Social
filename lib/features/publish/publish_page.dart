@@ -317,6 +317,7 @@ class PdfPreparationPage extends StatefulWidget {
 class _PdfPreparationPageState extends State<PdfPreparationPage> {
   final title = TextEditingController();
   final source = TextEditingController();
+  final category = TextEditingController();
   final year = TextEditingController();
   final duration = TextEditingController(text: '120');
 
@@ -324,15 +325,20 @@ class _PdfPreparationPageState extends State<PdfPreparationPage> {
   void dispose() {
     title.dispose();
     source.dispose();
+    category.dispose();
     year.dispose();
     duration.dispose();
     super.dispose();
   }
 
   void start() {
-    if (title.text.trim().isEmpty || source.text.trim().isEmpty) {
+    if (title.text.trim().isEmpty ||
+        category.text.trim().isEmpty ||
+        source.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe o título e a origem da prova.')),
+        const SnackBar(
+          content: Text('Informe o título, a categoria e a origem da prova.'),
+        ),
       );
       return;
     }
@@ -340,6 +346,7 @@ class _PdfPreparationPageState extends State<PdfPreparationPage> {
       builder: (_) => PdfProcessingPage(
         file: widget.file,
         title: title.text.trim(),
+        category: category.text.trim(),
         source: source.text.trim(),
         year: int.tryParse(year.text),
         durationMinutes: int.tryParse(duration.text) ?? 120,
@@ -371,6 +378,14 @@ class _PdfPreparationPageState extends State<PdfPreparationPage> {
                     TextField(
                         controller: source,
                         decoration: const InputDecoration(labelText: 'Banca ou origem')),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: category,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoria ou assunto',
+                        hintText: 'Ex.: Vestibulares, Concursos, Matemática',
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.md),
                     Row(children: [
                       Expanded(
@@ -421,6 +436,7 @@ class PdfProcessingPage extends StatefulWidget {
   const PdfProcessingPage({
     required this.file,
     required this.title,
+    required this.category,
     required this.source,
     required this.durationMinutes,
     this.year,
@@ -429,6 +445,7 @@ class PdfProcessingPage extends StatefulWidget {
 
   final PlatformFile file;
   final String title;
+  final String category;
   final String source;
   final int? year;
   final int durationMinutes;
@@ -504,6 +521,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
                 MaterialPageRoute<void>(
                   builder: (_) => ImportReviewPage(
                     title: widget.title,
+                    category: widget.category,
                     source: widget.source,
                     year: widget.year,
                     durationMinutes: widget.durationMinutes,
@@ -565,6 +583,7 @@ class _ProcessMessage extends StatelessWidget {
 class ImportReviewPage extends StatefulWidget {
   const ImportReviewPage({
     required this.title,
+    required this.category,
     required this.source,
     required this.durationMinutes,
     required this.questions,
@@ -572,6 +591,7 @@ class ImportReviewPage extends StatefulWidget {
     super.key,
   });
   final String title;
+  final String category;
   final String source;
   final int? year;
   final int durationMinutes;
@@ -670,6 +690,7 @@ class _ImportReviewPageState extends State<ImportReviewPage> {
     try {
       await ExamPublicationService().publish(
         title: widget.title,
+        category: widget.category,
         source: widget.source,
         year: widget.year,
         durationMinutes: widget.durationMinutes,

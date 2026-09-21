@@ -1,12 +1,23 @@
 abstract final class SupabaseConfig {
   static const url = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://kpjcwpdnzsbgypdefrpz.supabase.co',
   );
 
-  // Chave pública: pode ficar no aplicativo. Nunca use service_role no cliente.
   static const publishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
-    defaultValue: 'sb_publishable_M2-eynfYJ6JmSef8Azq7oA_rFq4YiZv',
   );
+
+  static const webAuthCallback = String.fromEnvironment(
+    'WEB_AUTH_CALLBACK',
+    defaultValue: 'https://prova-social.pages.dev/app/',
+  );
+
+  static void validate() {
+    if (url.isEmpty || publishableKey.isEmpty) {
+      throw StateError(
+        'Supabase não configurado. Informe SUPABASE_URL e '
+        'SUPABASE_PUBLISHABLE_KEY usando --dart-define.',
+      );
+    }
+  }
 }

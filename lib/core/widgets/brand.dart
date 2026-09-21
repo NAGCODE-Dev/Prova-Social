@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 class BrandMark extends StatelessWidget {
   const BrandMark({this.size = 40, super.key});
   final double size;

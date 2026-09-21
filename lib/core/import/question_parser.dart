@@ -25,14 +25,34 @@ class QuestionParser {
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
         .replaceAll(RegExp(r'[ \t]+'), ' ');
-    final starts = RegExp(
-      r'^\s*(?:quest[aã]o\s*)?(\d{1,3})\s*(?:[.:–)]|-)+\s*',
+    final explicitStarts = RegExp(
+      r'^\s*(?:quest[aã]o|questao)\s*(\d{1,3})\s*(?:[.:)–-]+\s*)?',
       caseSensitive: false,
       multiLine: true,
-    ).allMatches(normalized).toList();
+    ).allMatches(normalized).map(
+          (match) => _QuestionStart(
+            start: match.start,
+            contentStart: match.end,
+          ),
+        );
+    final numericStarts = RegExp(
+      r'^\s*(\d{1,3})(?:\s*[.:)–-]+\s*|\s*(?=\n))',
+      multiLine: true,
+    ).allMatches(normalized).map(
+          (match) => _QuestionStart(
+            start: match.start,
+            contentStart: match.end,
+          ),
+        );
+    final byOffset = <int, _QuestionStart>{};
+    for (final candidate in [...explicitStarts, ...numericStarts]) {
+      byOffset[candidate.start] = candidate;
+    }
+    final starts = byOffset.values.toList()
+      ..sort((left, right) => left.start.compareTo(right.start));
     final questions = <ImportedQuestion>[];
     for (var index = 0; index < starts.length; index++) {
-      final start = starts[index].end;
+      final start = starts[index].contentStart;
       final end = index + 1 < starts.length ? starts[index + 1].start : normalized.length;
       final parsed = _parseBlock(normalized.substring(start, end));
       if (parsed != null) {
@@ -69,4 +89,14 @@ class QuestionParser {
     }
     return ImportedQuestion(statement: statement, options: options.take(5).toList());
   }
+}
+
+class _QuestionStart {
+  const _QuestionStart({
+    required this.start,
+    required this.contentStart,
+  });
+
+  final int start;
+  final int contentStart;
 }

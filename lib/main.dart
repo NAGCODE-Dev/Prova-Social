@@ -11,6 +11,7 @@ Future<void> main() async {
 }
 
 Future<void> _initializeApp() async {
+  SupabaseConfig.validate();
   await pdfrxFlutterInitialize();
   await Supabase.initialize(
     url: SupabaseConfig.url,

@@ -18,6 +18,17 @@ class Exam {
   final int durationMinutes;
   final int attempts;
   final List<Question> questions;
+
+  Exam copyWith({List<Question>? questions}) => Exam(
+        id: id,
+        category: category,
+        title: title,
+        description: description,
+        author: author,
+        durationMinutes: durationMinutes,
+        attempts: attempts,
+        questions: questions ?? this.questions,
+      );
 }
 
 class Question {
@@ -26,14 +37,22 @@ class Question {
     required this.topic,
     required this.statement,
     required this.options,
-    required this.correctIndex,
+    this.correctIndex,
   });
 
   final String id;
   final String topic;
   final String statement;
   final List<String> options;
-  final int correctIndex;
+  final int? correctIndex;
+
+  Question copyWith({int? correctIndex}) => Question(
+        id: id,
+        topic: topic,
+        statement: statement,
+        options: options,
+        correctIndex: correctIndex ?? this.correctIndex,
+      );
 }
 
 class ExamResult {
@@ -52,7 +71,7 @@ class ExamResult {
   final DateTime finishedAt;
 
   int get correct => List.generate(exam.questions.length, (index) => index)
-      .where((index) => answers[index] == exam.questions[index].correctIndex)
+      .where((index) => exam.questions[index].correctIndex != null && answers[index] == exam.questions[index].correctIndex)
       .length;
 
   int get scorePercent => (correct / exam.questions.length * 100).round();

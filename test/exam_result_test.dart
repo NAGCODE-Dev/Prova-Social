@@ -1,10 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:prova_social/data/sample_exams.dart';
 import 'package:prova_social/domain/models/exam.dart';
 
 void main() {
   test('calcula pontuação e gera JSON', () {
-    final exam = sampleExams.first;
+    const exam = Exam(
+      id: 'exam-test',
+      category: 'Matemática',
+      title: 'Prova de teste',
+      description: '',
+      author: 'Teste',
+      durationMinutes: 60,
+      attempts: 0,
+      questions: [
+        Question(topic: 'Geral', statement: 'Q1', options: ['A', 'B'], correctIndex: 1),
+        Question(topic: 'Geral', statement: 'Q2', options: ['A', 'B'], correctIndex: 0),
+        Question(topic: 'Geral', statement: 'Q3', options: ['A', 'B', 'C'], correctIndex: 2),
+        Question(topic: 'Geral', statement: 'Q4', options: ['A', 'B'], correctIndex: 0),
+        Question(topic: 'Geral', statement: 'Q5', options: ['A', 'B', 'C'], correctIndex: 2),
+      ],
+    );
     final result = ExamResult(
       exam: exam,
       answers: {0: 1, 1: 0, 2: 2, 3: 1, 4: 2},

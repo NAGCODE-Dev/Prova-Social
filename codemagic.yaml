@@ -68,6 +68,18 @@ workflows:
           web_manifest = web_manifest_path.read_text()
           web_manifest = web_manifest.replace('prova_social', 'Prova Social')
           web_manifest_path.write_text(web_manifest)
+
+          web_index_path = Path('web/index.html')
+          web_index = web_index_path.read_text()
+          web_index = web_index.replace(
+              '<title>prova_social</title>',
+              '<title>Prova Social</title>',
+          )
+          web_index = web_index.replace(
+              'A new Flutter project.',
+              'Resolva provas e descubra o que precisa estudar.',
+          )
+          web_index_path.write_text(web_index)
           PY
           mkdir -p android
           cat > android/key.properties <<EOF
@@ -155,7 +167,9 @@ workflows:
       - name: Instalar dependências
         script: flutter pub get
       - name: Aplicar ícone do aplicativo
-        script: dart run flutter_launcher_icons
+        script: |
+          dart run flutter_launcher_icons
+          dart run tool/generate_web_icons.dart
       - name: Formatar código
         script: dart format lib test
       - name: Analisar código
@@ -164,13 +178,43 @@ workflows:
         script: flutter test
       - name: Gerar APK universal assinado
         script: |
-          flutter build apk --release
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
           cp build/app/outputs/flutter-apk/app-release.apk \
             build/app/outputs/flutter-apk/prova-social-android.apk
       - name: Gerar APKs compactos assinados
-        script: flutter build apk --release --split-per-abi
+        script: |
+          flutter build apk --release --split-per-abi \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
       - name: Gerar versão web
-        script: flutter build web --release
+        script: |
+          flutter build web --release --base-href /app/ \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+      - name: Publicar site e Flutter Web
+        script: |
+          set -e
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || \
+             [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Cloudflare não configurado: defina CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID."
+            exit 1
+          fi
+          rm -rf site/app
+          mkdir -p site/app
+          cp -R build/web/. site/app/
+          printf '{"version":"%s","build":"%s","date":"%s"}\n' \
+            "${CM_TAG:-development}" \
+            "${BUILD_NUMBER:-0}" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > site/app/version.json
+          npx --yes wrangler@4.132.0 pages deploy site \
+            --project-name=prova-social \
+            --branch=main
       - name: Publicar GitHub Release
         script: |
           if [ -z "${CM_TAG:-}" ]; then

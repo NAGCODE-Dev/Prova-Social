@@ -29,4 +29,46 @@ D) 6
     final questions = const QuestionParser().parse('Questão 1. Apenas texto');
     expect(questions, isEmpty);
   });
+
+  test('aceita numeração isolada usada em vestibulares', () {
+    const source = '''
+01
+Qual alternativa descreve corretamente o fenômeno apresentado?
+(A) Primeira possibilidade.
+(B) Segunda possibilidade.
+(C) Terceira possibilidade.
+(D) Quarta possibilidade.
+(E) Quinta possibilidade.
+
+02.
+Considere o texto e selecione a resposta adequada.
+A) Opção um.
+B) Opção dois.
+C) Opção três.
+D) Opção quatro.
+E) Opção cinco.
+''';
+
+    final questions = const QuestionParser().parse(source);
+
+    expect(questions, hasLength(2));
+    expect(questions.first.options, hasLength(5));
+    expect(questions.last.statement, contains('Considere o texto'));
+  });
+
+  test('aceita questão sem travessão após o número', () {
+    const source = '''
+QUESTÃO 12
+Um enunciado suficientemente longo para ser reconhecido.
+A) Alternativa A.
+B) Alternativa B.
+C) Alternativa C.
+D) Alternativa D.
+''';
+
+    final questions = const QuestionParser().parse(source);
+
+    expect(questions, hasLength(1));
+    expect(questions.single.options, hasLength(4));
+  });
 }
