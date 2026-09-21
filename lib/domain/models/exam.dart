@@ -8,6 +8,8 @@ class Exam {
     required this.durationMinutes,
     required this.attempts,
     required this.questions,
+    this.sourceType = ExamSourceType.unverified,
+    this.sourceUrl,
   });
 
   final String id;
@@ -18,6 +20,13 @@ class Exam {
   final int durationMinutes;
   final int attempts;
   final List<Question> questions;
+  final ExamSourceType sourceType;
+  final String? sourceUrl;
+
+  Uri? get safeSourceUrl {
+    final uri = Uri.tryParse(sourceUrl?.trim() ?? '');
+    return uri?.scheme == 'https' && uri!.host.isNotEmpty ? uri : null;
+  }
 
   Exam copyWith({List<Question>? questions}) => Exam(
         id: id,
@@ -28,7 +37,21 @@ class Exam {
         durationMinutes: durationMinutes,
         attempts: attempts,
         questions: questions ?? this.questions,
+        sourceType: sourceType,
+        sourceUrl: sourceUrl,
       );
+}
+
+enum ExamSourceType {
+  official,
+  community,
+  unverified;
+
+  static ExamSourceType fromDatabase(Object? value) => switch (value) {
+        'official' => official,
+        'community' => community,
+        _ => unverified,
+      };
 }
 
 class Question {

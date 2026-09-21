@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
@@ -393,7 +394,7 @@ class ExamCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const SourceBadge(official: false, compact: true),
+                          SourceBadge(sourceType: exam.sourceType, compact: true),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -432,37 +433,56 @@ class ExamCard extends StatelessWidget {
 }
 
 class SourceBadge extends StatelessWidget {
-  const SourceBadge({required this.official, this.compact = false, super.key});
-  final bool official;
+  const SourceBadge({required this.sourceType, this.compact = false, super.key});
+
+  final ExamSourceType sourceType;
   final bool compact;
+
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(color: official ? AppColors.brandSoft : AppColors.surfaceHover, borderRadius: BorderRadius.circular(7)),
-    child: Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 8,
-        vertical: compact ? 3 : 5,
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(
-          official ? Icons.verified_outlined : Icons.people_outline_rounded,
-          size: 13,
-          color: official ? AppColors.brandHover : AppColors.muted,
+  Widget build(BuildContext context) {
+    final (label, icon) = switch (sourceType) {
+      ExamSourceType.official => ('Fonte oficial', Icons.verified_outlined),
+      ExamSourceType.community => ('Enviado pela comunidade', Icons.people_outline_rounded),
+      ExamSourceType.unverified => ('Fonte não verificada', Icons.help_outline_rounded),
+    };
+    final shortLabel = switch (sourceType) {
+      ExamSourceType.official => 'Oficial',
+      ExamSourceType.community => 'Comunidade',
+      ExamSourceType.unverified => 'Não verificada',
+    };
+    final color = sourceType == ExamSourceType.official
+        ? AppColors.brandHover
+        : AppColors.muted;
+    return Tooltip(
+      message: label,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: sourceType == ExamSourceType.official
+              ? AppColors.brandSoft
+              : AppColors.surfaceHover,
+          borderRadius: BorderRadius.circular(7),
         ),
-        if (!compact) ...[
-          const SizedBox(width: 5),
-          Text(
-            official ? 'Fonte oficial' : 'Comunidade',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: official ? AppColors.brandHover : AppColors.muted,
-            ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 6 : 8,
+            vertical: compact ? 3 : 5,
           ),
-        ],
-      ]),
-    ),
-  );
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 5),
+            Text(
+              compact ? shortLabel : label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class _LibraryPage extends StatelessWidget {
@@ -613,7 +633,7 @@ class _ExamDetails extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const BrandLockup()),
     body: _PageScroll(maxWidth: 820, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SourceBadge(official: false),
+      SourceBadge(sourceType: exam.sourceType),
       const SizedBox(height: 22),
       Text(exam.category.toUpperCase(), style: const TextStyle(color: AppColors.brandHover, fontWeight: FontWeight.w800, letterSpacing: 1)),
       const SizedBox(height: 8),
@@ -635,9 +655,15 @@ class _ExamDetails extends StatelessWidget {
       const SizedBox(height: 26),
       const _SectionTitle('Origem'),
       const SizedBox(height: 10),
-      Text('Enviado por ${exam.author}', style: const TextStyle(color: AppColors.muted)),
-      const SizedBox(height: 26),
-      const _SectionTitle('Discussão · 0'),
+      Text(exam.author, style: const TextStyle(color: AppColors.muted)),
+      if (exam.safeSourceUrl case final sourceUrl?) ...[
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: () => launchUrl(sourceUrl, mode: LaunchMode.externalApplication),
+          icon: const Icon(Icons.open_in_new_rounded),
+          label: const Text('Abrir fonte'),
+        ),
+      ],
     ])),
   );
 }

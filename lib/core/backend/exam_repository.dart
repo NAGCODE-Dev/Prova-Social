@@ -11,7 +11,7 @@ class ExamRepository {
   Future<List<Map<String, dynamic>>> publishedExams() async {
     final rows = await _client
         .from('exams')
-        .select('id,title,description,category,source_name,source_type,year,duration_minutes,attempts_count,created_at')
+        .select('id,title,description,category,source_name,source_type,source_url,year,duration_minutes,attempts_count,created_at')
         .eq('status', 'published')
         .eq('is_public', true)
         .order('created_at', ascending: false);
@@ -31,14 +31,25 @@ class ExamRepository {
     final rows = await publishedExams();
     return Future.wait(rows.map((row) async {
       final questionRows = await questions(row['id'] as String);
-      return Exam(
+      return mapPublishedExam(row, questionRows);
+    }));
+  }
+
+  static Exam mapPublishedExam(
+    Map<String, dynamic> row,
+    List<Map<String, dynamic>> questionRows,
+  ) => Exam(
         id: row['id'] as String,
         category: row['category'] as String,
         title: row['title'] as String,
         description: row['description'] as String,
-        author: (row['source_name'] as String?) ?? 'Comunidade',
+        author: (row['source_name'] as String?)?.trim().isNotEmpty == true
+            ? (row['source_name'] as String).trim()
+            : 'Fonte não informada',
         durationMinutes: row['duration_minutes'] as int,
         attempts: row['attempts_count'] as int,
+        sourceType: ExamSourceType.fromDatabase(row['source_type']),
+        sourceUrl: row['source_url'] is String ? row['source_url'] as String : null,
         questions: questionRows.map((question) {
           final rawOptions = List<dynamic>.from(question['options'] as List);
           return Question(
@@ -50,8 +61,6 @@ class ExamRepository {
           );
         }).toList(),
       );
-    }));
-  }
 
   Future<Set<String>> savedExamIds() async {
     final user = _client.auth.currentUser;
