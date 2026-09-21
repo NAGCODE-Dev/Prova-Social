@@ -72,7 +72,7 @@ workflows:
           set -e
           flutter pub get
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool
+          dart format lib test tool
           flutter analyze --no-fatal-infos
           flutter test
 
@@ -297,7 +297,7 @@ workflows:
           flutter pub get
           dart run flutter_launcher_icons
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool
+          dart format lib test tool
           flutter analyze --no-fatal-infos
           flutter test
 
