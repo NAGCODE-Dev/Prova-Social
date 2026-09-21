@@ -10,37 +10,57 @@ import '../../domain/models/exam.dart';
 import '../result/result_page.dart';
 
 class QuizPage extends StatefulWidget {
-  const QuizPage({required this.exam, super.key});
+  const QuizPage({required this.exam, this.draftStore, super.key});
   final Exam exam;
+  final AttemptDraftStore? draftStore;
 
   @override
   State<QuizPage> createState() => _QuizPageState();
 }
 
-class _QuizPageState extends State<QuizPage> {
-  static const draftStore = AttemptDraftStore();
+class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
+  late final AttemptDraftStore draftStore;
   final answers = <int, int>{};
   final review = <int>{};
   final elapsed = ValueNotifier<int>(0);
   Timer? timer;
+  late final Future<void> restoration;
+  Future<void>? pauseFlush;
   int current = 0;
+  bool restoring = true;
+  bool leaving = false;
+  bool canPop = false;
+  bool finishing = false;
 
   @override
   void initState() {
     super.initState();
+    draftStore = widget.draftStore ?? AttemptDraftStore();
+    WidgetsBinding.instance.addObserver(this);
     timer = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
-    _restoreDraft();
+    restoration = _restoreDraft();
   }
 
   Future<void> _restoreDraft() async {
-    final draft = await draftStore.load(widget.exam.id);
-    if (draft == null || !mounted) return;
-    setState(() {
-      answers.addAll(draft.answers);
-      review.addAll(draft.review);
-      current = draft.current.clamp(0, widget.exam.questions.length - 1).toInt();
-      elapsed.value = draft.elapsedSeconds;
-    });
+    try {
+      final draft = await draftStore.load(widget.exam.id);
+      if (!mounted) return;
+      setState(() {
+        if (draft != null) {
+          answers.addAll(draft.answers);
+          review.addAll(draft.review);
+          current = draft.current.clamp(0, widget.exam.questions.length - 1).toInt();
+          elapsed.value = draft.elapsedSeconds;
+        }
+        restoring = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => restoring = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível restaurar o rascunho.')),
+      );
+    }
   }
 
   Future<void> _persistDraft() => draftStore.save(
@@ -54,15 +74,53 @@ class _QuizPageState extends State<QuizPage> {
       );
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (finishing || canPop) return;
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      pauseFlush = _flushOnPause();
+      unawaited(pauseFlush!);
+    }
+  }
+
+  Future<void> _flushOnPause() async {
+    await restoration;
+    if (!mounted || finishing || canPop) return;
+    await _persistDraft();
+    try {
+      await draftStore.flush();
+    } catch (_) {
+      // O estado continua em memória e o indicador oferece nova tentativa.
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     timer?.cancel();
     elapsed.dispose();
+    unawaited(() async {
+      try {
+        await pauseFlush;
+        await draftStore.flush();
+      } catch (_) {
+        // Não há interface disponível após dispose; o rascunho fica em memória
+        // enquanto esta operação termina.
+      } finally {
+        if (widget.draftStore == null) draftStore.dispose();
+      }
+    }());
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
+  Widget build(BuildContext context) => PopScope(
+    canPop: canPop,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) unawaited(_confirmExit());
+    },
+    child: Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: AppBar(
           leading: IconButton(
             tooltip: 'Sair da prova',
@@ -102,8 +160,39 @@ class _QuizPageState extends State<QuizPage> {
           ),
         ),
         body: LayoutBuilder(builder: (context, constraints) {
+          if (restoring) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final desktop = constraints.maxWidth >= 980;
-          return Row(children: [
+          return Column(children: [
+            ValueListenableBuilder<DraftSaveStatus>(
+              valueListenable: draftStore.status,
+              builder: (context, status, _) {
+                final (label, icon) = switch (status) {
+                  DraftSaveStatus.saving => ('Salvando no aparelho', Icons.sync_rounded),
+                  DraftSaveStatus.saved => ('Salvo no aparelho', Icons.check_circle_outline_rounded),
+                  DraftSaveStatus.failed => ('Falha ao salvar', Icons.error_outline_rounded),
+                };
+                return Semantics(
+                  liveRegion: true,
+                  label: label,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Row(children: [
+                      Icon(icon, size: 16),
+                      const SizedBox(width: 6),
+                      Text(label),
+                      if (status == DraftSaveStatus.failed)
+                        TextButton(
+                          onPressed: () => unawaited(_retrySave()),
+                          child: const Text('Tentar novamente'),
+                        ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+            Expanded(child: Row(children: [
             if (desktop)
               SizedBox(
                 width: 280,
@@ -155,8 +244,9 @@ class _QuizPageState extends State<QuizPage> {
                                 question: widget.exam.questions[current],
                                 selected: answers[current],
                                 onSelected: (answer) {
+                                  if (finishing) return;
                                   setState(() => answers[current] = answer);
-                                  _persistDraft();
+                                  unawaited(_persistDraft());
                                 },
                               ),
                             ),
@@ -168,12 +258,15 @@ class _QuizPageState extends State<QuizPage> {
                 ),
                 _FocusActions(
                   marked: review.contains(current),
-                  onToggleReview: () => setState(() {
-                    review.contains(current)
-                        ? review.remove(current)
-                        : review.add(current);
-                    _persistDraft();
-                  }),
+                  onToggleReview: () {
+                    if (finishing) return;
+                    setState(() {
+                      review.contains(current)
+                          ? review.remove(current)
+                          : review.add(current);
+                    });
+                    unawaited(_persistDraft());
+                  },
                   onPrevious:
                       current == 0 ? null : () => _selectQuestion(current - 1),
                   onNext: current == widget.exam.questions.length - 1
@@ -183,37 +276,71 @@ class _QuizPageState extends State<QuizPage> {
                 ),
               ]),
             ),
+            ])),
           ]);
         }),
-      );
+      ),
+  );
+
+  Future<void> _retrySave() async {
+    try {
+      await draftStore.flush();
+    } catch (_) {
+      // O estado de falha permanece visível para outra tentativa.
+    }
+  }
 
   void _selectQuestion(int index) {
+    if (finishing) return;
     setState(() => current = index);
-    _persistDraft();
+    unawaited(_persistDraft());
   }
 
   Future<void> _confirmExit() async {
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.pause_circle_outline_rounded),
-        title: const Text('Pausar esta prova?'),
-        content: const Text(
-          'Suas respostas continuam nesta sessão. A sincronização permanente será conectada ao histórico.',
+    if (leaving || finishing) return;
+    leaving = true;
+    try {
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.pause_circle_outline_rounded),
+          title: const Text('Pausar esta prova?'),
+          content: const Text(
+            'Seu progresso será salvo no aparelho antes de sair.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Continuar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Sair'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Continuar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sair'),
-          ),
-        ],
-      ),
-    );
-    if (leave == true && mounted) Navigator.pop(context);
+      );
+      if (!mounted) return;
+      if (leave == true) {
+        await restoration;
+        if (!mounted) return;
+        await _persistDraft();
+        await draftStore.flush();
+        if (!mounted) return;
+        setState(() => canPop = true);
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Não foi possível salvar no aparelho. Tente novamente antes de sair.'),
+        ));
+      }
+    } finally {
+      leaving = false;
+    }
   }
 
   Future<void> _openReview() async {
@@ -235,8 +362,12 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Future<void> _finish() async {
+    if (finishing) return;
+    setState(() => finishing = true);
     timer?.cancel();
     try {
+      await _persistDraft();
+      await draftStore.flush();
       final result = await AttemptRepository().submit(
         exam: widget.exam,
         answers: Map.of(answers),
@@ -244,7 +375,15 @@ class _QuizPageState extends State<QuizPage> {
         durationSeconds: elapsed.value,
         finishedAt: DateTime.now(),
       );
-      await draftStore.clear(widget.exam.id);
+      try {
+        await draftStore.clear(widget.exam.id);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('A prova foi concluída, mas o rascunho não pôde ser removido do aparelho.'),
+          ));
+        }
+      }
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),
@@ -256,10 +395,12 @@ class _QuizPageState extends State<QuizPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Não foi possível corrigir agora. Seu progresso foi mantido. $error',
+            'Não foi possível concluir agora. Confira se o progresso foi salvo no aparelho. $error',
           ),
         ),
       );
+    } finally {
+      if (mounted) setState(() => finishing = false);
     }
   }
 }
