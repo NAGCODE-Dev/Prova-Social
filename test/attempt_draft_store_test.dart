@@ -117,6 +117,25 @@ void main() {
     expect(loaded!.answers[0], 3);
     expect(loaded.review, {0});
     expect(loaded.elapsedSeconds, 12);
+    expect(loaded.clientAttemptId, isNull);
+    store.dispose();
+  });
+
+  test('preserva clientAttemptId estável no rascunho', () async {
+    final storage = ControlledStorage();
+    final store = AttemptDraftStore(storage: storage);
+    final saving = store.save('exam', const AttemptDraft(
+      answers: {0: 1},
+      review: {},
+      current: 0,
+      elapsedSeconds: 8,
+      clientAttemptId: '11111111-1111-4111-8111-111111111111',
+    ));
+    await tick();
+    storage.gates.single.complete();
+    await saving;
+    expect((await store.load('exam'))!.clientAttemptId,
+        '11111111-1111-4111-8111-111111111111');
     store.dispose();
   });
 }

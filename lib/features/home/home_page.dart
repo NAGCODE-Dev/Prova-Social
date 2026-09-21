@@ -7,10 +7,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/backend/exam_repository.dart';
+import '../../core/backend/attempt_sync_service.dart';
 import '../../domain/models/exam.dart';
 import '../quiz/quiz_page.dart';
 import '../publish/publish_page.dart';
 import '../auth/auth_page.dart';
+import '../result/result_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,11 +23,14 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final repository = ExamRepository();
+  final attemptSync = AttemptSyncService();
   int currentTab = 0;
   String query = '';
   String category = 'Todos';
   final saved = <String>{};
   List<Exam> exams = const [];
+  List<PendingAttempt> pendingAttempts = const [];
+  Map<String, ExamResult> completedAttempts = const {};
   bool loading = true;
   String? loadError;
   StreamSubscription<AuthState>? authSubscription;
@@ -37,9 +42,11 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() {});
         _loadContent();
+        unawaited(_loadAttempts());
       }
     });
     _loadContent();
+    unawaited(_loadAttempts());
   }
 
   @override
@@ -71,6 +78,20 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _loadAttempts() async {
+    try {
+      await attemptSync.syncDue();
+      final pending = await attemptSync.store.pending();
+      final completed = await attemptSync.store.completed();
+      if (mounted) setState(() {
+        pendingAttempts = pending;
+        completedAttempts = completed;
+      });
+    } catch (_) {
+      // O catálogo continua utilizável; a biblioteca tentará novamente depois.
+    }
+  }
+
   static const destinations = [
     (Icons.home_outlined, Icons.home_rounded, 'Início'),
     (Icons.search_rounded, Icons.search_rounded, 'Explorar'),
@@ -91,6 +112,20 @@ class _HomePageState extends State<HomePage> {
             saved: saved,
             onOpen: _openExam,
             onSignIn: _openLogin,
+            pendingAttempts: pendingAttempts,
+            completedAttempts: completedAttempts,
+            onPending: (item) async {
+              await Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => PendingResultPage(
+                  clientAttemptId: item.submission.clientAttemptId,
+                  syncService: attemptSync,
+                ),
+              ));
+              await _loadAttempts();
+            },
+            onResult: (result) => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),
+            ),
           ),
           const _ProfilePage(),
         ];
@@ -127,6 +162,7 @@ class _HomePageState extends State<HomePage> {
     }
     setState(() => currentTab = value);
     if (value == 0 || value == 1 || value == 3) _loadContent();
+    if (value == 3) unawaited(_loadAttempts());
   }
 
   Future<void> _toggleSave(String id) async {
@@ -491,11 +527,19 @@ class _LibraryPage extends StatelessWidget {
     required this.saved,
     required this.onOpen,
     required this.onSignIn,
+    required this.pendingAttempts,
+    required this.completedAttempts,
+    required this.onPending,
+    required this.onResult,
   });
   final List<Exam> exams;
   final Set<String> saved;
   final ValueChanged<Exam> onOpen;
   final VoidCallback onSignIn;
+  final List<PendingAttempt> pendingAttempts;
+  final Map<String, ExamResult> completedAttempts;
+  final ValueChanged<PendingAttempt> onPending;
+  final ValueChanged<ExamResult> onResult;
   @override
   Widget build(BuildContext context) {
     final savedExams = exams.where((exam) => saved.contains(exam.id)).toList();
@@ -518,6 +562,38 @@ class _LibraryPage extends StatelessWidget {
       const SizedBox(height: 18),
       const Wrap(spacing: 8, runSpacing: 8, children: [Chip(label: Text('Salvas')), Chip(label: Text('Em andamento')), Chip(label: Text('Concluídas')), Chip(label: Text('Coleções'))]),
       const SizedBox(height: 28),
+      if (pendingAttempts.isNotEmpty) ...[
+        const _SectionTitle('Entregas aguardando correção'),
+        const SizedBox(height: 12),
+        ...pendingAttempts.map((item) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            item.state == AttemptSyncState.requiresAttention
+                ? Icons.error_outline_rounded
+                : Icons.cloud_off_rounded,
+          ),
+          title: Text(item.submission.exam.title),
+          subtitle: Text(item.state == AttemptSyncState.requiresAttention
+              ? 'Requer atenção'
+              : 'Salva no aparelho'),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => onPending(item),
+        )),
+        const SizedBox(height: 20),
+      ],
+      if (completedAttempts.isNotEmpty) ...[
+        const _SectionTitle('Resultados sincronizados'),
+        const SizedBox(height: 12),
+        ...completedAttempts.values.map((result) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.check_circle_outline_rounded),
+          title: Text(result.exam.title),
+          subtitle: const Text('Sincronizada'),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => onResult(result),
+        )),
+        const SizedBox(height: 20),
+      ],
       const _SectionTitle('Provas salvas'),
       const SizedBox(height: 12),
       if (savedExams.isEmpty) const Text('Salve uma prova para encontrá-la aqui.', style: TextStyle(color: AppColors.muted)) else _ExamGrid(exams: savedExams, saved: saved, onSave: (_) {}, onOpen: onOpen),

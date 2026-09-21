@@ -9,18 +9,21 @@ class AttemptDraft {
     required this.review,
     required this.current,
     required this.elapsedSeconds,
+    this.clientAttemptId,
   });
 
   final Map<int, int> answers;
   final Set<int> review;
   final int current;
   final int elapsedSeconds;
+  final String? clientAttemptId;
 
   AttemptDraft snapshot() => AttemptDraft(
         answers: Map.of(answers),
         review: Set.of(review),
         current: current,
         elapsedSeconds: elapsedSeconds,
+        clientAttemptId: clientAttemptId,
       );
 }
 
@@ -74,6 +77,7 @@ class AttemptDraftStore {
         'review': draft.review.toList(),
         'current': draft.current,
         'elapsedSeconds': draft.elapsedSeconds,
+        'clientAttemptId': draft.clientAttemptId,
       }));
       if (revision > _savedRevision) _savedRevision = revision;
       if (!_disposed && revision == _revision) {
@@ -121,6 +125,7 @@ class AttemptDraftStore {
       review: Set<int>.from(json['review'] as List),
       current: json['current'] as int,
       elapsedSeconds: json['elapsedSeconds'] as int,
+      clientAttemptId: json['clientAttemptId'] as String?,
     );
   }
 

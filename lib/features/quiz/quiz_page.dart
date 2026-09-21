@@ -5,14 +5,16 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/backend/attempt_draft_store.dart';
-import '../../core/backend/attempt_repository.dart';
+import '../../core/backend/attempt_submission.dart';
+import '../../core/backend/attempt_sync_service.dart';
 import '../../domain/models/exam.dart';
 import '../result/result_page.dart';
 
 class QuizPage extends StatefulWidget {
-  const QuizPage({required this.exam, this.draftStore, super.key});
+  const QuizPage({required this.exam, this.draftStore, this.syncService, super.key});
   final Exam exam;
   final AttemptDraftStore? draftStore;
+  final AttemptSyncService? syncService;
 
   @override
   State<QuizPage> createState() => _QuizPageState();
@@ -20,6 +22,8 @@ class QuizPage extends StatefulWidget {
 
 class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
   late final AttemptDraftStore draftStore;
+  late final AttemptSyncService syncService;
+  late String clientAttemptId;
   final answers = <int, int>{};
   final review = <int>{};
   final elapsed = ValueNotifier<int>(0);
@@ -36,6 +40,8 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     draftStore = widget.draftStore ?? AttemptDraftStore();
+    syncService = widget.syncService ?? AttemptSyncService();
+    clientAttemptId = AttemptSyncService.newClientAttemptId();
     WidgetsBinding.instance.addObserver(this);
     timer = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
     restoration = _restoreDraft();
@@ -51,6 +57,7 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
           review.addAll(draft.review);
           current = draft.current.clamp(0, widget.exam.questions.length - 1).toInt();
           elapsed.value = draft.elapsedSeconds;
+          clientAttemptId = draft.clientAttemptId ?? clientAttemptId;
         }
         restoring = false;
       });
@@ -70,6 +77,7 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
           review: Set.of(review),
           current: current,
           elapsedSeconds: elapsed.value,
+          clientAttemptId: clientAttemptId,
         ),
       );
 
@@ -365,37 +373,60 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
     if (finishing) return;
     setState(() => finishing = true);
     timer?.cancel();
+    var deliveryPersisted = false;
     try {
       await _persistDraft();
       await draftStore.flush();
-      final result = await AttemptRepository().submit(
+      final submission = AttemptSubmission(
+        clientAttemptId: clientAttemptId,
         exam: widget.exam,
         answers: Map.of(answers),
         markedForReview: Set.of(review),
         durationSeconds: elapsed.value,
         finishedAt: DateTime.now(),
       );
+      await syncService.saveForSync(submission);
+      deliveryPersisted = true;
       try {
         await draftStore.clear(widget.exam.id);
       } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('A prova foi concluída, mas o rascunho não pôde ser removido do aparelho.'),
-          ));
-        }
+        // A entrega já está segura; o rascunho antigo pode ser removido depois.
       }
+      final outcome = await syncService.sync(clientAttemptId, ignoreSchedule: true);
       if (!mounted) return;
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),
-      );
+      if (outcome.result != null) {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => ResultPage(result: outcome.result!)),
+        );
+      } else {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => PendingResultPage(
+            clientAttemptId: clientAttemptId,
+            syncService: syncService,
+          )),
+        );
+      }
     } catch (error) {
-      await _persistDraft();
+      if (deliveryPersisted) {
+        if (!mounted) return;
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => PendingResultPage(
+            clientAttemptId: clientAttemptId,
+            syncService: syncService,
+          )),
+        );
+        return;
+      }
+      try {
+        await _persistDraft();
+        await draftStore.flush();
+      } catch (_) {}
       if (!mounted) return;
       timer = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Não foi possível concluir agora. Confira se o progresso foi salvo no aparelho. $error',
+            'Não foi possível salvar a entrega no aparelho. Suas respostas continuam nesta prova. $error',
           ),
         ),
       );

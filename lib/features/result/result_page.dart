@@ -1,10 +1,149 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/backend/attempt_sync_service.dart';
 import '../../domain/models/exam.dart';
+
+class PendingResultPage extends StatefulWidget {
+  const PendingResultPage({
+    required this.clientAttemptId,
+    required this.syncService,
+    super.key,
+  });
+  final String clientAttemptId;
+  final AttemptSyncService syncService;
+
+  @override
+  State<PendingResultPage> createState() => _PendingResultPageState();
+}
+
+class _PendingResultPageState extends State<PendingResultPage>
+    with WidgetsBindingObserver {
+  PendingAttempt? attempt;
+  Timer? retryTimer;
+  bool syncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_sync());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_sync());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    retryTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _sync({bool ignoreSchedule = false}) async {
+    if (!mounted || syncing) return;
+    setState(() => syncing = true);
+    try {
+      final outcome = await widget.syncService.sync(
+        widget.clientAttemptId,
+        ignoreSchedule: ignoreSchedule,
+      );
+      if (!mounted) return;
+      if (outcome.result != null) {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => ResultPage(result: outcome.result!),
+          ),
+        );
+        return;
+      }
+      setState(() => attempt = outcome.attempt);
+      _schedule(outcome.attempt.nextAttemptAt);
+    } catch (_) {
+      if (mounted) {
+        final stored = await widget.syncService.store.find(widget.clientAttemptId);
+        if (mounted) setState(() => attempt = stored);
+      }
+    } finally {
+      if (mounted) setState(() => syncing = false);
+    }
+  }
+
+  void _schedule(DateTime? when) {
+    retryTimer?.cancel();
+    if (when == null) return;
+    final delay = when.difference(DateTime.now());
+    retryTimer = Timer(delay.isNegative ? Duration.zero : delay, _sync);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = syncing ? AttemptSyncState.sending : attempt?.state;
+    final (title, message, icon) = switch (state) {
+      AttemptSyncState.sending => (
+          'Enviando entrega',
+          'Aguarde enquanto enviamos suas respostas para correção.',
+          Icons.sync_rounded,
+        ),
+      AttemptSyncState.requiresAttention => (
+          'Entrega requer atenção',
+          attempt?.lastError ?? 'O servidor recusou esta entrega.',
+          Icons.error_outline_rounded,
+        ),
+      AttemptSyncState.synced => (
+          'Entrega sincronizada',
+          'A correção está disponível.',
+          Icons.check_circle_outline_rounded,
+        ),
+      _ => (
+          'Entrega salva no aparelho — aguardando correção',
+          state == AttemptSyncState.waitingConnection
+              ? 'Aguardando conexão. Tentaremos novamente no horário programado.'
+              : 'A entrega está segura no aparelho e será enviada em seguida.',
+          Icons.cloud_off_rounded,
+        ),
+    };
+    return Scaffold(
+      appBar: AppBar(title: const Text('Entrega da prova')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Semantics(
+              liveRegion: true,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 56, color: state == AttemptSyncState.requiresAttention
+                    ? AppColors.danger
+                    : AppColors.brand),
+                const SizedBox(height: 20),
+                Text(title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 10),
+                Text(message, textAlign: TextAlign.center),
+                if (!syncing && state != AttemptSyncState.requiresAttention) ...[
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: () => _sync(ignoreSchedule: true),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Tentar agora'),
+                  ),
+                ],
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class ResultPage extends StatelessWidget {
   const ResultPage({required this.result, super.key});
