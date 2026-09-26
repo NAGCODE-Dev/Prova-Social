@@ -122,9 +122,9 @@ class ExamRepository {
         .from('favorites')
         .select('exam_id')
         .eq('user_id', user.id);
-    return List<Map<String, dynamic>>.from(
-      rows,
-    ).map((row) => row['exam_id'] as String).toSet();
+    return List<Map<String, dynamic>>.from(rows)
+        .map((row) => row['exam_id'] as String)
+        .toSet();
   }
 
   Future<void> saveExam(String examId) async {

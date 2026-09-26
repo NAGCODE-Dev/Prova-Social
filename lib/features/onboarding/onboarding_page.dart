@@ -154,9 +154,8 @@ class _OnboardingSlide extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           data.$3,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.bodyLarge
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     ),

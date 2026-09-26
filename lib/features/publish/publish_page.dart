@@ -47,8 +47,7 @@ class PublishPage extends StatelessWidget {
                     _PublishChoice(
                       icon: Icons.picture_as_pdf_outlined,
                       title: 'Importar PDF',
-                      description:
-                          'Extraia texto e figuras, confira as questões e publique.',
+                      description: 'Extraia texto e figuras, confira as questões e publique.',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => const PdfImportPage(),
@@ -58,8 +57,7 @@ class PublishPage extends StatelessWidget {
                     _PublishChoice(
                       icon: Icons.data_object_rounded,
                       title: 'Importar JSON',
-                      description:
-                          'Use um arquivo já estruturado no formato Prova Social.',
+                      description: 'Use um arquivo já estruturado no formato Prova Social.',
                       onTap: () => _importJson(context),
                     ),
                     _PublishChoice(
@@ -582,8 +580,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
           return const _ProcessMessage(
             icon: Icons.document_scanner_outlined,
             title: 'Extraindo conteúdo',
-            text:
-                'Lendo texto, aplicando OCR quando necessário e procurando questões e alternativas…',
+            text: 'Lendo texto, aplicando OCR quando necessário e procurando questões e alternativas…',
             loading: true,
           );
         }
@@ -605,8 +602,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
           return _ProcessMessage(
             icon: Icons.rule_folder_outlined,
             title: 'Texto lido, estrutura não reconhecida',
-            text:
-                'O arquivo possui texto, mas as questões não seguem o padrão “Questão 1” com alternativas A–E. Nenhum conteúdo foi publicado.',
+            text: 'O arquivo possui texto, mas as questões não seguem o padrão “Questão 1” com alternativas A–E. Nenhum conteúdo foi publicado.',
             action: () => Navigator.pop(context),
             actionLabel: 'Voltar',
           );

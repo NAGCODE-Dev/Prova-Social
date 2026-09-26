@@ -677,9 +677,8 @@ class _QuestionContent extends StatelessWidget {
       const SizedBox(height: AppSpacing.md),
       SelectableText(
         question.statement,
-        style: Theme.of(
-          context,
-        ).textTheme.titleLarge?.copyWith(fontSize: 20, height: 1.5),
+        style: Theme.of(context).textTheme.titleLarge
+            ?.copyWith(fontSize: 20, height: 1.5),
       ),
       const SizedBox(height: AppSpacing.xl),
       ...List.generate(question.options.length, (index) {
@@ -720,9 +719,9 @@ class _QuestionContent extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: active
                             ? AppColors.brand
-                            : Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
+                            : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                         shape: BoxShape.circle,
                       ),
                       child: Text(
