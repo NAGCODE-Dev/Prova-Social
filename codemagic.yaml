@@ -5,14 +5,40 @@ workflows:
     environment:
       flutter: stable
     scripts:
+      - name: Diagnosticar SDK
+        script: |
+          set -e
+          flutter --version
+          dart --version
       - name: Resolver dependências
         script: flutter pub get
       - name: Verificar formatação
-        script: dart format --output=none --set-exit-if-changed .
+        script: |
+          set -e
+          if dart format --output=none --set-exit-if-changed .; then
+            exit 0
+          else
+            format_status=$?
+          fi
+          # Collect the official correction for review; keep the gate failed.
+          mkdir -p artifacts/format
+          git rev-parse HEAD > artifacts/format/base-sha.txt
+          flutter --version > artifacts/format/flutter-version.txt
+          dart --version > artifacts/format/dart-version.txt 2>&1
+          dart format . > artifacts/format/write.log 2>&1
+          git diff --binary -- '*.dart' > artifacts/format/dart-format.patch
+          if dart format --output=none --set-exit-if-changed . > artifacts/format/recheck.log 2>&1; then
+            echo 0 > artifacts/format/recheck-status.txt
+          else
+            echo "$?" > artifacts/format/recheck-status.txt
+          fi
+          exit "$format_status"
       - name: Analisar Flutter
         script: flutter analyze
       - name: Executar testes
         script: flutter test --reporter expanded
+    artifacts:
+      - artifacts/format/**
 
   web-ci:
     name: Prova Social - Testes e Web
@@ -34,6 +60,11 @@ workflows:
           source: true
       cancel_previous_builds: true
     scripts:
+      - name: Diagnosticar SDK
+        script: |
+          set -e
+          flutter --version
+          dart --version
       - name: Validar configuração
         script: |
           set -e
@@ -87,9 +118,9 @@ workflows:
           set -e
           flutter pub get
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool
+          dart format --output=none --set-exit-if-changed .
           flutter analyze
-          flutter test
+          flutter test --reporter expanded
 
       - name: Compilar Flutter Web
         script: |
@@ -139,6 +170,11 @@ workflows:
           include: true
       cancel_previous_builds: true
     scripts:
+      - name: Diagnosticar SDK
+        script: |
+          set -e
+          flutter --version
+          dart --version
       - name: Validar configuração de lançamento
         script: |
           set -e
@@ -312,9 +348,9 @@ workflows:
           flutter pub get
           dart run flutter_launcher_icons
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool
+          dart format --output=none --set-exit-if-changed .
           flutter analyze
-          flutter test
+          flutter test --reporter expanded
 
       - name: Compilar lançamento
         script: |

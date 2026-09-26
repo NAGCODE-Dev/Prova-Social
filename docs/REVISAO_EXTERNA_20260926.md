@@ -2,6 +2,8 @@
 
 Data: 26/09/2026. Estado do código analisado: `4be6972a3f6b37aff035a9c750aa7b6f301d7360`, branch `main`.
 
+> Evidência recebida após este relatório: `flutter pub get` passou no Codemagic; o formatter oficial processou 52 arquivos e detectou 7 diferenças, encerrando o gate com status 1. Analyze/test continuam sem execução comprovada. Consulte a [atualização P0 e preparação do próximo build](RELATORIO_P0_20260926.md#evidência-posterior--primeiro-gate-oficial-no-codemagic). As seções abaixo registram o estado da revisão original.
+
 ## 1. Conclusão e alcance
 
 A correção de entrega de tentativas foi aplicada ao Supabase e passou nos testes SQL descritos neste documento. O aplicativo P0 ainda **não está aprovado para distribuição**: Flutter/Dart não estão disponíveis neste ambiente, não houve execução de analyze/test/build e faltam testes de concorrência e de ponta a ponta.

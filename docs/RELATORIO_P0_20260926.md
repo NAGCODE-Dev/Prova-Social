@@ -6,6 +6,80 @@
 
 O P0 **não está concluído nem validado para distribuição**. Esta execução preservou o trabalho local, confirmou o estado remoto por consultas somente de leitura e acrescentou correções locais. Nenhum commit, push, tag, release, deploy ou alteração no Supabase foi realizado.
 
+## Evidência posterior — primeiro gate oficial no Codemagic
+
+O responsável informou que `flutter pub get` passou no Codemagic e que o
+formatter oficial processou 52 arquivos, reportando 7 diferenças:
+
+```text
+Formatted 52 files (7 changed) in 0.23 seconds.
+```
+
+Arquivos indicados pelo log:
+
+- `lib/core/backend/attempt_sync_service.dart`
+- `lib/core/backend/exam_repository.dart`
+- `lib/features/home/home_page.dart`
+- `lib/features/onboarding/onboarding_page.dart`
+- `lib/features/publish/publish_page.dart`
+- `lib/features/quiz/quiz_page.dart`
+- `test/attempt_repository_test.dart`
+
+O passo “Instalar e validar” terminou com status 1. O YAML usa `set -e`, seguido
+de format check, analyze e testes: o comportamento é consistente com interrupção
+no formatter. Não há evidência de execução de analyze/test nesse build.
+
+**Precisão sobre o log:** `--output=none` reporta mudanças necessárias sem gravar
+os arquivos; `--set-exit-if-changed` retorna 1 quando encontra diferenças.
+[Referência oficial do Dart](https://dart.dev/tools/dart-format).
+Assim, “7 changed” não prova que sete arquivos corrigidos foram persistidos.
+Não há patch disponível, e o checkout local estava limpo, sem diff nos sete
+arquivos. Não é possível comparar alterações inexistentes nem confirmar sua
+natureza apenas de formatação. Nenhum patch foi reconstruído ou adivinhado.
+
+Os três workflows usam `flutter: stable`. A versão exata do SDK daquele build
+não consta no log recebido e não foi assumida. Flutter/Dart continuam ausentes
+no PATH local; os gates oficiais não foram executados localmente.
+
+### Preparação da próxima validação
+
+`codemagic.yaml` agora imprime `flutter --version` e `dart --version` antes dos
+passos de validação nos três workflows. Todos mantêm o check
+`dart format --output=none --set-exit-if-changed .`, seguido de `flutter analyze`
+e `flutter test --reporter expanded`. Nenhum gate foi desabilitado ou tornou-se
+opcional. Não houve alteração de dependências nem código Dart neste lote.
+
+No workflow manual **p0-validation**, uma falha de formato coleta diagnóstico:
+executa `dart format .` no checkout descartável do CI, exporta o diff Dart para
+`artifacts/format/dart-format.patch` e executa novamente o check oficial. O
+artefato inclui SHA base, versões, log e status da segunda execução. O passo
+continua retornando o status de falha original, mesmo que a segunda passagem
+fique limpa. Isso impede aprovação de código que ainda não contém a correção.
+Esse fluxo foi verificado localmente com comandos simulados, não com Dart real.
+
+Próxima execução recomendada: workflow manual `p0-validation`, sem publicação.
+Se falhar por formato, recuperar os artefatos, comparar o SHA base com o checkout,
+revisar/aplicar o patch oficial sem sobrescrever trabalho existente e verificar
+que as diferenças não alteram comportamento. Em ambiente com o mesmo SDK:
+
+```sh
+flutter --version
+dart --version
+flutter pub get
+dart format .
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+flutter test --reporter expanded
+```
+
+A segunda execução com zero alterações **ainda não foi comprovada**. O patch
+oficial, sua revisão e os gates analyze/test dependem do próximo ambiente Flutter.
+O workflow automático `web-ci` mantém publicação Web após os gates; para esta
+validação, usar `p0-validation`. Nenhum build foi disparado nesta preparação.
+Nenhum commit/push, tag, release ou APK foi publicado neste lote.
+
+---
+
 ## 1. SHA e branch iniciais
 
 `main`, `6d3ed92` — Implementar entrega offline idempotente.
