@@ -22,11 +22,13 @@ class FakeSubmitter implements AttemptSubmitter {
   AttemptSubmissionException? error;
   int calls = 0;
   final ids = <String>[];
+  final payloads = <AttemptSubmission>[];
 
   @override
   Future<ExamResult> submit(AttemptSubmission submission) async {
     calls++;
     ids.add(submission.clientAttemptId);
+    payloads.add(submission);
     if (error case final failure?) throw failure;
     return ExamResult(
       exam: submission.exam.copyWith(
@@ -84,9 +86,13 @@ void main() {
       final store = AttemptQueueStore(storage: MemoryQueueStorage());
       final answers = <int, int>{0: 1};
       final marked = <int>{0};
+      final options = <String>['A', 'B'];
+      final questions = <Question>[
+        Question(id: 'q1', topic: 'Geral', statement: 'Q?', options: options),
+      ];
       final value = AttemptSubmission(
         clientAttemptId: submission().clientAttemptId,
-        exam: exam,
+        exam: exam.copyWith(questions: questions),
         answers: answers,
         markedForReview: marked,
         durationSeconds: 10,
@@ -95,10 +101,16 @@ void main() {
       final writing = store.enqueue(value);
       answers[0] = 0;
       marked.clear();
+      options[1] = 'Alterada';
+      questions.clear();
       await writing;
       final persisted = (await store.pending()).single.submission;
       expect(persisted.answers, {0: 1});
       expect(persisted.markedForReview, {0});
+      expect(persisted.exam.questions.single.options, ['A', 'B']);
+      expect(persisted.exam.questions.single.id, 'q1');
+      expect(persisted.durationSeconds, value.durationSeconds);
+      expect(persisted.finishedAt, value.finishedAt);
     },
   );
 
@@ -405,11 +417,44 @@ void main() {
         retryAttention: true,
       );
       expect(retried.result!.answers, value.answers);
+      for (final sent in submitter.payloads) {
+        expect(sent.answers, value.answers);
+        expect(sent.markedForReview, value.markedForReview);
+        expect(sent.exam.id, value.exam.id);
+        expect(sent.durationSeconds, value.durationSeconds);
+        expect(sent.finishedAt, value.finishedAt);
+      }
       expect(submitter.ids, [value.clientAttemptId, value.clientAttemptId]);
       expect(await restarted.store.pending(), isEmpty);
       expect(await restarted.store.completed(), hasLength(1));
     },
   );
+
+  test('ID concluído rejeita conflito sem substituir resultado', () async {
+    final submitter = FakeSubmitter();
+    final service = AttemptSyncService(
+      store: AttemptQueueStore(storage: MemoryQueueStorage()),
+      submitter: submitter,
+    );
+    final original = submission();
+    await service.saveForSync(original);
+    await service.sync(original.clientAttemptId);
+    await service.saveForSync(original);
+    final changed = AttemptSubmission(
+      clientAttemptId: original.clientAttemptId,
+      exam: original.exam,
+      answers: const {0: 0},
+      markedForReview: original.markedForReview,
+      durationSeconds: original.durationSeconds,
+      finishedAt: original.finishedAt,
+    );
+    await expectLater(service.saveForSync(changed), throwsStateError);
+    expect(await service.store.pending(), isEmpty);
+    final completed = await service.store.completed();
+    expect(completed.keys, [original.clientAttemptId]);
+    expect(completed.values.single.answers, original.answers);
+    expect(submitter.calls, 1);
+  });
 
   test('backoff é limitado a uma hora', () async {
     final service = AttemptSyncService(
@@ -432,6 +477,9 @@ void main() {
     final delay = outcome!.attempt.nextAttemptAt!.difference(DateTime.now());
     expect(delay <= const Duration(hours: 1), isTrue);
     expect(outcome.attempt.attemptCount, 7);
+    expect(outcome.attempt.state, AttemptSyncState.waitingConnection);
+    expect((await service.store.pending()).single.submission.answers, {0: 1});
+    expect(await service.store.completed(), isEmpty);
   });
 
   test('falha ao salvar fila é propagada sem item parcial', () async {

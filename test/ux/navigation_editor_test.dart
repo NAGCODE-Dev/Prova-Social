@@ -7,7 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:prova_social/app.dart';
+import 'package:prova_social/core/backend/attempt_draft_store.dart';
+import 'package:prova_social/core/backend/attempt_sync_service.dart';
 import 'package:prova_social/core/backend/local_exam_store.dart';
+import 'package:prova_social/features/quiz/quiz_page.dart';
 import 'package:prova_social/core/theme/app_theme.dart';
 import 'package:prova_social/core/backend/exam_publication_service.dart';
 import 'package:prova_social/core/backend/attempt_repository.dart';
@@ -79,6 +83,77 @@ void main() {
     requests.clear();
   });
   tearDownAll(() => Supabase.instance.dispose());
+  for (final hasProgress in [false, true]) {
+    testWidgets('app inicia com progresso local=$hasProgress', (tester) async {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool('onboarding_complete', true);
+      final local = LocalExam(
+        id: 'startup-local',
+        title: 'Prova para retomar',
+        category: 'Matemática',
+        source: 'Criação própria',
+        durationMinutes: 30,
+        questions: editor().questions,
+      );
+      final drafts = AttemptDraftStore();
+      if (hasProgress) {
+        await LocalExamStore().save(local);
+        await AttemptQueueStore().saveStartedExam(local.exam);
+        await drafts.save(
+          local.exam.id,
+          const AttemptDraft(
+            answers: {0: 0},
+            review: {0},
+            current: 0,
+            elapsedSeconds: 12,
+            clientAttemptId: '11111111-1111-4111-8111-111111111111',
+          ),
+        );
+      }
+      // Keep the optional update check local and exercise its failure fallback.
+      const packageChannel = MethodChannel(
+        'dev.fluttercommunity.plus/package_info',
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        packageChannel,
+        (_) async => throw PlatformException(code: 'unavailable-in-test'),
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          packageChannel,
+          null,
+        );
+      });
+      var initialized = 0;
+      await tester.pumpWidget(
+        ProvaSocialApp(
+          initialize: () async {
+            initialized++;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(initialized, 1);
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      if (hasProgress) {
+        await tester.tap(find.text('Biblioteca').last);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continuar — disponível offline'));
+        await tester.pumpAndSettle();
+        expect(find.byType(QuizPage), findsOneWidget);
+        expect(find.text('Quanto é dois mais dois?'), findsOneWidget);
+        expect(find.byTooltip('Remover da revisão'), findsOneWidget);
+        expect((await drafts.load(local.exam.id))!.answers, {0: 0});
+      }
+      expect(requests.where((request) => request.method == 'POST'), isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      drafts.dispose();
+    });
+  }
+
   for (final width in [320.0, 1280.0]) {
     testWidgets('avatar guest and signed-in, layout $width', (tester) async {
       await tester.binding.setSurfaceSize(Size(width, 900));
