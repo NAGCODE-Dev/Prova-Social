@@ -164,6 +164,71 @@ void main() {
     expect(requests, hasLength(2));
   });
 
+  for (final failure in ['PGRST202', 'timeout-before-accept']) {
+    test('$failure seguido de retry usa mesma RPC e payload', () async {
+      final requests = <http.Request>[];
+      final client = SupabaseClient(
+        'https://example.test',
+        'public-key',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (requests.length == 1) {
+            if (failure == 'timeout-before-accept') {
+              throw TimeoutException('QA: servidor não aceitou ainda');
+            }
+            return http.Response(
+              jsonEncode({'code': 'PGRST202', 'message': 'RPC unavailable'}),
+              404,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'total': 1,
+              'correct': 1,
+              'review': [validReview],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(client.dispose);
+      final storage = _QueueStorage();
+      final repository = AttemptRepository(client: client);
+      final first = AttemptSyncService(
+        store: AttemptQueueStore(storage: storage),
+        submitter: repository,
+      );
+      final value = testSubmission();
+      await first.saveForSync(value);
+      final waiting = await first.sync(value.clientAttemptId);
+      expect(waiting.attempt.state, AttemptSyncState.waitingConnection);
+      expect(waiting.result, isNull);
+      final restarted = AttemptSyncService(
+        store: AttemptQueueStore(storage: storage),
+        submitter: repository,
+      );
+      final retry = await restarted.sync(
+        value.clientAttemptId,
+        ignoreSchedule: true,
+      );
+      expect(retry.result!.correct, 1);
+      expect(requests, hasLength(2));
+      expect(requests.first.url.path, '/rest/v1/rpc/submit_exam_attempt');
+      expect(requests.last.url, requests.first.url);
+      expect(requests.last.body, requests.first.body);
+      for (final request in requests) {
+        expect(
+          (jsonDecode(request.body) as Map)['p_client_attempt_id'],
+          value.clientAttemptId,
+        );
+      }
+      expect(await restarted.store.pending(), isEmpty);
+      expect((await restarted.store.completed()).keys, [value.clientAttemptId]);
+    });
+  }
+
   for (final code in ['PGRST202', '22023', '42501']) {
     test('classifica $code preservando a chamada idempotente', () async {
       final requests = <http.Request>[];

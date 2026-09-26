@@ -121,8 +121,11 @@ class AttemptQueueStore {
     data['started'] = started;
   }
 
-  Future<void> completeLocal(String clientAttemptId, ExamResult result) =>
-      _locked(() async {
+  Future<void> completeLocal(String clientAttemptId, ExamResult value) {
+    final result = _resultFromJson(
+      jsonDecode(jsonEncode(_resultToJson(value))) as Map<String, dynamic>,
+    );
+    return _locked(() async {
         if (!result.exam.isLocal) {
           throw StateError(
             'Uma prova pública precisa de correção do servidor.',
@@ -132,11 +135,28 @@ class AttemptQueueStore {
         final completed = Map<String, dynamic>.from(
           data['completed'] as Map? ?? const {},
         );
+        final existing = completed[clientAttemptId];
+        if (existing != null) {
+          final previous = _resultFromJson(
+            Map<String, dynamic>.from(existing as Map),
+          );
+          if (!_sameExam(previous.exam, result.exam) ||
+              previous.finishedAt != result.finishedAt ||
+              previous.durationSeconds != result.durationSeconds ||
+              !_sameMap(previous.answers, result.answers) ||
+              !_sameSet(previous.markedForReview, result.markedForReview)) {
+            throw StateError(
+              'clientAttemptId já usado por uma entrega diferente.',
+            );
+          }
+          return;
+        }
         completed[clientAttemptId] = _resultToJson(result);
         data['completed'] = completed;
         _removeStarted(data, result.exam.id);
         await _write(data);
       });
+  }
 
   Future<void> enqueue(AttemptSubmission value) {
     // Capture the complete payload before waiting for other queued writes.
@@ -400,16 +420,32 @@ class AttemptSyncService {
 }
 
 bool _sameSubmission(AttemptSubmission first, AttemptSubmission second) =>
-    first.exam.id == second.exam.id &&
+    _sameExam(first.exam, second.exam) &&
+    first.finishedAt == second.finishedAt &&
     first.durationSeconds == second.durationSeconds &&
     _sameMap(first.answers, second.answers) &&
     _sameSet(first.markedForReview, second.markedForReview);
 
 bool _matchesResult(AttemptSubmission submission, ExamResult result) =>
-    submission.exam.id == result.exam.id &&
+    _sameExam(submission.exam, result.exam, ignoreAnswerKeys: true) &&
+    submission.finishedAt == result.finishedAt &&
     submission.durationSeconds == result.durationSeconds &&
     _sameMap(submission.answers, result.answers) &&
     _sameSet(submission.markedForReview, result.markedForReview);
+
+bool _sameExam(Exam first, Exam second, {bool ignoreAnswerKeys = false}) {
+  Map<String, dynamic> snapshot(Exam exam) {
+    final json = _examToJson(exam);
+    if (ignoreAnswerKeys) {
+      for (final question in json['questions'] as List) {
+        (question as Map).remove('correctIndex');
+      }
+    }
+    return json;
+  }
+
+  return jsonEncode(snapshot(first)) == jsonEncode(snapshot(second));
+}
 
 bool _sameMap(Map<int, int> first, Map<int, int> second) =>
     first.length == second.length &&

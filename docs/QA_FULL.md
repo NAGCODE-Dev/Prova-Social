@@ -438,3 +438,385 @@ preview fixo de 230 px pode não caber em 360×640; textos/cores fixos podem lim
 dark mode; fontes externas podem ser solicitadas mesmo com renderer local.
 Não foram registrados como bugs reproduzidos nem corrigidos nesta etapa. Falhas
 reais devem preservar o relatório e ser tratadas em lote posterior.
+
+## Etapa 4 — tortura, recuperação e idempotência (2026-09-26)
+
+**Não há aprovação do P0 nesta execução. Baseline do produto: BLOCKED.**
+Checkout inicial `ee4df9f`, branch `p0-validation-diagnostics`; após fetch,
+`HEAD...origin/main = 8 0`. Os caminhos não rastreados preexistentes
+`CODEX_QA_COMPLETO_PROVA_SOCIAL.md` e `docs/qa/` foram preservados.
+Nenhum arquivo de `lib/`, migration ou workflow de distribuição foi alterado.
+Não houve deploy, publicação, commit, push, tag, login externo ou acesso ao banco
+remoto. Somente fixtures sintéticas e armazenamento descartável de QA.
+
+### Baseline e ambiente efetivamente observado
+
+- Node **24.18.1**, npm **11.12.1**, cliente PostgreSQL **17.11**, PGlite **0.5.8**
+  (PostgreSQL WASM **18.3**). CI continua configurado com Node 22.
+- Smoke da Etapa 3 tentado: `npm test -- --project=mobile --grep '^smoke'`.
+  O servidor abortou por `ENOENT build/web/`, antes de iniciar o navegador.
+  **Não foi possível confirmar inicialização nem início de tentativa local.**
+- `dart format`, `flutter analyze` e `flutter test` tentados: executáveis ausentes.
+  Não foi instalado SDK grande nem usado o site publicado como substituto.
+- `sh scripts/local_db_test.sh` tentou preparar o banco nativo, mas o guard
+  detectou cluster incompleto em `/tmp/prova_social_postgres_5433`, sem
+  `global/pg_control`. Cluster preservado; nenhuma migration nativa executada.
+- `node scripts/qa_concurrency.mjs` também parou na conexão ao socket ausente,
+  antes de qualquer cenário. Isso **não é falha de concorrência do produto**.
+- PGlite executou migrations/fixtures/testes existentes em memória e passou.
+  A omissão de `CREATE EXTENSION pgcrypto` e o Auth simulado permanecem limites.
+
+### Matriz de tortura — resultados reais, não contagem de testes escritos
+
+`PASS` exige execução de asserções. `BLOCKED` identifica impedimento do ambiente;
+`NOT RUN` identifica cenário não executado; `PARTIAL` limita a evidência ao recorte
+explicitamente descrito. Ausência de FAIL reproduzido não significa aprovação.
+
+| CENÁRIO | CAMADA | RESULTADO | EVIDÊNCIA | OBSERVAÇÃO |
+| --- | --- | --- | --- | --- |
+| Baseline: iniciar app e tentativa | Browser | BLOCKED | `artifacts/qa-stage4/baseline-browser.log` | Sem build Web/Flutter; tortura browser não iniciada |
+| Infraestrutura de servidor isolado | Node | PASS | `infra.log`, 2/2 | Não comprova inicialização Flutter |
+| Reload A: iniciar | Browser | BLOCKED | `torture reload A-start` escrito | Snapshot e quantidade de tentativas; draft ainda pode não existir antes de interação |
+| Reload B: resposta imediata | Browser | BLOCKED | `torture reload B-immediate-answer` escrito | Sem polling de storage entre toque e reload |
+| Reload C: duas respostas | Browser | BLOCKED | `torture reload C-two-answers` escrito | Respostas, índice, ID, snapshot e seleção |
+| Reload D: revisão | Browser | BLOCKED | `torture reload D-review` escrito | Marcar/desmarcar/marcar, reload e estado final |
+| Reload E: intermediária | Browser | BLOCKED | `torture reload E-middle` escrito | Índice contratualmente persistido |
+| Reload F: confirmação | Browser | BLOCKED | `torture reload F-confirmation` escrito | Sem entrega/resultado/duplicação antes de confirmar |
+| Fechar página e reabrir | Browser | BLOCKED | `torture close page...` escrito | Fecha Page, cria outra no mesmo BrowserContext; storage preservado |
+| Nova aba simultânea / novo BrowserContext persistente | Browser | NOT RUN | Sem automação nova para esses dois recortes | Novo contexto descartável não compartilha storage por padrão; não equivale a reabrir perfil |
+| Offline durante respostas | Browser + widget | BLOCKED | Etapa 3 + `quiz_offline_submission_test.dart` | Rede real bloqueada no browser; Dart usa submitter fake |
+| Online/offline quatro transições | Browser | BLOCKED | `torture rapid...` escrito | Respostas, navegação e estado final; não comprova servidor real |
+| Finalização offline e resultado antes de limpar draft | Widget + browser | BLOCKED | Testes existentes + `quiz_torture_test.dart` | Privada: resultado local; pública: payload pendente, sem inventar correção |
+| Morte antes de finalizar | Browser | BLOCKED | Reload F programado | Não simula morte do processo do SO |
+| Morte entre entrega durável e remoção do draft | Widget | BLOCKED | `reinício entre entrega durável e remoção` | Captura bytes no callback do fake; recria stores para resultado local e fila pública |
+| Morte antes/durante sync | Dart | BLOCKED | `reinício com sending=...` | Estado durável pending/sending; sem hooks no produto |
+| Aceite remoto antes de persistência local/UI | Dart | BLOCKED | `morte após aceite remoto mantém fila` | Escrita de completed falha; restaura bytes sending; retry usa mesmo ID |
+| Timeout antes de aceite e retry | HTTP fake + Dart | BLOCKED | `attempt_repository_test.dart` ampliado | Duas chamadas, mesmo corpo e endpoint; sucesso posterior |
+| Resposta perdida após aceite | Dart + SQL | PARTIAL | Teste HTTP existente; `pglite.log` | Cliente não executado; deduplicação SQL sequencial passou |
+| Duplo finalizar / dois enqueues / retry | Browser + Dart | BLOCKED | `torture close page...`, `dois enqueues rápidos...` | Clique duplo físico; simultaneidade Dart não é concorrência PostgreSQL |
+| Respostas rápidas | Browser + Dart | BLOCKED | `torture rapid...`, teste de gravações ordenadas existente | Fixture browser tem duas opções: A→B→A→B; última seleção válida é o oráculo |
+| Navegação agressiva | Browser | BLOCKED | `torture rapid...` | Próxima/próxima/anterior/próxima/anterior/anterior com respostas distintas |
+| Todas/primeira/última/alternadas em branco | Widget | BLOCKED | Quatro casos em `quiz_torture_test.dart` | Confirmação, contagens, resultado e ausência de NaN/Infinity |
+| Sem gabarito | Widget + domínio | BLOCKED | Regressão nova + `exam_result_test.dart` | Risco estático E4-03 abaixo; não tratado como PASS |
+| Prova vazia / uma questão | Widget + domínio | BLOCKED | Nova recusa explícita de prova vazia; casos de recuperação com uma questão | Resultado vazio também coberto anteriormente |
+| Alternativa mínima / texto longo | UI | NOT RUN | Sem cenário novo | Não houve fuzzing nem certificação desses limites |
+| Snapshot A com catálogo B | Browser + widget | BLOCKED | `torture rapid...` + retomada existente | Altera somente catálogo QA; retoma enunciado original e respostas |
+| Payload congelado após mutação local | Dart | BLOCKED | `resposta perdida, mutação local e retry preservam payload` | Muta respostas/opções/fonte após enqueue; compara ID, respostas, revisão, tempo e questão |
+| RequiresAttention e retry explícito | Dart | BLOCKED | Testes existentes em `attempt_sync_service_test.dart` | Item preservado, sem retry automático, sem novo ID |
+| PGRST202 retryable sem fallback legado | HTTP fake + Dart | BLOCKED | Classificação existente + novo retry com sucesso | Mesmo endpoint/corpo/clientAttemptId |
+| Mesmo ID, respostas conflitantes (público) | SQL | PASS | `pglite.log`, `attempt_idempotency.sql` | SQLSTATE 22023; sem sobrescrever nem criar duplicata |
+| Mesmo ID, respostas conflitantes (cliente) | Dart | BLOCKED | Testes existentes e nova regressão local | Risco E4-01 para `completeLocal` |
+| Mesmo ID, snapshot conflitante | Dart | BLOCKED | Nova regressão `mesmo ID com snapshot diferente...` | Risco E4-02; não aceitar silêncio como sucesso |
+| Migrations, visitante, vínculo posterior, RLS, grants, rollback | SQL em memória | PASS | `pglite.log` | Quatro migrations; schema descartável; Auth simulado |
+| Concorrência A: payload igual | PostgreSQL nativo | BLOCKED | `postgres.log`, `concurrency.log` | Script novo exige observar lock real entre duas sessões |
+| Concorrência B: payload diferente | PostgreSQL nativo | BLOCKED | Mesmos logs | Espera 22023, uma tentativa e resposta original |
+| Concorrência C: vínculo incompatível | PostgreSQL nativo | BLOCKED | Mesmos logs | Espera 42501; primeiro proprietário preservado |
+| Draft ausente / campo opcional ausente | Dart | BLOCKED | Novos testes de storage + compatibilidade v1 existente | Não exige recuperação arbitrária de dados inválidos |
+| JSON inválido / fila incompleta | Dart | BLOCKED | `attempt_torture_test.dart` | Exige erro e preservação dos bytes/outros dados; não comprova UI de recuperação |
+| Storage cheio/falha de escrita | Dart + widget | BLOCKED | Fakes de storage existentes + BoundaryStorage novo | Indicador failed, flush/retry e draft mantido quando enqueue falha |
+| Troca visitante/A/B no armazenamento local | Cliente | PARTIAL | Leitura das chaves em `attempt_draft_store.dart` e `attempt_sync_service.dart` | Sem isolamento por conta demonstrado; RLS SQL não comprova isolamento local |
+| Reload e fechar/reabrir após resultado | Browser | BLOCKED | Etapa 3 + `torture close page...` | Reabre Biblioteca/histórico, mesmo ID e uma conclusão |
+| Smoke visual posterior 390×844 | Browser | BLOCKED | `post-torture smoke...` programado | Home/prova/resultado; não é auditoria visual completa |
+| Três repetições críticas | Dart + browser | NOT RUN | `sh scripts/qa_stress.sh` | Baseline bloqueado; modo manual, sem aumentar build padrão |
+| Site existente | Node | PASS | `site.log`, 3/3 | Simulador/fallback/contraste; não substitui Flutter |
+| Sintaxe JS/shell, descoberta e configuração CI | Infraestrutura | PASS | `syntax.log`, `config.log`, `discovery.log` | Descoberta de 36 combinações não é execução de 36 testes |
+| Formatação Dart / analyze / flutter test | Flutter | BLOCKED | `format.log`, `analyze.log`, `flutter-test.log` | Comandos tentados, executáveis ausentes |
+| Diff sem whitespace inválido | Git | PASS | `diff-check.log` | Não valida sintaxe Dart nem runtime |
+
+### Riscos encontrados e regressões que devem manter o gate vermelho
+
+Nenhuma perda de resposta ou duplicação foi **reproduzida em runtime do app**
+neste ambiente. A análise estática revelou os seguintes candidatos; os testes
+novos exigem o comportamento correto, sem `skip`, `expectFailure` ou ajuste para
+aceitar o defeito. **Espera-se que essas regressões falhem no código atual**,
+mas essa expectativa não é um FAIL executado e não substitui o primeiro run Flutter.
+
+- **E4-01 — P0, possível sobrescrita de resultado local:** `completeLocal` atribui
+  diretamente `completed[clientAttemptId]` sem comparar resultado anterior.
+  A regressão envia duas respostas distintas para o mesmo ID e exige conflito
+  explícito e preservação da original. Ainda não há evidência de que a UI normal
+  consiga produzir esse caso; o double click possui guarda `finishing`.
+- **E4-02 — conflito de snapshot não sinalizado:** `_sameSubmission` compara ID
+  da prova, respostas, revisão e duração, mas não o snapshot nem `finishedAt`.
+  A regressão altera a questão mantendo ID/índices e exige rejeição explícita.
+  A fila conserva o primeiro payload pelo código atual, portanto não se afirma
+  mutação no retry; o risco é reportar aceitação de conteúdo incompatível.
+- **E4-03 — percentual sem gabarito:** `ResultPage` sempre renderiza
+  `scorePercent`, mesmo quando nenhuma questão é corrigível. O teste exige
+  “Gabarito indisponível” e ausência de percentual inventado. O domínio já evita
+  incluir essa resposta em `wrongQuestionIndices`. Problema de semântica de
+  correção, não perda de respostas.
+- **Isolamento local entre contas — risco P0 pendente:** chaves de draft e fila
+  são por prova/dispositivo, sem escopo de usuário; não existe prova nesta bateria
+  de isolamento visitante/A/B. Não houve login externo ou promessa de suporte.
+- Corrupção local pode impedir leitura da fila inteira. Os testes exigem não
+  apagar bytes e não bloquear a fila de operações após restaurar a fixture;
+  não certificam recuperação automática nem UX de reparo.
+
+Nenhuma correção de produto foi feita. O próximo lote deve primeiro executar
+Flutter em ambiente compatível e reproduzir esses candidatos; correções ficam
+fora desta Etapa 4.
+
+### Execução padrão, stress e concorrência nativa
+
+`qa-full` descobre automaticamente os novos arquivos Dart e `torture.spec.mjs`.
+São **9 cenários browser novos**, somente em 390×844. Com os anteriores: 36
+combinações descobertas, 14 execuções previstas e 22 skips de viewport. `retries: 0`,
+limite global de 12 minutos e timeouts existentes foram mantidos. Cada falha
+crítica executada retorna código não zero, inclusive as regressões de perda/
+conflito acima. O log Flutter agora usa `tee` com retorno de `PIPESTATUS[0]` e é
+coletado em artifacts; não há conversão de erro em warning.
+
+Stress **manual local**, com build isolado e dependências da Etapa 3 preparados:
+
+```sh
+sh scripts/qa_stress.sh
+```
+
+O script executa primeiro smoke + fluxo privado existente. Só após aprovação
+repete três vezes draft/retry/tortura Dart, depois três vezes um subconjunto
+browser de resposta rápida, reload imediato e duplo finalizar/reabertura.
+Artifacts repetidos ficam em `artifacts/browser/stress/`, separados do baseline.
+Não foi criado workflow `qa-stress`; não há triggers nem deploy. Essa separação
+mantém uma execução padrão no Codemagic e repetições fora do build obrigatório.
+
+Concorrência nativa manual, somente no cluster descartável já definido em scripts:
+
+```sh
+sh scripts/local_db_test.sh
+# Executar o próximo comando somente se o anterior passou.
+node scripts/qa_concurrency.mjs
+```
+
+O primeiro comando já contém o teste concorrente A antigo e recria somente
+`prova_social_test`. O novo runner exige o socket/porta/database/data_directory
+fixos, fixture presente e IDs de teste ainda ausentes; recusa reutilizar dados.
+Usa duas sessões `psql`, mantém a primeira transação aberta, observa a segunda
+com `wait_event_type = 'Lock'` e só então confirma a primeira. Verifica IDs,
+SQLSTATE, proprietário, quantidade de linhas e resposta original em A/B/C.
+Timeouts de statement/lock/barreira impedem espera indefinida. Não conecta por
+URL configurável nem executa migrations; a terceira conexão apenas observa.
+PGlite não é fallback para declarar concorrência PASS.
+
+### Evidências, duração e limitações finais
+
+Artifacts locais desta execução estão em `artifacts/qa-stage4/` (ignorados pelo
+Git): baseline-browser, infra, site, pglite, postgres, concurrency, discovery,
+config, syntax, format, analyze, flutter-test, diff-check e `summary.json`.
+Os logs registram cenário/resultado e o resumo registra timestamp. O Playwright
+também produziu relatórios de runner em `artifacts/browser/`; não há screenshots
+ou trace de produto porque nenhum browser iniciou. Trace permanece desligado,
+conforme política de evidências da Etapa 3. Logs de páginas adicionais agora são
+capturados e recebem timestamp; continuam redigidos, sem dump de storage,
+credenciais, cookies ou dados pessoais.
+
+Tempos observados: servidor Node **2,42 s**, site **0,52 s**, descoberta Playwright
+**8,51 s**, validação de configuração **2,66 s**. PGlite passou, mas não teve duração
+isolada registrada. Não há tempo medido da bateria Flutter/browser/nativa e não
+se estima aprovação por orçamento. O custo extra do CI é nove fluxos mobile e
+21 casos Dart novos; depende de medição na primeira execução. Repetições e SQL
+nativo ficam manuais; limite do workflow continua 60 minutos.
+
+`dart format` não pôde normalizar os testes novos: o gate oficial continua
+obrigatório e pode exigir ajustes quando houver SDK. Não houve build APK/Web,
+auditoria visual real ou verificação de rede/reconexão no aplicativo. A Etapa 5
+não foi iniciada.
+
+## Etapas 5 e 6 — integração local e gate consolidado
+
+**Situação: implementação preparada; execução integral e fechamento BLOCKED.**
+A escolha do responsável foi **Supabase local descartável**, sem projeto remoto.
+O trabalho da Etapa 4 e os arquivos não rastreados anteriores foram preservados.
+Nenhum arquivo de produto em `lib/`, migration, versão ou workflow de publicação
+foi alterado nestas etapas. Não houve acesso ao Supabase de produção, commit,
+push, deploy, release ou execução remota do Codemagic.
+
+### Integração real preparada (Etapa 5)
+
+`qa/integration/run.mjs` cria um diretório temporário e um `project_id` aleatório
+por execução. Copia somente as migrations versionadas para esse projeto novo.
+Recusa Docker remoto e portas locais ocupadas; não reutiliza nem reseta uma
+instalação existente. A URL permitida é exatamente `http://127.0.0.1:54321`.
+Não há parâmetro de URL remota, `link`, `db push`, `db reset` ou chave privilegiada
+em nenhum cliente de teste.
+
+Supabase CLI **2.118.0**, PGlite **0.5.8** e YAML **2.8.1** são dependências apenas
+de QA, com lockfile em `qa/integration/`. O CLI foi executado com `--help` para
+confirmar `start`, `status`, `stop`, `init` e `--workdir`. A configuração foi
+comparada com `supabase init` dessa versão: o SMTP local usa `[local_smtp]`.
+`status` leu a configuração preparada, mas parou na ausência de Docker/Podman.
+As [instruções oficiais do CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
+confirmam a necessidade de container runtime; não foi instalado Docker dentro
+deste ambiente Termux/proot.
+
+O stack deve executar Postgres 17, Auth e PostgREST reais. Confirmação de e-mail
+fica desabilitada **somente no config temporário**, permitindo contas sintéticas
+`@example.test` sem SMTP externo. Signup/login geram os JWTs: nenhum `auth.uid()`
+falso, service key ou JWT forjado participa da integração real. O PGlite e seus
+mocks anteriores continuam em etapa separada e nunca são apresentados como Auth
+real.
+
+`api.mjs` programa: cadastro, login válido/inválido, trigger de perfil, refresh,
+logout, recusa de publicação por visitante, rollback de publicação inválida,
+publicação autenticada, busca pública, gabarito inacessível, prova/questão privada
+invisível a visitante/B, tentativa de edição por B, favoritos isolados, entrega
+visitante, retry, vínculo posterior por A, recusa de vínculo por B, conflito de
+payload e bloqueio de alteração direta da nota. Cada request usa somente chave
+pública e a sessão do usuário correspondente. **Estes cenários não executaram
+neste ambiente**, porque o stack não pôde iniciar.
+
+`live.spec.mjs` programa duas integrações pela UI real:
+
+1. Visitante importa JSON pelo seletor de arquivo → revisa → salva privado →
+   login contextual → cancela a primeira confirmação → confirma publicação →
+   pesquisa → resolve parcialmente → finaliza offline → observa fila durável →
+   reconecta → sincroniza → compara tentativa/respostas no backend → reload e
+   resultado na Biblioteca. Login sozinho nunca deve publicar a cópia privada.
+2. Visitante conclui uma tentativa pública online → entra em conta → a mesma
+   tentativa deve aparecer no histórico remoto da conta, com o mesmo ID.
+   O teste não faz a RPC de vínculo em nome da UI para esconder suporte ausente.
+
+O segundo cenário registra um **candidato a bug P0 ainda não reproduzido**:
+`HomePage` chama `syncDue()` após Auth, mas o serviço percorre somente pendentes;
+resultados já concluídos como visitante aparentemente não são vinculados após
+login. Uma RPC de vínculo que funciona isoladamente não certifica esse fluxo.
+Os candidatos E4-01/02/03 continuam sem correção ou reprodução Flutter.
+
+O JSON sintético exercita importação, editor e publicação existentes. Isso não
+valida PDF/OCR, imagens nem a prova real de 80 questões. OAuth Google, confirmação
+por e-mail externo e deep links de distribuição continuam **NOT RUN/BLOCKED**;
+não se apresenta auto-confirmação local como evidência desses contratos.
+
+### Isolamento, cleanup e artifacts
+
+- Antes de iniciar, valida daemon Docker por socket Unix e portas desocupadas.
+- Remove variáveis Supabase/PG herdadas do processo dos comandos locais.
+- `status` do CLI permanece em memória; somente URL e chave pública validadas são
+  gravadas em arquivo temporário modo 0600. Saída bruta de start/status/stop não
+  entra nos artifacts, pois pode conter segredos locais.
+- Browser permite somente origem do app e API loopback; não usa proxy para
+  produção. Não grava trace, HAR, storageState, cookies, senha ou token.
+- Credenciais sintéticas ficam em memória; falhas de preenchimento de login têm
+  mensagem substituída para não anexar senha ao call log. Screenshots são
+  suspensos enquanto o formulário de Auth estiver ativo.
+- `finally` executa `stop --project-id <ID gerado> --no-backup` exclusivamente
+  naquele projeto. Nunca usa `--all`. Só remove o próprio diretório temporário
+  depois de cleanup bem-sucedido. Interrupção normal cancela o comando atual e
+  permite cleanup; SIGKILL/encerramento forçado da VM não pode garantir `finally`.
+- A integração escreve `artifacts/integration/report.json` e logs sanitizados.
+  Falha de cleanup também impede aprovação. Uma falha de prerequisite não cria
+  PASS fictício para API/browser.
+
+### Gate consolidado (Etapa 6)
+
+`qa-full` agora executa `node qa/gate/full.mjs`, reutilizando testes, servidor,
+fixtures e Playwright existentes. Nenhum workflow de distribuição foi modificado.
+Continua manual, sem grupos de segredos ou seção `publishing`, em `linux_x2`,
+Ubuntu 24.04, Node 22, Java 17, Flutter stable e limite de 60 minutos.
+A [imagem Linux documentada pelo Codemagic](https://docs.codemagic.io/specs-linux/ubuntu-24.04/)
+lista Docker; disponibilidade do daemon e billing ainda precisam de comprovação
+na execução da conta. A documentação não é evidência de job executado.
+
+O runner registra início/resultado/duração por etapa, mantém `INCOMPLETE` até
+terminar e consolida `PASS`, `FAIL` ou `BLOCKED`. Retornos: **0 PASS, 1 FAIL,
+2 BLOCKED**. Ambos os últimos falham o job. Uma falha de formatação não suprime
+coleta de testes independentes; no final, FAIL tem precedência sobre BLOCKED.
+Não há `ignore_failure` ou substituição de erro por warning. Exit 2 de uma
+ferramenta genérica continua FAIL; apenas o subrunner de integração usa o contrato
+explícito de BLOCKED.
+
+Etapas obrigatórias: dependências QA fixadas, guards, SDK, pub, format, analyze,
+Flutter tests, site, SQL em memória, plataformas ausentes, ícones Android/Web,
+build Web isolado, infraestrutura browser, Chromium, browser real e validação de
+seu relatório, APK debug, inspeção de artefatos, integração Supabase local e diff.
+Os builds da integração ficam em `build/qa-live`; o build de fixtures em `build/web`
+é preservado. Preparação copia somente plataformas ausentes e usa geradores de
+marca existentes. APK/Web são artifacts de QA, sem distribuição.
+
+Relatórios Playwright devem comprovar pelo menos 14 execuções da matriz existente
+e duas da integração, sem runner errors, falhas ou testes flaky. `--list`, todos
+skipped ou sucesso após retry não aprovam o gate. Retries permanecem zero. Isso
+previne mascaramento de flakiness, mas **não prova que a UI está livre de flakiness**:
+ainda não houve execução real neste ambiente. Stress da Etapa 4 continua manual.
+
+A inspeção Web/APK verifica estrutura, marca, assets e hashes. Não instala o APK,
+não comprova comportamento Android, assinatura de distribuição ou OAuth. O
+relatório distingue aprovação automatizada de autorização de publicação e lista
+pendências manuais, incluindo concorrência PostgreSQL A/B/C. O runner nativo da
+Etapa 4 permanece disponível, mas não foi adaptado para o container Supabase;
+PGlite não substitui essa prova. **Fechamento/release gate continua bloqueado.**
+Os workflows de publicação existentes ainda não dependem automaticamente de um
+resultado deste job; encadeá-los requer um lote explícito após validar o gate.
+
+### Matriz executada destas etapas
+
+| CENÁRIO | CAMADA | RESULTADO | EVIDÊNCIA | OBSERVAÇÃO |
+| --- | --- | --- | --- | --- |
+| Recusa de URL remota e chave privilegiada | Node | PASS | `guards-final.log` | Guards executados com entradas sintéticas |
+| Falha/timeout preservados; BLOCKED não vira aprovação | Node | PASS | Mesmo log | Subprocessos de teste falham intencionalmente; asserções do runner passam |
+| Redação de segredos e separação stdout/stderr | Node | PASS | Mesmo log | Material artificial; nenhuma credencial real gravada |
+| Cancelamento permite somente cleanup posterior | Node | PASS | Mesmo log | Não equivale a matar um stack Docker real |
+| Gate manual e demais workflows preservados | YAML/Node | PASS | Guard compara contra HEAD | Sem execução Codemagic |
+| CLI instalado, comandos e config inspecionados | CLI | PARTIAL | `cli-help.log`, `config-init.log`, `config-parse.log` | Config chega à dependência ausente; stack não iniciou |
+| Auth real, visitante/conta, RLS, RPC, visibilidade | Supabase local | BLOCKED | `artifacts/integration/report.json` | Docker/Podman ausentes |
+| Importação JSON → publicação → offline → sync | Browser real | BLOCKED | Mesmo relatório; `live-discovery.log` | Dois testes descobertos; zero testes UI executados |
+| Vínculo automático de resultado visitante após login | Browser real | BLOCKED | Regressão escrita | Candidato estático; não atribuir PASS da RPC à UI |
+| PDF/OCR/80 questões e imagens | Produto | NOT RUN | Fora do recorte implementado | Sem certificação de importação completa |
+| OAuth Google / confirmação externa / deep links | Auth/dispositivos | NOT RUN | Sem provider/runner externo | Auto-confirmação local não valida isso |
+| SQL sequencial, site e infraestrutura browser | Node/PGlite | PASS | `artifacts/qa-full/*.log` | Reexecutados pelo gate; limites anteriores preservados |
+| Format/analyze/Flutter tests/Web/APK | Flutter | BLOCKED | `artifacts/qa-full/report.json` | SDK ausente; nenhum build produzido |
+| Responsividade/a11y e flakiness do produto | Browser/Android | BLOCKED | Matriz anterior reutilizada | Sem evidência visual nova ou Android runtime |
+| Concorrência PostgreSQL nativa | Banco | BLOCKED | Etapa 4 | Não substituída por requests paralelos |
+| Gate consolidado local | Orquestração | BLOCKED | `full-run-final.log`, `qa-full/report.json` | O código não zero impede falsa aprovação |
+| Job completo no Codemagic | CI remoto | NOT RUN | Sem acesso/job configurado nesta sessão | Alterações locais não foram commitadas/enviadas |
+
+### Como reproduzir e o que falta para fechar
+
+Com Node 22+, Flutter compatível, Android SDK, Python 3 e Docker local, na raiz:
+
+```sh
+node qa/gate/full.mjs
+```
+
+Esse comando instala dependências de QA com `npm ci --ignore-scripts`, executa
+as etapas e retorna o estado final. Ele não instala Flutter nem Docker.
+Para inspecionar só os guards (após instalar as dependências QA):
+
+```sh
+node --test qa/integration/guards.test.mjs
+```
+
+Para integração isolada, após `flutter pub get`, plataformas/ícones e Playwright
+preparados, executar `node qa/integration/run.mjs`. Nenhuma URL/credencial remota
+é aceita. O pacote não integra dependências ao aplicativo Flutter.
+
+Faltam: executar o checkout completo em runner compatível/Codemagic, reproduzir e
+corrigir os FAIL reais encontrados, medir duração/flakiness, validar concorrência
+nativa e APK em dispositivo, validar Auth/deep links de distribuição e só então
+aprovar um gate de publicação. Nenhum desses itens foi declarado concluído.
+Artifacts e arquivos novos são revisáveis localmente; as Etapas 5/6 não estão
+fechadas apenas porque seus testes foram escritos.
+
+Execução consolidada final local: **22 etapas, 7 PASS, 0 FAIL e 15 BLOCKED**;
+aproximadamente **62,8 segundos** somados nos subprocessos. Os guards tiveram
+**10/10 PASS**, além de site 3/3, servidor 2/2 e SQL sequencial aprovado. Esse tempo
+não estima builds, downloads de imagens Docker ou UI, que não executaram.
+Resultado/exit code do runner: **BLOCKED / 2**. Os artifacts da execução final
+estão em `artifacts/qa-full/`, `artifacts/integration/` e `artifacts/qa-stage56/`.
+
+### Correções autorizadas e execução remota de diagnóstico
+
+Após autorização explícita para corrigir e fazer push, foram aplicadas correções
+localizadas: `completeLocal` congela o resultado antes de aguardar escrita e
+rejeita reutilização conflitante do ID; enqueue compara snapshot e instante da
+finalização, permitindo apenas a inclusão legítima do gabarito no resultado do
+servidor; a tela sem gabarito deixa de apresentar percentual/acertos inventados.
+Os testes correspondentes continuam pendentes de execução Flutter, não PASS.
+
+`.github/workflows/qa-diagnostics.yml` executa o mesmo runner `qa-full` em Ubuntu
+na branch `p0-validation-diagnostics`, com permissões somente de leitura,
+Supabase local descartável e sem publicação. O workflow preserva relatórios e
+patch de formatação mesmo em falha; produzir o patch não aprova o format check.
+Esta execução complementa o Codemagic, não comprova execução no Codemagic.
+Vínculo automático de resultado visitante já sincronizado e isolamento entre
+contas permanecem pendentes de validação/correção; não há aprovação de release.

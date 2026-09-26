@@ -1,0 +1,17 @@
+{
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "supabase": "2.118.0",
+    "yaml": "2.8.1"
+  },
+  "name": "prova-social-local-integration-qa",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test:guards": "node --test guards.test.mjs",
+    "test": "node run.mjs"
+  }
+}

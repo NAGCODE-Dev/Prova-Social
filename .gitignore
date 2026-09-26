@@ -48,3 +48,8 @@ supabase/.temp/
 # Isolated browser QA dependencies and evidence
 qa/browser/node_modules/
 artifacts/browser/
+artifacts/qa-stage4/
+qa/integration/node_modules/
+artifacts/qa-stage56/
+artifacts/integration/
+artifacts/qa-full/

@@ -1,8 +1,9 @@
 import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-const artifacts = fileURLToPath(new URL('../../artifacts/browser/', import.meta.url));
+const artifactDir = process.env.QA_STRESS === '1' ? '../../artifacts/browser/stress/' : '../../artifacts/browser/';
+const artifacts = fileURLToPath(new URL(artifactDir, import.meta.url));
 export default defineConfig({
-  testDir: '.', testMatch: 'p0.spec.mjs', fullyParallel: false, workers: 1,
+  testDir: '.', testMatch: ['p0.spec.mjs', 'torture.spec.mjs'], fullyParallel: false, workers: 1,
   forbidOnly: true, retries: 0, timeout: 120000, globalTimeout: 720000,
   expect: { timeout: 15000 }, outputDir: `${artifacts}/results`,
   reporter: [['list'], ['html', { outputFolder: `${artifacts}/html`, open: 'never' }],

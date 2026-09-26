@@ -10,67 +10,17 @@ workflows:
       java: 17
       ubuntu: "24.04"
     scripts:
-      - name: Mostrar versão Flutter
-        script: flutter --version
-      - name: Mostrar versão Dart
-        script: dart --version
-      - name: Resolver dependências
-        script: flutter pub get
-      - name: Gate de formatação
-        script: dart format --output=none --set-exit-if-changed .
-      - name: Analisar Flutter
-        script: flutter analyze
-      - name: Executar testes Flutter e UX existentes
-        script: flutter test --reporter expanded
-      - name: Executar testes locais existentes
-        script: |
-          set -eu
-          node --test site/tests/site.test.cjs
-          qa_sql_dir=$(mktemp -d)
-          npm install --prefix "$qa_sql_dir" --ignore-scripts --no-audit --no-fund --save-exact @electric-sql/pglite@0.5.8
-          node scripts/pglite_test.mjs "$qa_sql_dir/node_modules/@electric-sql/pglite/dist/index.js"
-      - name: Preparar somente plataformas ausentes para compilação
-        script: |
-          set -eu
-          if [ ! -d web ] || [ ! -d android ]; then
-            qa_platform_dir=$(mktemp -d)
-            flutter create "$qa_platform_dir" --platforms=android,web --project-name=prova_social --org=dev.nagcode --no-pub
-            if [ ! -d web ]; then
-              cp -R "$qa_platform_dir/web" web
-            fi
-            if [ ! -d android ]; then
-              cp -R "$qa_platform_dir/android" android
-            fi
-          fi
-      - name: Compilar Flutter Web isolado para QA
-        script: |
-          set -eu
-          flutter build web --debug --no-pub --no-web-resources-cdn \
-            --dart-define=SUPABASE_URL=http://127.0.0.1:8787 \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY=qa-public-placeholder \
-            --dart-define=WEB_AUTH_CALLBACK=http://127.0.0.1:8787/
-      - name: Preparar Chromium e infraestrutura de QA
-        script: |
-          set -eu
-          cd qa/browser
-          timeout --kill-after=15s 300s npm ci --ignore-scripts --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=1
-          timeout --kill-after=15s 600s npx --no-install playwright install --with-deps --only-shell chromium
-          timeout --kill-after=15s 60s npm run test:infra
-      - name: QA Flutter Web em Chromium headless
+      - name: Gate consolidado com Supabase local descartável
         script: |
           #!/usr/bin/env bash
           set -euo pipefail
-          mkdir -p artifacts/browser
-          cd qa/browser
-          set +e
-          timeout --kill-after=15s 900s npm test 2>&1 | tee ../../artifacts/browser/runner.log
-          qa_browser_status=${PIPESTATUS[0]}
-          set -e
-          exit "$qa_browser_status"
-      - name: Validar compilação APK debug
-        script: flutter build apk --debug --no-pub
+          node qa/gate/full.mjs
     artifacts:
+      - artifacts/qa-full/**
       - artifacts/browser/**
+      - artifacts/integration/**
+      - build/web/**
+      - build/app/outputs/flutter-apk/app-debug.apk
 
   p0-validation:
     name: Prova Social - Validar P0 sem publicação

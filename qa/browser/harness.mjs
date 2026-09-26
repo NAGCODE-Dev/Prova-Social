@@ -2,42 +2,41 @@ import { test as base, expect } from '@playwright/test';
 import { localExam } from './fixtures.mjs';
 export { expect };
 export const origin = 'http://127.0.0.1:8787';
-export function redact(value) {
-  return String(value).replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[jwt-redacted]')
-    .replace(/((?:token|apikey|password|cookie|authorization)["'\s:=]+)[^\s,;]+/gi, '$1[redacted]')
-    .replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/g, '$1[parameters-redacted]')
-    .slice(0, 8000);
-}
+import { redact } from './harness-redaction.mjs';
+export { redact };
 export const test = base.extend({
   audit: [async ({ page, context }, use, info) => {
     const logs = [], fatal = [];
     const audit = { offline: false };
     const record = (kind, message, fails = false) => {
-      const entry = { kind, message: redact(message) };
+      const entry = { at: new Date().toISOString(), kind, message: redact(message) };
       logs.push(entry);
       if (fails) fatal.push(entry);
     };
-    page.on('console', msg => {
-      const text = msg.text();
-      const offlineProbe = audit.offline && msg.location().url.startsWith(`${origin}/__qa/health`) &&
-        /ERR_INTERNET_DISCONNECTED/.test(text);
-      record(offlineProbe ? 'expected-offline-console' : msg.type(), text, (!offlineProbe && msg.type() === 'error') ||
-        /EXCEPTION CAUGHT|Another exception was thrown|RenderFlex overflowed|Unhandled (?:Exception|error)|Uncaught|Assertion failed|ErrorWidget/i.test(text));
-    });
-    page.on('pageerror', error => record('pageerror', error.message, true));
-    page.on('crash', () => record('crash', 'Chromium page crashed', true));
-    page.on('requestfailed', request => {
-      const url = new URL(request.url());
-      // Only the intentional offline health probe is expected to fail.
-      const expected = url.origin === origin && url.pathname === '/__qa/health' && audit.offline;
-      record(expected ? 'expected-offline' : 'requestfailed',
-        `${url.origin}${url.pathname}: ${request.failure()?.errorText}`, !expected);
-    });
-    page.on('response', response => {
-      if (response.status() >= 400) record('http-error',
-        `${response.status()} ${new URL(response.url()).pathname}`, true);
-    });
+    const watchPage = page => {
+      page.on('console', msg => {
+        const text = msg.text();
+        const offlineProbe = audit.offline && msg.location().url.startsWith(`${origin}/__qa/health`) &&
+          /ERR_INTERNET_DISCONNECTED/.test(text);
+        record(offlineProbe ? 'expected-offline-console' : msg.type(), text, (!offlineProbe && msg.type() === 'error') ||
+          /EXCEPTION CAUGHT|Another exception was thrown|RenderFlex overflowed|Unhandled (?:Exception|error)|Uncaught|Assertion failed|ErrorWidget/i.test(text));
+      });
+      page.on('pageerror', error => record('pageerror', error.message, true));
+      page.on('crash', () => record('crash', 'Chromium page crashed', true));
+      page.on('requestfailed', request => {
+        const url = new URL(request.url());
+        // Only the intentional offline health probe is expected to fail.
+        const expected = url.origin === origin && url.pathname === '/__qa/health' && audit.offline;
+        record(expected ? 'expected-offline' : 'requestfailed',
+          `${url.origin}${url.pathname}: ${request.failure()?.errorText}`, !expected);
+      });
+      page.on('response', response => {
+        if (response.status() >= 400) record('http-error',
+          `${response.status()} ${new URL(response.url()).pathname}`, true);
+      });
+    };
+    watchPage(page);
+    context.on('page', watchPage);
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin === origin || ['data:', 'blob:'].includes(url.protocol)) return route.continue();
@@ -52,7 +51,7 @@ export const test = base.extend({
       await use(audit);
     } finally {
       if (info.status !== info.expectedStatus || fatal.length) {
-        try { await evidence(page, info, 'failure'); } catch (error) {
+        try { await evidence(context.pages().find(p => !p.isClosed()) ?? page, info, 'failure'); } catch (error) {
           record('capture-error', error.message);
         }
       }
