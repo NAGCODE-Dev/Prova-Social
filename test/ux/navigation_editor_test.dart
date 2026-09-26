@@ -103,7 +103,11 @@ void main() {
       expect(find.text('Pessoa Teste'), findsWidgets);
       await tester.tap(find.byTooltip('Abrir perfil'));
       await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
+      final profileException = tester.takeException();
+      if (profileException != null) {
+        debugPrint('PROFILE_EXCEPTION_320_1280: $profileException');
+      }
+      expect(profileException, isNull);
       await tester.pumpWidget(const SizedBox());
     });
   }
