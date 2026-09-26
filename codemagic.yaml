@@ -32,13 +32,17 @@ workflows:
           git rev-parse HEAD > artifacts/format/base-sha.txt
           flutter --version > artifacts/format/flutter-version.txt
           dart --version > artifacts/format/dart-version.txt 2>&1
+          cat artifacts/format/flutter-version.txt artifacts/format/dart-version.txt
           dart format . > artifacts/format/write.log 2>&1
-          git diff --binary -- '*.dart' > artifacts/format/dart-format.patch
+          cat artifacts/format/write.log
+          git --no-pager diff --no-ext-diff --no-color --binary -- '*.dart' > artifacts/format/dart-format.patch
+          cat artifacts/format/dart-format.patch
           if dart format --output=none --set-exit-if-changed . > artifacts/format/recheck.log 2>&1; then
             echo 0 > artifacts/format/recheck-status.txt
           else
             echo "$?" > artifacts/format/recheck-status.txt
           fi
+          cat artifacts/format/recheck.log artifacts/format/recheck-status.txt
           exit "$format_status"
       - name: Analisar Flutter
         script: flutter analyze
