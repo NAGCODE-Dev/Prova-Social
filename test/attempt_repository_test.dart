@@ -70,11 +70,17 @@ void main() {
       await expectLater(
         AttemptRepository(client: client).submit(testSubmission()),
         throwsA(
-          isA<AttemptSubmissionException>().having(
-            (error) => error.transient,
-            'não transformar uma correção inválida em resultado',
-            false,
-          ),
+          isA<AttemptSubmissionException>()
+              .having(
+                (error) => error.transient,
+                'não transformar uma correção inválida em resultado',
+                false,
+              )
+              .having(
+                (error) => error.message,
+                'causa é a correção inválida, não uma falha genérica do mock',
+                startsWith('A correção recebida não corresponde'),
+              ),
         ),
       );
     });
@@ -280,11 +286,21 @@ void main() {
           ),
         ),
         throwsA(
-          isA<AttemptSubmissionException>().having(
-            (error) => error.transient,
-            'pode tentar novamente após atualização do serviço',
-            code == 'PGRST202',
-          ),
+          isA<AttemptSubmissionException>()
+              .having(
+                (error) => error.transient,
+                'pode tentar novamente após atualização do serviço',
+                code == 'PGRST202',
+              )
+              .having(
+                (error) => error.cause,
+                'erro estruturado recebido do PostgREST',
+                isA<PostgrestException>().having(
+                  (error) => error.code,
+                  'código original',
+                  code,
+                ),
+              ),
         ),
       );
       expect(requests, hasLength(1));

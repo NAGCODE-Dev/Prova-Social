@@ -93,6 +93,7 @@ class AttemptQueueStore {
     void release() {
       if (identical(_globalTail, tail)) _globalTail = null;
     }
+
     tail = result.then<void>((_) => release(), onError: (_, __) => release());
     _globalTail = tail;
     return result;
@@ -396,7 +397,11 @@ class AttemptSyncService {
     void release() {
       if (identical(_globalSyncTail, tail)) _globalSyncTail = null;
     }
-    tail = operation.then<void>((_) => release(), onError: (_, __) => release());
+
+    tail = operation.then<void>(
+      (_) => release(),
+      onError: (_, __) => release(),
+    );
     _globalSyncTail = tail;
     _inFlight[clientAttemptId] = operation;
     unawaited(

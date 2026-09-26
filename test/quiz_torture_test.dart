@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prova_social/core/backend/attempt_draft_store.dart';
 import 'package:prova_social/core/backend/attempt_sync_service.dart';
+import 'package:prova_social/core/backend/attempt_submission.dart';
 import 'package:prova_social/domain/models/exam.dart';
 import 'package:prova_social/features/quiz/quiz_page.dart';
 import 'package:prova_social/features/result/result_page.dart';
@@ -31,6 +32,45 @@ Exam localExam({int count = 3, bool withKey = true}) => Exam(
 );
 
 void main() {
+  testWidgets('resultado salvo permanece acessível durante vínculo offline', (
+    tester,
+  ) async {
+    String? userId;
+    final remote = queue_fixture.FakeSubmitter();
+    final service = AttemptSyncService(
+      store: AttemptQueueStore(storage: queue_fixture.MemoryQueueStorage()),
+      submitter: remote,
+      currentUserId: () => userId,
+    );
+    final submission = queue_fixture.submission();
+    await service.saveForSync(submission);
+    await service.sync(submission.clientAttemptId);
+    userId = 'account-a';
+    remote.error = const AttemptSubmissionException(
+      message: 'QA offline',
+      transient: true,
+    );
+    await service.syncDue();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PendingResultPage(
+          clientAttemptId: submission.clientAttemptId,
+          syncService: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Ver resultado salvo'), findsOneWidget);
+    expect(await service.store.pending(), hasLength(1));
+    await tester.tap(find.text('Ver resultado salvo'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 de 1 acertos'), findsOneWidget);
+    expect(await service.store.completed(), hasLength(1));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('sem gabarito não inventa percentual', (tester) async {
     final result = ExamResult(
       exam: localExam(count: 1, withKey: false),

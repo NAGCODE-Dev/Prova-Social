@@ -19,7 +19,7 @@ try {
   // Collect independent failures; formatting failure does not suppress test evidence.
   await step('format', 'dart', ['format', '--output=none', '--set-exit-if-changed', 'lib', 'test', 'tool'], ['flutter-version']);
   await step('analyze', 'flutter', ['analyze'], ['pub']);
-  await step('flutter-tests', 'flutter', ['test', '--reporter', 'expanded', '--timeout=2m'], ['pub'], { timeoutMs: 600000 });
+  await step('flutter-tests', 'flutter', ['test', '--reporter', 'expanded', '--timeout=2m'], ['pub'], { timeoutMs: 180000 });
   await step('site', 'node', ['--test', 'site/tests/site.test.cjs']);
   await step('sql', 'node', ['scripts/pglite_test.mjs', resolve('qa/integration/node_modules/@electric-sql/pglite/dist/index.js')], ['qa-deps']);
   await step('platforms', 'node', ['qa/gate/prepare.mjs'], ['pub']);

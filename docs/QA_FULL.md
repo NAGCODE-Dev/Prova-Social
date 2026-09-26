@@ -861,3 +861,12 @@ anterior. A execução foi interrompida para diagnóstico e os logs preservados 
 `artifacts/qa-stage56/remote-third/full/qa-full/flutter-tests.log`.
 Correções: adicionar request aos mocks HTTP e liberar as caudas globais quando
 ociosas, mantendo a serialização das operações ainda ativas. Revalidação pendente.
+
+A proteção de duração da etapa Flutter passa a três minutos para a bateria
+unitária/widget atual; estourar o limite é FAIL, com o log intermediário
+preservado. O timeout individual continua em dois minutos. Essa proteção impede
+que um teste travado consuma dez minutos antes das demais verificações.
+O resultado concluído também fica acessível enquanto um vínculo offline aguarda
+retry, sem remover a pendência nem apresentar o vínculo como concluído.
+Os testes de respostas inválidas/RPC agora verificam a causa específica, evitando
+falso PASS provocado por uma exceção genérica do mock.

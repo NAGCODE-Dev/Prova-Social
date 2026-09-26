@@ -26,6 +26,7 @@ class PendingResultPage extends StatefulWidget {
 class _PendingResultPageState extends State<PendingResultPage>
     with WidgetsBindingObserver {
   PendingAttempt? attempt;
+  ExamResult? savedResult;
   Timer? retryTimer;
   bool syncing = false;
 
@@ -55,6 +56,9 @@ class _PendingResultPageState extends State<PendingResultPage>
     if (!mounted || syncing) return;
     setState(() => syncing = true);
     try {
+      final results = await widget.syncService.store.completed();
+      final saved = results[widget.clientAttemptId];
+      if (mounted && saved != null) setState(() => savedResult = saved);
       final outcome = await widget.syncService.sync(
         widget.clientAttemptId,
         ignoreSchedule: ignoreSchedule,
@@ -138,12 +142,26 @@ class _PendingResultPageState extends State<PendingResultPage>
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    title,
+                    savedResult != null &&
+                            state != AttemptSyncState.requiresAttention
+                        ? 'Resultado salvo — vínculo com a conta pendente'
+                        : title,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 10),
                   Text(message, textAlign: TextAlign.center),
+                  if (savedResult case final result?) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ResultPage(result: result),
+                        ),
+                      ),
+                      child: const Text('Ver resultado salvo'),
+                    ),
+                  ],
                   if (!syncing) ...[
                     const SizedBox(height: 20),
                     FilledButton.icon(
