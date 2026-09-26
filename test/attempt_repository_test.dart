@@ -93,9 +93,8 @@ void main() {
       ),
     );
     addTearDown(client.dispose);
-    final result = await AttemptRepository(
-      client: client,
-    ).submit(testSubmission());
+    final result = await AttemptRepository(client: client)
+        .submit(testSubmission());
     expect(result.correct, 1);
     expect(result.answers, {0: 1});
     expect(result.markedForReview, isEmpty);

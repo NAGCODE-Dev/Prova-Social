@@ -448,9 +448,8 @@ AttemptSubmission _submissionFromJson(Map<String, dynamic> json) =>
     AttemptSubmission(
       clientAttemptId: json['clientAttemptId'] as String,
       exam: _examFromJson(Map<String, dynamic>.from(json['exam'] as Map)),
-      answers: Map<String, dynamic>.from(
-        json['answers'] as Map,
-      ).map((key, value) => MapEntry(int.parse(key), value as int)),
+      answers: Map<String, dynamic>.from(json['answers'] as Map)
+          .map((key, value) => MapEntry(int.parse(key), value as int)),
       markedForReview: Set<int>.from(json['review'] as List? ?? const []),
       durationSeconds: json['durationSeconds'] as int,
       finishedAt: DateTime.parse(json['finishedAt'] as String),
