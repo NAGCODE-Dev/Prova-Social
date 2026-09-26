@@ -62,10 +62,12 @@ void main() {
       anonKey: 'public-key',
       httpClient: MockClient((request) async {
         requests.add(request);
-        if (request.url.path.endsWith('/logout'))
+        if (request.url.path.endsWith('/logout')) {
           return http.Response('{}', 200);
-        if (request.url.path.endsWith('/user'))
+        }
+        if (request.url.path.endsWith('/user')) {
           return http.Response(jsonEncode(user), 200);
+        }
         return http.Response('[]', 200);
       }),
       authOptions: const FlutterAuthClientOptions(autoRefreshToken: false),

@@ -109,11 +109,13 @@ class PublishPage extends StatelessWidget {
       );
       if (file == null) return;
       final length = file.lengthSync() ?? await file.length();
-      if (length != null && length > 4 * 1024 * 1024)
+      if (length != null && length > 4 * 1024 * 1024) {
         throw const FormatException('Limite: 4 MB.');
+      }
       final bytes = await file.readAsBytes();
-      if (bytes.length > 4 * 1024 * 1024)
+      if (bytes.length > 4 * 1024 * 1024) {
         throw const FormatException('Limite: 4 MB.');
+      }
       final data = Map<String, dynamic>.from(
         jsonDecode(utf8.decode(bytes)) as Map,
       );
@@ -135,7 +137,7 @@ class PublishPage extends StatelessWidget {
         ),
       );
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -143,6 +145,7 @@ class PublishPage extends StatelessWidget {
             ),
           ),
         );
+      }
     }
   }
 }
@@ -234,8 +237,9 @@ class _PdfImportPageState extends State<PdfImportPage> {
       if (selected != null) {
         final selectedSize =
             selected.lengthSync() ?? await selected.length() ?? 0;
-        if (selectedSize > 25 * 1024 * 1024)
+        if (selectedSize > 25 * 1024 * 1024) {
           throw const FormatException('O PDF excede o limite de 25 MB.');
+        }
         if (mounted) {
           setState(() {
             file = selected;
@@ -244,7 +248,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
         }
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -252,6 +256,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
             ),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => selecting = false);
     }
@@ -775,15 +780,17 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     final savedRevision = revision;
     try {
       await store.save(_snapshot());
-      if (mounted && savedRevision == revision)
+      if (mounted && savedRevision == revision) {
         setState(() => status = 'Salvo no aparelho');
+      }
       return true;
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () =>
               status = 'Falha ao salvar. Tente novamente ou exporte uma cópia.',
         );
+      }
       return false;
     }
   }
@@ -791,8 +798,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused)
+        state == AppLifecycleState.paused) {
       unawaited(_save());
+    }
   }
 
   Future<void> _exit() async {
@@ -817,7 +825,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       await Clipboard.setData(
         ClipboardData(text: jsonEncode(_snapshot().toJson())),
       );
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -825,8 +833,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             ),
           ),
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -834,6 +843,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             ),
           ),
         );
+      }
     }
   }
 
@@ -882,8 +892,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             builder: (_) => const AuthPage(closeAfterAuth: true),
           ),
         );
-        if (!mounted || Supabase.instance.client.auth.currentUser == null)
+        if (!mounted || Supabase.instance.client.auth.currentUser == null) {
           return;
+        }
       }
       final confirmed = await showDialog<bool>(
         context: context,
@@ -925,7 +936,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         ),
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -933,6 +944,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             ),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1095,12 +1107,13 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         onPressed: busy
             ? null
             : () async {
-                if (await _save(pending: false) && mounted)
+                if (await _save(pending: false) && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Prova privada salva na biblioteca local.'),
                     ),
                   );
+                }
               },
         child: const Text('Salvar só para mim'),
       ),

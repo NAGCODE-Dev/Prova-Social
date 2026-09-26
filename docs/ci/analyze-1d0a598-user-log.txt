@@ -1,0 +1,35 @@
+Analyzing clone...
+
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/core/backend/attempt_repository.dart:18:7 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/core/backend/attempt_repository.dart:24:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/core/backend/attempt_sync_service.dart:70:7 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/core/backend/attempt_sync_service.dart:90:7 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Use an initializing formal to assign a parameter to a field. Try using an initialing formal ('this._submitter') to initialize the field â€¢ lib/core/backend/attempt_sync_service.dart:262:7 â€¢ prefer_initializing_formals
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/core/backend/attempt_sync_service.dart:282:7 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ The import of 'package:url_launcher/url_launcher.dart' is unnecessary because all of the used elements are also provided by the import of 'package:supabase_flutter/supabase_flutter.dart'. Try removing the import directive â€¢ lib/core/backend/auth_repository.dart:3:8 â€¢ unnecessary_import
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/domain/models/exam.dart:129:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/home/home_page.dart:123:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/home/home_page.dart:138:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/home/home_page.dart:1000:19 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/home/home_page.dart:1202:19 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:113:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:116:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:139:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:238:11 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:248:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:779:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:783:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:795:7 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:821:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:830:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:886:11 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:929:9 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ lib/features/publish/publish_page.dart:1099:19 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ test/ux/navigation_editor_test.dart:66:11 â€¢ curly_braces_in_flow_control_structures
+   info â€¢ Statements in an if should be enclosed in a block. Try wrapping the statement in a block â€¢ test/ux/navigation_editor_test.dart:68:11 â€¢ curly_braces_in_flow_control_structures
+
+27 issues found. (ran in 18.4s)
+
+
+Build failed :|
+Step 6 script `Analisar Flutter` exited with status code 1

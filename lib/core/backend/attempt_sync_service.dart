@@ -66,8 +66,9 @@ class _PreferencesAttemptQueueStorage implements AttemptQueueStorage {
       key,
       value,
     );
-    if (!saved)
+    if (!saved) {
       throw StateError('Não foi possível salvar a entrega no aparelho.');
+    }
   }
 }
 
@@ -86,8 +87,9 @@ class AttemptQueueStore {
 
   Future<Map<String, dynamic>> _read() async {
     final raw = await _storage.read();
-    if (raw == null)
+    if (raw == null) {
       return {'pending': <dynamic>[], 'completed': <String, dynamic>{}};
+    }
     return Map<String, dynamic>.from(jsonDecode(raw) as Map);
   }
 
@@ -257,9 +259,8 @@ class AttemptSyncOutcome {
 }
 
 class AttemptSyncService {
-  AttemptSyncService({AttemptQueueStore? store, AttemptSubmitter? submitter})
-    : store = store ?? AttemptQueueStore(),
-      _submitter = submitter;
+  AttemptSyncService({AttemptQueueStore? store, this._submitter})
+    : store = store ?? AttemptQueueStore();
 
   final AttemptQueueStore store;
   final AttemptSubmitter? _submitter;
@@ -278,8 +279,9 @@ class AttemptSyncService {
   }
 
   Future<void> saveForSync(AttemptSubmission submission) async {
-    if (submission.exam.isLocal)
+    if (submission.exam.isLocal) {
       throw StateError('Provas locais não podem ser sincronizadas.');
+    }
     await store.enqueue(submission);
   }
 
