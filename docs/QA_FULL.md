@@ -851,3 +851,13 @@ Há três regressões Dart para vínculo, interrupção do vínculo e troca de c
 
 Links de evidência: https://github.com/NAGCODE-Dev/Prova-Social/actions/runs/36266704802
  e https://github.com/NAGCODE-Dev/Prova-Social/actions/runs/36267187458 .
+
+Execução `36267421345`, revisão `04ea170`: format e analyze PASS; os três
+cenários de concorrência A/B/C PASS em duas conexões reais com lock observado.
+A bateria Flutter produziu falhas reais (14 até o checkpoint), não aprovação:
+respostas de MockClient sem `request` causavam erro no parser PostgREST; testes
+de widget seguintes ficavam aguardando o Future global associado ao teste
+anterior. A execução foi interrompida para diagnóstico e os logs preservados em
+`artifacts/qa-stage56/remote-third/full/qa-full/flutter-tests.log`.
+Correções: adicionar request aos mocks HTTP e liberar as caudas globais quando
+ociosas, mantendo a serialização das operações ainda ativas. Revalidação pendente.

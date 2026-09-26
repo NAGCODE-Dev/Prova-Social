@@ -82,11 +82,19 @@ class AttemptQueueStore {
     : _storage = storage ?? _PreferencesAttemptQueueStorage();
 
   final AttemptQueueStorage _storage;
-  static Future<void> _globalTail = Future<void>.value();
+  static Future<void>? _globalTail;
 
   Future<T> _locked<T>(Future<T> Function() operation) {
-    final result = _globalTail.then((_) => operation());
-    _globalTail = result.then<void>((_) {}, onError: (_, __) {});
+    final previous = _globalTail;
+    final result = previous == null
+        ? Future<T>.sync(operation)
+        : previous.then((_) => operation());
+    late final Future<void> tail;
+    void release() {
+      if (identical(_globalTail, tail)) _globalTail = null;
+    }
+    tail = result.then<void>((_) => release(), onError: (_, __) => release());
+    _globalTail = tail;
     return result;
   }
 
@@ -348,7 +356,7 @@ class AttemptSyncService {
   final AttemptQueueStore store;
   final AttemptSubmitter? _submitter;
   static final Map<String, Future<AttemptSyncOutcome>> _inFlight = {};
-  static Future<void> _globalSyncTail = Future<void>.value();
+  static Future<void>? _globalSyncTail;
 
   static String newClientAttemptId() {
     final random = Random.secure();
@@ -375,14 +383,21 @@ class AttemptSyncService {
   }) {
     final running = _inFlight[clientAttemptId];
     if (running != null) return running;
-    final operation = _globalSyncTail.then(
-      (_) => _sync(
-        clientAttemptId,
-        ignoreSchedule: ignoreSchedule,
-        retryAttention: retryAttention,
-      ),
+    Future<AttemptSyncOutcome> submit() => _sync(
+      clientAttemptId,
+      ignoreSchedule: ignoreSchedule,
+      retryAttention: retryAttention,
     );
-    _globalSyncTail = operation.then<void>((_) {}, onError: (_, __) {});
+    final previous = _globalSyncTail;
+    final operation = previous == null
+        ? Future<AttemptSyncOutcome>.sync(submit)
+        : previous.then((_) => submit());
+    late final Future<void> tail;
+    void release() {
+      if (identical(_globalSyncTail, tail)) _globalSyncTail = null;
+    }
+    tail = operation.then<void>((_) => release(), onError: (_, __) => release());
+    _globalSyncTail = tail;
     _inFlight[clientAttemptId] = operation;
     unawaited(
       operation.then<void>(

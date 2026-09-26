@@ -58,9 +58,10 @@ void main() {
         'https://example.test',
         'public-key',
         httpClient: MockClient(
-          (_) async => http.Response(
+          (request) async => http.Response(
             jsonEncode({'total': 1, 'correct': 1, ...entry.value}),
             200,
+            request: request,
             headers: {'content-type': 'application/json'},
           ),
         ),
@@ -83,13 +84,14 @@ void main() {
       'https://example.test',
       'public-key',
       httpClient: MockClient(
-        (_) async => http.Response(
+        (request) async => http.Response(
           jsonEncode({
             'total': 1,
             'correct': 1,
             'review': [validReview],
           }),
           200,
+          request: request,
           headers: {'content-type': 'application/json'},
         ),
       ),
@@ -126,6 +128,7 @@ void main() {
             'review': [validReview],
           }),
           200,
+          request: request,
           headers: {'content-type': 'application/json'},
         );
       }),
@@ -179,6 +182,7 @@ void main() {
             return http.Response(
               jsonEncode({'code': 'PGRST202', 'message': 'RPC unavailable'}),
               404,
+              request: request,
               headers: {'content-type': 'application/json'},
             );
           }
@@ -189,6 +193,7 @@ void main() {
               'review': [validReview],
             }),
             200,
+            request: request,
             headers: {'content-type': 'application/json'},
           );
         }),
@@ -240,6 +245,7 @@ void main() {
           return http.Response(
             jsonEncode({'code': code, 'message': 'RPC recusada'}),
             400,
+            request: request,
             headers: {'content-type': 'application/json'},
           );
         }),

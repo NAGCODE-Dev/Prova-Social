@@ -67,12 +67,12 @@ void main() {
       httpClient: MockClient((request) async {
         requests.add(request);
         if (request.url.path.endsWith('/logout')) {
-          return http.Response('{}', 200);
+          return http.Response('{}', 200, request: request);
         }
         if (request.url.path.endsWith('/user')) {
-          return http.Response(jsonEncode(user), 200);
+          return http.Response(jsonEncode(user), 200, request: request);
         }
-        return http.Response('[]', 200);
+        return http.Response('[]', 200, request: request);
       }),
       authOptions: const FlutterAuthClientOptions(autoRefreshToken: false),
     );
