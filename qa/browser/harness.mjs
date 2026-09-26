@@ -84,7 +84,8 @@ export function text(page, label) {
     .or(page.locator(`[aria-label*=${JSON.stringify(label)}]`)).first();
 }
 export function button(page, label) {
-  return page.getByRole('button', { name: label, exact: true });
+  return page.getByRole('button', { name: label, exact: true })
+    .or(page.getByRole('button').filter({ has: page.getByText(label, { exact: true }) })).first();
 }
 export async function clickText(page, label) {
   const target = text(page, label);

@@ -898,3 +898,7 @@ Execução `36270408688`: **106/106 testes Flutter PASS**, analyze PASS, concorr
 ### Diagnóstico remoto de 93cf95b — 2026-09-26
 
 Execução `36270830304`: Flutter 106 PASS, browser 3 PASS / 1 FAIL. Confirmado na árvore acessível: Flutter mapeia `toggled` para switch, incompatível com alternativas exclusivas. Corrigido para `checked` + `inMutuallyExclusiveGroup` (radio); testes verificam `toBeChecked` e flags nativas, preservando seleção e persistência. Cancelamento de fonte não voltou a bloquear o smoke. Limite browser ajustado para três falhas, permitindo observar mais causas independentes por rodada sem executar builds pesados após falha.
+
+### Diagnóstico remoto de 037d3ad — 2026-09-26
+
+Execução `36271278150`: format/analyze, Flutter 106/106, SQL e Web PASS. Browser 8 PASS / 3 FAIL antes do limite. PASS em reload A, B (resposta imediata), C (duas respostas), E (questão intermediária), F (confirmação), além dos smokes/busca. Respostas e identidade recuperadas. Dois problemas de roteiro reproduzidos: saída da prova retorna aos detalhes, exigindo voltar antes de usar Biblioteca; tooltip ativo apresenta texto descendente em vez de nome simples do botão. Harness agora aceita esse texto visível exato dentro do botão, e roteiro volta dos detalhes. Finalização/reabertura e integração continuam sem aprovação até execução completa.

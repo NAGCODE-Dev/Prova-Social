@@ -85,6 +85,7 @@ test('P0 privado: persistência, reload, offline real, resultado e revisão', as
   await button(page, 'Continuar').click();
   await button(page, 'Sair da prova').click();
   await button(page, 'Sair').click();
+  await button(page, 'Back').click();
   await clickText(page, 'Continuar — disponível offline');
   await expect(text(page, 'QA: quanto é 2 + 2?')).toBeVisible();
   await selected(page, /Alternativa B, Quatro/);
