@@ -31,8 +31,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: NotoSansSymbols
+      fonts:
+        - asset: assets/fonts/NotoSansSymbols.ttf
   assets:
     - assets/branding/app_icon.png
+    - assets/fonts/OFL.txt
 
 flutter_launcher_icons:
   android: true

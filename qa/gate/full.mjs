@@ -32,7 +32,7 @@ try {
   await step('browser-infra', 'node', ['--test', 'qa/browser/infra.test.mjs'], ['browser-deps']);
   const playwright = 'qa/browser/node_modules/@playwright/test/cli.js';
   await step('chromium', 'node', [playwright, 'install', '--with-deps', '--only-shell', 'chromium'], ['browser-deps', 'web-build'], { timeoutMs: 600000 });
-  await step('browser', 'node', [playwright, 'test', '--config=qa/browser/playwright.config.mjs'], ['chromium', 'web-build'], { timeoutMs: 900000 });
+  await step('browser', 'node', [playwright, 'test', '--config=qa/browser/playwright.config.mjs', '--max-failures=1'], ['chromium', 'web-build'], { timeoutMs: 900000 });
   await step('browser-evidence', 'node', ['qa/gate/browser-report.mjs', 'artifacts/browser/report.json', '14'], ['browser']);
   // The integration runner records its own BLOCKED cause (e.g. missing Docker).
   await step('integration', 'node', ['qa/integration/run.mjs'], ['qa-deps', 'guards', 'flutter-tests', 'browser'], { timeoutMs: 1500000, blockedExitCodes: [2], killGraceMs: 130000 });

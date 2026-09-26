@@ -880,3 +880,9 @@ Correções incrementais: liberar a fila ociosa de LocalExamStore, completar os
 mocks de busca, procurar texto acessível agrupado e seguir a página da prova.
 O browser agora para na primeira falha. Integração real e APK aguardam sucesso
 unitário/widget e browser, evitando builds caros enquanto o baseline está falho.
+
+### Diagnóstico remoto de 0e1b0c3 — 2026-09-26
+
+Execução GitHub Actions `36269304811`: format/analyze, SQL descartável e build Web PASS; Flutter 101 PASS / 5 FAIL em 35 s; browser 1 PASS / 13 FAIL. Integração Supabase e APK BLOCKED por pré-requisitos. O baseline ainda não está aprovado. Evidência local: `artifacts/qa-stage56/remote-sixth/full/`.
+
+Causas reproduzidas: decoração opaca da sidebar oculta pintura de ListTile; overflow de 12 px após perfil em 320 px (diagnóstico detalhado acrescentado); cliques de widget fora do viewport; enunciado selecionável sem rótulo acessível visível no browser; download automático de Noto Sans Symbols bloqueado no ambiente offline. Correções deste lote: sidebar usa Ink, enunciado ganha semanticsLabel, testes rolam antes do toque, fonte SIL OFL é incluída localmente com licença. Roteiros de finalização agora navegam à última questão. O limite de uma falha browser foi efetivamente acrescentado ao comando do gate. Estas correções aguardam nova execução; testes Node locais: 12 PASS, sintaxe e diff check PASS.

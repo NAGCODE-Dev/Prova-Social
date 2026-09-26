@@ -1,0 +1,1 @@
+Noto Sans Symbols, original variable font from https://github.com/google/fonts/tree/main/ofl/notosanssymbols, retrieved 2026-09-26. Licensed under SIL OFL 1.1 (OFL.txt). Bundled for offline symbol rendering; no runtime Google Fonts request is needed for these glyphs.

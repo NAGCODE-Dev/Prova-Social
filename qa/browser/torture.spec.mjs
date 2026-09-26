@@ -45,7 +45,7 @@ for (const point of ['A-start', 'B-immediate-answer', 'C-two-answers', 'D-review
     }
     if (['C-two-answers', 'D-review', 'E-middle', 'F-confirmation'].includes(point)) {
       await button(page, 'Próxima').click();
-      current = 1;
+      current = point === 'F-confirmation' ? 2 : 1;
     }
     if (point === 'C-two-answers') {
       await answer(page, /Alternativa A, Três/);
@@ -58,6 +58,7 @@ for (const point of ['A-start', 'B-immediate-answer', 'C-two-answers', 'D-review
       review = [1];
     }
     if (point === 'F-confirmation') {
+      await page.getByRole('button', { name: /Questão 3, não respondida/ }).click();
       await button(page, 'Revisar entrega').click();
       await expect(text(page, '1 de 3 respondidas')).toBeVisible();
     }
@@ -65,7 +66,7 @@ for (const point of ['A-start', 'B-immediate-answer', 'C-two-answers', 'D-review
     const before = point === 'B-immediate-answer' ? null : await draft(page);
     await page.reload();
     await resume(page);
-    await expect(text(page, current ? 'QA: quanto é 2 + 2?' : 'QA: quanto é 1 + 1?')).toBeVisible();
+    await expect(text(page, `QA: quanto é ${current + 1} + ${current + 1}?`)).toBeVisible();
     if (point === 'A-start') {
       // Starting persists the content snapshot; a draft is first written on an
       // answer/navigation/lifecycle event. No answer exists yet to recover.
@@ -142,6 +143,7 @@ test('torture close page, reopen same context, finalize twice and reopen result'
   await resume(reopened);
   await selected(reopened, /Alternativa B, Dois/);
   await assertDraft(reopened, { 0: 1 }, 0, [], id);
+  await reopened.getByRole('button', { name: /Questão 3, não respondida/ }).click();
   await button(reopened, 'Revisar entrega').click();
   await button(reopened, 'Entregar mesmo com questões em branco').dblclick({ delay: 0 });
   await expect(text(reopened, '1 de 3 acertos')).toBeVisible();
@@ -166,6 +168,7 @@ test('post-torture smoke 390x844 home, prova, resultado', async ({ page, context
   await start(page, context, info);
   await answer(page, /Alternativa B, Dois/);
   await evidence(page, info, 'post-torture-prova');
+  await page.getByRole('button', { name: /Questão 3, não respondida/ }).click();
   await button(page, 'Revisar entrega').click();
   await button(page, 'Entregar mesmo com questões em branco').click();
   await expect(text(page, '1 de 3 acertos')).toBeVisible();

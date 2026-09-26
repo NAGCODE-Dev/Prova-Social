@@ -677,6 +677,7 @@ class _QuestionContent extends StatelessWidget {
       const SizedBox(height: AppSpacing.md),
       SelectableText(
         question.statement,
+        semanticsLabel: question.statement,
         style: Theme.of(context).textTheme.titleLarge
             ?.copyWith(fontSize: 20, height: 1.5),
       ),

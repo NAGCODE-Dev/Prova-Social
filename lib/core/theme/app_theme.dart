@@ -60,6 +60,7 @@ abstract final class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.background,
       fontFamily: 'sans-serif',
+      fontFamilyFallback: const ['NotoSansSymbols'],
       textTheme: const TextTheme(
         displaySmall: TextStyle(
           fontSize: 36,
@@ -159,6 +160,7 @@ abstract final class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFF101311),
       fontFamily: 'sans-serif',
+      fontFamilyFallback: const ['NotoSansSymbols'],
       cardTheme: const CardThemeData(
         color: Color(0xFF181C19),
         surfaceTintColor: Colors.transparent,
