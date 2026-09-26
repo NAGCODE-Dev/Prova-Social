@@ -513,14 +513,20 @@ class _RailItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-    child: ListTile(
-      selected: selected,
-      selectedTileColor: AppColors.brandSoft,
-      selectedColor: AppColors.brandHover,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      leading: Icon(selected ? data.$2 : data.$1),
-      title: Text(data.$3, style: const TextStyle(fontWeight: FontWeight.w600)),
-      onTap: onTap,
+    child: Material(
+      type: MaterialType.transparency,
+      child: ListTile(
+        selected: selected,
+        selectedTileColor: AppColors.brandSoft,
+        selectedColor: AppColors.brandHover,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        leading: Icon(selected ? data.$2 : data.$1),
+        title: Text(
+          data.$3,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        onTap: onTap,
+      ),
     ),
   );
 }
