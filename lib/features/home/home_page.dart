@@ -974,11 +974,15 @@ class _ProfilePage extends StatelessWidget {
                   children: [
                     Text(
                       name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 3),
                     Text(
                       user.email ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: AppColors.muted),
                     ),
                   ],
