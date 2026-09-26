@@ -97,6 +97,7 @@ test('real JSON import, contextual Auth, explicit publication, search, offline d
   await page.getByRole('button', { name: /Alternativa B, Dois/ }).click();
   audit.offline = true; await context.setOffline(true);
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+  await button(page, 'Próxima').click();
   await button(page, 'Revisar entrega').click();
   await button(page, 'Entregar mesmo com questões em branco').click();
   await expect(text(page, 'Entrega salva no aparelho — aguardando correção')).toBeVisible();
@@ -135,6 +136,7 @@ test('visitor result must become account history after real login', async ({ pag
   await open(page); await button(page, 'Pular').click();
   await search(page, title);
   await page.getByRole('button', { name: /Alternativa B, Dois/ }).click();
+  await button(page, 'Próxima').click();
   await button(page, 'Revisar entrega').click();
   await button(page, 'Entregar mesmo com questões em branco').click();
   await expect(text(page, '1 de 2 acertos')).toBeVisible();

@@ -690,6 +690,7 @@ class _QuestionContent extends StatelessWidget {
           child: Semantics(
             button: true,
             selected: active,
+            toggled: active,
             label: 'Alternativa $letter, ${question.options[index]}',
             child: InkWell(
               onTap: () => onSelected(index),

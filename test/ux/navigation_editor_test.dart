@@ -156,12 +156,6 @@ void main() {
 
   for (final width in [320.0, 1280.0]) {
     testWidgets('avatar guest and signed-in, layout $width', (tester) async {
-      final previousErrorHandler = FlutterError.onError;
-      FlutterError.onError = (details) {
-        FlutterError.dumpErrorToConsole(details);
-        previousErrorHandler?.call(details);
-      };
-      addTearDown(() => FlutterError.onError = previousErrorHandler);
       await tester.binding.setSurfaceSize(Size(width, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -233,7 +227,9 @@ void main() {
         400,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.ensureVisible(find.text('Publicar para todos — requer conta'));
+      await tester.ensureVisible(
+        find.text('Publicar para todos — requer conta'),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Publicar para todos — requer conta'));
       await tester.pumpAndSettle();
