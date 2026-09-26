@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/models/exam.dart';
 import 'attempt_repository.dart';
@@ -23,6 +24,7 @@ class PendingAttempt {
     required this.attemptCount,
     this.lastError,
     this.nextAttemptAt,
+    this.ownerUserId,
   });
 
   final AttemptSubmission submission;
@@ -30,6 +32,7 @@ class PendingAttempt {
   final int attemptCount;
   final String? lastError;
   final DateTime? nextAttemptAt;
+  final String? ownerUserId;
 
   PendingAttempt copyWith({
     AttemptSyncState? state,
@@ -37,8 +40,10 @@ class PendingAttempt {
     String? lastError,
     DateTime? nextAttemptAt,
     bool clearNextAttempt = false,
+    String? ownerUserId,
   }) => PendingAttempt(
     submission: submission,
+    ownerUserId: ownerUserId ?? this.ownerUserId,
     state: state ?? this.state,
     attemptCount: attemptCount ?? this.attemptCount,
     lastError: lastError ?? this.lastError,
@@ -158,7 +163,7 @@ class AttemptQueueStore {
       });
   }
 
-  Future<void> enqueue(AttemptSubmission value) {
+  Future<void> enqueue(AttemptSubmission value, {String? ownerUserId}) {
     // Capture the complete payload before waiting for other queued writes.
     final submission = _submissionFromJson(
       jsonDecode(jsonEncode(_submissionToJson(value))) as Map<String, dynamic>,
@@ -202,6 +207,7 @@ class AttemptQueueStore {
             submission: submission,
             state: AttemptSyncState.pendingSync,
             attemptCount: 0,
+            ownerUserId: ownerUserId,
           ),
         ),
       );
@@ -210,6 +216,37 @@ class AttemptQueueStore {
       await _write(data);
     });
   }
+
+  // Replay only the original durable payload, never rebuild it from a result.
+  Future<void> queueVisitorClaims(String userId) => _locked(() async {
+    final data = await _read();
+    final completed = Map<String, dynamic>.from(
+      data['completed'] as Map? ?? const {},
+    );
+    final pending = List<dynamic>.from(data['pending'] as List? ?? const []);
+    var changed = false;
+    for (final entry in completed.entries) {
+      final value = Map<String, dynamic>.from(entry.value as Map);
+      if (value['ownerUserId'] != null || value['syncSubmission'] == null ||
+          pending.any((item) => (item as Map)['clientAttemptId'] == entry.key)) {
+        continue;
+      }
+      final submission = _submissionFromJson(
+        Map<String, dynamic>.from(value['syncSubmission'] as Map),
+      );
+      pending.add(_pendingToJson(PendingAttempt(
+        submission: submission,
+        state: AttemptSyncState.pendingSync,
+        attemptCount: 0,
+        ownerUserId: userId,
+      )));
+      changed = true;
+    }
+    if (changed) {
+      data['pending'] = pending;
+      await _write(data);
+    }
+  });
 
   Future<List<PendingAttempt>> pending() => _locked(() async {
     final data = await _read();
@@ -239,7 +276,11 @@ class AttemptQueueStore {
     await _write(data);
   });
 
-  Future<void> complete(PendingAttempt pending, ExamResult result) =>
+  Future<void> complete(
+    PendingAttempt pending,
+    ExamResult result, {
+    String? ownerUserId,
+  }) =>
       _locked(() async {
         final data = await _read();
         final items = List<dynamic>.from(data['pending'] as List? ?? const []);
@@ -251,7 +292,11 @@ class AttemptQueueStore {
         final completed = Map<String, dynamic>.from(
           data['completed'] as Map? ?? const {},
         );
-        completed[pending.submission.clientAttemptId] = _resultToJson(result);
+        completed[pending.submission.clientAttemptId] = {
+          ..._resultToJson(result),
+          'syncSubmission': _submissionToJson(pending.submission),
+          'ownerUserId': ownerUserId,
+        };
         data
           ..['pending'] = items
           ..['completed'] = completed;
@@ -279,8 +324,22 @@ class AttemptSyncOutcome {
 }
 
 class AttemptSyncService {
-  AttemptSyncService({AttemptQueueStore? store, this._submitter})
-    : store = store ?? AttemptQueueStore();
+  AttemptSyncService({
+    AttemptQueueStore? store,
+    this._submitter,
+    String? Function()? currentUserId,
+  }) : store = store ?? AttemptQueueStore(),
+       _currentUserId = currentUserId ?? _sessionUserId;
+
+  final String? Function() _currentUserId;
+
+  static String? _sessionUserId() {
+    try {
+      return Supabase.instance.client.auth.currentUser?.id;
+    } catch (_) {
+      return null;
+    }
+  }
 
   final AttemptQueueStore store;
   final AttemptSubmitter? _submitter;
@@ -302,7 +361,7 @@ class AttemptSyncService {
     if (submission.exam.isLocal) {
       throw StateError('Provas locais não podem ser sincronizadas.');
     }
-    await store.enqueue(submission);
+    await store.enqueue(submission, ownerUserId: _currentUserId());
   }
 
   Future<AttemptSyncOutcome> sync(
@@ -357,6 +416,15 @@ class AttemptSyncService {
         result: result,
       );
     }
+    final ownerUserId = _currentUserId();
+    if (pending.ownerUserId != null && pending.ownerUserId != ownerUserId) {
+      return AttemptSyncOutcome(
+        attempt: pending.copyWith(
+          state: AttemptSyncState.requiresAttention,
+          lastError: 'Entre na conta que iniciou esta entrega para sincronizar.',
+        ),
+      );
+    }
     if (pending.state == AttemptSyncState.requiresAttention &&
         !retryAttention) {
       return AttemptSyncOutcome(attempt: pending);
@@ -369,6 +437,7 @@ class AttemptSyncService {
     }
     pending = pending.copyWith(
       state: AttemptSyncState.sending,
+      ownerUserId: ownerUserId,
       clearNextAttempt: true,
     );
     await store.update(pending);
@@ -376,7 +445,7 @@ class AttemptSyncService {
       final result = await (_submitter ?? AttemptRepository()).submit(
         pending.submission,
       );
-      await store.complete(pending, result);
+      await store.complete(pending, result, ownerUserId: ownerUserId);
       return AttemptSyncOutcome(
         attempt: pending.copyWith(state: AttemptSyncState.synced),
         result: result,
@@ -404,9 +473,12 @@ class AttemptSyncService {
   }
 
   Future<void> syncDue() async {
+    final userId = _currentUserId();
+    if (userId != null) await store.queueVisitorClaims(userId);
     final now = DateTime.now();
     for (final item in await store.pending()) {
-      if (item.state != AttemptSyncState.requiresAttention &&
+      if ((item.ownerUserId == null || item.ownerUserId == _currentUserId()) &&
+          item.state != AttemptSyncState.requiresAttention &&
           (item.nextAttemptAt == null || !item.nextAttemptAt!.isAfter(now))) {
         await sync(item.submission.clientAttemptId);
       }
@@ -457,6 +529,7 @@ bool _sameSet(Set<int> first, Set<int> second) =>
 Map<String, dynamic> _pendingToJson(PendingAttempt value) => {
   ..._submissionToJson(value.submission),
   'state': value.state.name,
+  'ownerUserId': value.ownerUserId,
   'attemptCount': value.attemptCount,
   'lastError': value.lastError,
   'nextAttemptAt': value.nextAttemptAt?.toIso8601String(),
@@ -464,6 +537,7 @@ Map<String, dynamic> _pendingToJson(PendingAttempt value) => {
 
 PendingAttempt _pendingFromJson(Map<String, dynamic> json) => PendingAttempt(
   submission: _submissionFromJson(json),
+  ownerUserId: json['ownerUserId'] as String?,
   state: AttemptSyncState.values.firstWhere(
     (value) => value.name == json['state'],
     orElse: () => AttemptSyncState.pendingSync,

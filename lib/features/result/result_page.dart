@@ -314,10 +314,14 @@ class ResultPage extends StatelessWidget {
                               Row(
                                 children: [
                                   Icon(
-                                    correct
+                                    question.correctIndex == null
+                                        ? Icons.help_outline_rounded
+                                        : correct
                                         ? Icons.check_circle_rounded
                                         : Icons.cancel_rounded,
-                                    color: correct
+                                    color: question.correctIndex == null
+                                        ? AppColors.muted
+                                        : correct
                                         ? AppColors.success
                                         : AppColors.danger,
                                   ),

@@ -53,3 +53,4 @@ qa/integration/node_modules/
 artifacts/qa-stage56/
 artifacts/integration/
 artifacts/qa-full/
+artifacts/native-postgres/

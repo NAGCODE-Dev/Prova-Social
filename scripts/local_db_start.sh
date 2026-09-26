@@ -6,6 +6,9 @@ data_dir="$cluster_root/data"
 socket_dir="$cluster_root/socket"
 log_file="$cluster_root/postgresql.log"
 port=5433
+# Debian/Ubuntu keep server binaries outside PATH; Alpine exposes them directly.
+initdb_binary=$(command -v initdb || printf '%s/initdb' "$(pg_config --bindir)")
+pg_ctl_binary=$(command -v pg_ctl || printf '%s/pg_ctl' "$(pg_config --bindir)")
 
 if [ "${data_dir}" != /tmp/prova_social_postgres_5433/data ]; then
   echo "Diretório de dados inesperado; inicialização recusada." >&2
@@ -28,7 +31,7 @@ if [ ! -f "$data_dir/PG_VERSION" ]; then
     exit 1
   fi
   su postgres -s /bin/sh -c \
-    "initdb -D '$data_dir' --encoding=UTF8 --locale=C --auth-local=trust --auth-host=reject"
+    "'$initdb_binary' -D '$data_dir' --encoding=UTF8 --locale=C --auth-local=trust --auth-host=reject"
   cat >>"$data_dir/postgresql.conf" <<EOF
 port = $port
 listen_addresses = '127.0.0.1'
@@ -40,11 +43,11 @@ EOF
   chown postgres:postgres "$data_dir/postgresql.conf"
 fi
 
-if su postgres -s /bin/sh -c "pg_ctl -D '$data_dir' status" >/dev/null 2>&1; then
+if su postgres -s /bin/sh -c "'$pg_ctl_binary' -D '$data_dir' status" >/dev/null 2>&1; then
   echo "PostgreSQL local já está ativo na porta $port."
   exit 0
 fi
 
 su postgres -s /bin/sh -c \
-  "pg_ctl -D '$data_dir' -l '$log_file' -w start"
+  "'$pg_ctl_binary' -D '$data_dir' -l '$log_file' -w start"
 echo "PostgreSQL local iniciado: socket=$socket_dir porta=$port"

@@ -24,14 +24,23 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-      - name: Execute the same gate as Codemagic
-        run: node qa/gate/full.mjs
-      - name: Preserve formatter patch for review
-        if: always()
+      - name: Prepare formatter patch without changing the tested revision
         run: |
           mkdir -p artifacts/format
           dart format lib test tool > artifacts/format/write.log 2>&1
           git diff --binary -- '*.dart' > artifacts/format/dart-format.patch
+          if [ -s artifacts/format/dart-format.patch ]; then
+            git apply --reverse artifacts/format/dart-format.patch
+          fi
+      - name: Preserve formatter evidence early
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dart-format-${{ github.sha }}
+          path: artifacts/format/
+          retention-days: 7
+      - name: Execute the same gate as Codemagic
+        run: node qa/gate/full.mjs
       - name: Preserve QA evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -42,4 +51,27 @@ jobs:
             artifacts/browser/
             artifacts/integration/
             artifacts/format/
+          retention-days: 7
+
+  native-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Test disposable native PostgreSQL and real concurrent sessions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/native-postgres
+          sudo sh scripts/local_db_test.sh 2>&1 | tee artifacts/native-postgres/setup.log
+          node scripts/qa_concurrency.mjs 2>&1 | tee artifacts/native-postgres/concurrency.log
+      - name: Preserve native database evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-postgres-${{ github.sha }}
+          path: artifacts/native-postgres/
           retention-days: 7

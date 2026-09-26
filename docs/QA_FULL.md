@@ -820,3 +820,18 @@ patch de formatação mesmo em falha; produzir o patch não aprova o format chec
 Esta execução complementa o Codemagic, não comprova execução no Codemagic.
 Vínculo automático de resultado visitante já sincronizado e isolamento entre
 contas permanecem pendentes de validação/correção; não há aprovação de release.
+
+O vínculo de novas entregas de visitante foi implementado em seguida: o resultado
+concluído conserva a submissão original congelada; após login, essa submissão
+entra na fila com a mesma identidade, preservando o resultado durante o vínculo.
+A fila registra a conta e não envia uma pendência de A usando a sessão de B.
+Dois testes Dart cobrem o vínculo único/payload original e a troca de conta.
+Resultados legados sem payload original não são reconstruídos automaticamente.
+Isso não resolve por si só o isolamento visual de todo armazenamento local.
+Validação Flutter/remota ainda pendente nesta revisão.
+
+O workflow de diagnóstico inclui também um job de PostgreSQL nativo descartável,
+com duas sessões e barreira de lock observada para concorrência A/B/C. O helper
+existente passa a localizar os binários também no layout Debian/Ubuntu.
+A inclusão do job não é evidência de execução: seu relatório é separado.
+Há três regressões Dart para vínculo, interrupção do vínculo e troca de conta.

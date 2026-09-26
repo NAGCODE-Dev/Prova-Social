@@ -79,6 +79,89 @@ void expectFrozen(AttemptSubmission actual, AttemptSubmission original) {
 }
 
 void main() {
+  test('visitante sincronizado vincula uma vez com payload original', () async {
+    final storage = fixture.MemoryQueueStorage();
+    final remote = fixture.FakeSubmitter();
+    String? userId;
+    final service = AttemptSyncService(
+      store: AttemptQueueStore(storage: storage),
+      submitter: remote,
+      currentUserId: () => userId,
+    );
+    final original = fixture.submission();
+    await service.saveForSync(original);
+    await service.sync(original.clientAttemptId);
+    expect(remote.calls, 1);
+    userId = 'account-a';
+    await service.syncDue();
+    expect(remote.calls, 2);
+    expectFrozen(remote.payloads.last, original);
+    expect(remote.payloads.last.exam.questions.single.correctIndex, isNull);
+    expect((await service.store.completed()).length, 1);
+    expect(await service.store.pending(), isEmpty);
+    userId = 'account-b';
+    await service.syncDue();
+    expect(remote.calls, 2);
+  });
+
+  test('vínculo interrompido preserva resultado e conta para retry', () async {
+    final storage = fixture.MemoryQueueStorage();
+    final remote = fixture.FakeSubmitter();
+    String? userId;
+    var service = AttemptSyncService(
+      store: AttemptQueueStore(storage: storage),
+      submitter: remote,
+      currentUserId: () => userId,
+    );
+    final original = fixture.submission();
+    await service.saveForSync(original);
+    await service.sync(original.clientAttemptId);
+    userId = 'account-a';
+    remote.error = const AttemptSubmissionException(
+      message: 'QA reply lost',
+      transient: true,
+    );
+    await service.syncDue();
+    expect((await service.store.completed()).length, 1);
+    expect((await service.store.pending()).single.ownerUserId, 'account-a');
+    userId = 'account-b';
+    service = AttemptSyncService(
+      store: AttemptQueueStore(storage: storage),
+      submitter: remote,
+      currentUserId: () => userId,
+    );
+    await service.sync(original.clientAttemptId, ignoreSchedule: true);
+    expect(remote.calls, 2);
+    userId = 'account-a';
+    remote.error = null;
+    await service.sync(original.clientAttemptId, ignoreSchedule: true);
+    expect(remote.calls, 3);
+    expectFrozen(remote.payloads.last, original);
+    expect(await service.store.pending(), isEmpty);
+    expect((await service.store.completed()).length, 1);
+  });
+
+  test('troca de conta não reenvia fila de outra conta', () async {
+    String? userId = 'account-a';
+    final remote = fixture.FakeSubmitter();
+    final service = AttemptSyncService(
+      store: AttemptQueueStore(storage: fixture.MemoryQueueStorage()),
+      submitter: remote,
+      currentUserId: () => userId,
+    );
+    final original = fixture.submission();
+    await service.saveForSync(original);
+    userId = 'account-b';
+    await service.syncDue();
+    final outcome = await service.sync(original.clientAttemptId);
+    expect(outcome.attempt.state, AttemptSyncState.requiresAttention);
+    expect(remote.calls, 0);
+    expect((await service.store.pending()).single.ownerUserId, 'account-a');
+    userId = 'account-a';
+    await service.syncDue();
+    expect(remote.calls, 1);
+  });
+
   test('resultado local rejeita mesmo ID com respostas conflitantes', () async {
     final store = AttemptQueueStore(storage: fixture.MemoryQueueStorage());
     final publicExam = fixture.exam;
