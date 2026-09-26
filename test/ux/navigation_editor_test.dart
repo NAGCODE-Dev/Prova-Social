@@ -97,7 +97,6 @@ void main() {
       expect(find.byType(AuthPage), findsOneWidget);
       await tester.runAsync(() async {
         await login();
-        await login();
       });
       await tester.pumpAndSettle();
       expect(find.byType(AuthPage), findsNothing);
@@ -157,7 +156,6 @@ void main() {
       expect(find.byType(AuthPage), findsOneWidget);
       expect((await LocalExamStore().load()).single.pendingPublication, isTrue);
       await tester.runAsync(() async {
-        await login();
         await login();
       });
       await tester.pumpAndSettle();
