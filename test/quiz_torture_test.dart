@@ -47,7 +47,12 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  for (final answered in [<int>{}, {1, 2}, {0, 1}, {1}]) {
+  for (final answered in [
+    <int>{},
+    {1, 2},
+    {0, 1},
+    {1},
+  ]) {
     testWidgets('entrega com brancos: respondidas $answered', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));

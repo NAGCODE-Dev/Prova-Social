@@ -67,7 +67,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/native-postgres
           sudo sh scripts/local_db_test.sh 2>&1 | tee artifacts/native-postgres/setup.log
-          node scripts/qa_concurrency.mjs 2>&1 | tee artifacts/native-postgres/concurrency.log
+          sudo "$(command -v node)" scripts/qa_concurrency.mjs 2>&1 | tee artifacts/native-postgres/concurrency.log
       - name: Preserve native database evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

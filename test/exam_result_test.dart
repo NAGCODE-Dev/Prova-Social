@@ -158,7 +158,10 @@ void main() {
       matching: find.byType(Card),
     );
     expect(
-      find.descendant(of: unknownCard, matching: find.text('Sua resposta: Oito')),
+      find.descendant(
+        of: unknownCard,
+        matching: find.text('Sua resposta: Oito'),
+      ),
       findsOneWidget,
     );
     expect(

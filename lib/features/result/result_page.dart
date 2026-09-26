@@ -201,7 +201,9 @@ class ResultPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            result.exam.questions.any((question) => question.correctIndex != null)
+                            result.exam.questions.any(
+                                  (question) => question.correctIndex != null,
+                                )
                                 ? '${result.scorePercent}%'
                                 : '—',
                             style: const TextStyle(
@@ -212,7 +214,9 @@ class ResultPage extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            result.exam.questions.any((question) => question.correctIndex != null)
+                            result.exam.questions.any(
+                                  (question) => question.correctIndex != null,
+                                )
                                 ? '${result.correct} de ${result.exam.questions.length} acertos'
                                 : 'Gabarito indisponível',
                             style: const TextStyle(

@@ -181,7 +181,8 @@ void main() {
     expect(find.byTooltip('Remover da revisão'), findsOneWidget);
     final selected = tester.widget<Semantics>(
       find.byWidgetPredicate(
-        (widget) => widget is Semantics &&
+        (widget) =>
+            widget is Semantics &&
             widget.properties.label == 'Alternativa B, Quatro',
       ),
     );
@@ -192,7 +193,8 @@ void main() {
     expect(restored.current, saved.current);
     expect(restored.clientAttemptId, saved.clientAttemptId);
     expect(restored.elapsedSeconds, saved.elapsedSeconds);
-    final time = '${(saved.elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:'
+    final time =
+        '${(saved.elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:'
         '${(saved.elapsedSeconds % 60).toString().padLeft(2, '0')}';
     expect(find.text(time), findsOneWidget);
     // Still offline: change the restored answer and leave question 3 blank.
@@ -214,7 +216,9 @@ void main() {
     expect(durableBeforeClear, hasLength(1));
     expect(durableBeforeClear!.single.submission.answers, {0: 1, 1: 0});
     expect(await drafts.load(exam.id), isNull);
-    final pending = (await AttemptQueueStore(storage: storage).pending()).single;
+    final pending = (await AttemptQueueStore(
+      storage: storage,
+    ).pending()).single;
     expect(pending.state, AttemptSyncState.waitingConnection);
     expect(pending.submission.clientAttemptId, saved.clientAttemptId);
     expect(pending.submission.answers, {0: 1, 1: 0});
@@ -227,8 +231,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ResultPage), findsOneWidget);
     expect(find.text('1 de 3 acertos'), findsOneWidget);
-    final result = (await AttemptQueueStore(storage: storage).completed())
-        .values.single;
+    final result = (await AttemptQueueStore(
+      storage: storage,
+    ).completed()).values.single;
     expect(result.answers, pending.submission.answers);
     expect(result.markedForReview, {1});
     expect(result.unanswered, 1);

@@ -27,10 +27,19 @@ export class Runner {
       return { ok: false, output: '', code: null };
     }
     const start = Date.now();
+    await mkdir(this.directory, { recursive: true });
+    const logPath = join(this.directory, `${id}.log`);
+    let logTail = Promise.resolve();
+    let checkpoint;
     const result = await new Promise(resolve => {
       let output = '', stdout = '', stderr = '', timedOut = false, error;
       const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
       const capture = bytes => { output = (output + bytes.toString()).slice(-2000000); };
+      // Keep redacted evidence even if the CI runner terminates mid-command.
+      if (!sensitive) checkpoint = setInterval(() => {
+        const snapshot = redact(output, 2000000);
+        logTail = logTail.then(() => writeFile(logPath, snapshot));
+      }, 2000);
       child.stdout.on('data', bytes => { stdout = (stdout + bytes).slice(-2000000); capture(bytes); });
       child.stderr.on('data', bytes => { stderr = (stderr + bytes).slice(-2000000); capture(bytes); });
       child.on('error', e => { error = e.code; });
@@ -45,6 +54,8 @@ export class Runner {
       const timer = setTimeout(() => { timedOut = true; this.activeCancel(); }, timeoutMs);
       child.on('close', code => { clearTimeout(timer); clearTimeout(hardKill); resolve({ code, error, timedOut, output, stdout, stderr }); });
     });
+    clearInterval(checkpoint);
+    await logTail;
     this.activeCancel = null;
     const state = (this.cancelled && !allowAfterCancel) || result.error === 'ENOENT' || blockedExitCodes.includes(result.code) ? 'BLOCKED' :
       result.code === 0 && !result.timedOut && !result.error ? 'PASS' : 'FAIL';

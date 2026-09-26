@@ -140,9 +140,10 @@ class _HomePageState extends State<HomePage> {
           pendingAttempts = pending;
           startedExams = started;
           completedAttempts = Map.of(completed)
-            ..removeWhere((id, _) => pending.any(
-              (item) => item.submission.clientAttemptId == id,
-            ));
+            ..removeWhere(
+              (id, _) =>
+                  pending.any((item) => item.submission.clientAttemptId == id),
+            );
         });
       }
       await attemptSync.syncDue();
@@ -152,9 +153,11 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           pendingAttempts = refreshedPending;
           completedAttempts = Map.of(refreshedCompleted)
-            ..removeWhere((id, _) => refreshedPending.any(
-              (item) => item.submission.clientAttemptId == id,
-            ));
+            ..removeWhere(
+              (id, _) => refreshedPending.any(
+                (item) => item.submission.clientAttemptId == id,
+              ),
+            );
         });
       }
     } catch (_) {

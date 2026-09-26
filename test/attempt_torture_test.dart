@@ -260,10 +260,9 @@ void main() {
     }
     expect(submitter.accepted.keys, [original.clientAttemptId]);
     expect(await restarted.store.pending(), isEmpty);
-    expect(
-      (await restarted.store.completed()).keys,
-      [original.clientAttemptId],
-    );
+    expect((await restarted.store.completed()).keys, [
+      original.clientAttemptId,
+    ]);
   });
 
   test('morte após aceite remoto mantém fila', () async {

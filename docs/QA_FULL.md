@@ -835,3 +835,19 @@ com duas sessões e barreira de lock observada para concorrência A/B/C. O helpe
 existente passa a localizar os binários também no layout Debian/Ubuntu.
 A inclusão do job não é evidência de execução: seu relatório é separado.
 Há três regressões Dart para vínculo, interrupção do vínculo e troca de conta.
+
+### Evidência remota coletada durante as correções
+
+- GitHub Actions `36266704802`, revisão `39aabc4`: SDK Flutter 3.47.5 /
+  Dart 3.13.4, dependências e analyze PASS; format FAIL. Execução cancelada ao
+  substituir a revisão, portanto bateria INCOMPLETE e testes Flutter NOT RUN
+  até conclusão verificável. Patch do formatter coletado e aplicado.
+- GitHub Actions `36267187458`, revisão `8a3166f`: migrations, testes SQL nativos,
+  RLS/rollback e teste concorrente do helper existente passaram. A bateria
+  adicional A/B/C foi BLOCKED por permissão do socket para o usuário runner;
+  corrigida a execução para o mesmo usuário autorizado do banco descartável.
+- O runner agora mantém checkpoints dos logs redigidos durante comandos longos.
+  Testes Flutter usam timeout individual de dois minutos: timeout continua FAIL.
+
+Links de evidência: https://github.com/NAGCODE-Dev/Prova-Social/actions/runs/36266704802
+ e https://github.com/NAGCODE-Dev/Prova-Social/actions/runs/36267187458 .

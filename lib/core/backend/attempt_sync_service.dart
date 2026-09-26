@@ -131,36 +131,34 @@ class AttemptQueueStore {
       jsonDecode(jsonEncode(_resultToJson(value))) as Map<String, dynamic>,
     );
     return _locked(() async {
-        if (!result.exam.isLocal) {
-          throw StateError(
-            'Uma prova pública precisa de correção do servidor.',
-          );
-        }
-        final data = await _read();
-        final completed = Map<String, dynamic>.from(
-          data['completed'] as Map? ?? const {},
+      if (!result.exam.isLocal) {
+        throw StateError('Uma prova pública precisa de correção do servidor.');
+      }
+      final data = await _read();
+      final completed = Map<String, dynamic>.from(
+        data['completed'] as Map? ?? const {},
+      );
+      final existing = completed[clientAttemptId];
+      if (existing != null) {
+        final previous = _resultFromJson(
+          Map<String, dynamic>.from(existing as Map),
         );
-        final existing = completed[clientAttemptId];
-        if (existing != null) {
-          final previous = _resultFromJson(
-            Map<String, dynamic>.from(existing as Map),
+        if (!_sameExam(previous.exam, result.exam) ||
+            previous.finishedAt != result.finishedAt ||
+            previous.durationSeconds != result.durationSeconds ||
+            !_sameMap(previous.answers, result.answers) ||
+            !_sameSet(previous.markedForReview, result.markedForReview)) {
+          throw StateError(
+            'clientAttemptId já usado por uma entrega diferente.',
           );
-          if (!_sameExam(previous.exam, result.exam) ||
-              previous.finishedAt != result.finishedAt ||
-              previous.durationSeconds != result.durationSeconds ||
-              !_sameMap(previous.answers, result.answers) ||
-              !_sameSet(previous.markedForReview, result.markedForReview)) {
-            throw StateError(
-              'clientAttemptId já usado por uma entrega diferente.',
-            );
-          }
-          return;
         }
-        completed[clientAttemptId] = _resultToJson(result);
-        data['completed'] = completed;
-        _removeStarted(data, result.exam.id);
-        await _write(data);
-      });
+        return;
+      }
+      completed[clientAttemptId] = _resultToJson(result);
+      data['completed'] = completed;
+      _removeStarted(data, result.exam.id);
+      await _write(data);
+    });
   }
 
   Future<void> enqueue(AttemptSubmission value, {String? ownerUserId}) {
@@ -227,19 +225,26 @@ class AttemptQueueStore {
     var changed = false;
     for (final entry in completed.entries) {
       final value = Map<String, dynamic>.from(entry.value as Map);
-      if (value['ownerUserId'] != null || value['syncSubmission'] == null ||
-          pending.any((item) => (item as Map)['clientAttemptId'] == entry.key)) {
+      if (value['ownerUserId'] != null ||
+          value['syncSubmission'] == null ||
+          pending.any(
+            (item) => (item as Map)['clientAttemptId'] == entry.key,
+          )) {
         continue;
       }
       final submission = _submissionFromJson(
         Map<String, dynamic>.from(value['syncSubmission'] as Map),
       );
-      pending.add(_pendingToJson(PendingAttempt(
-        submission: submission,
-        state: AttemptSyncState.pendingSync,
-        attemptCount: 0,
-        ownerUserId: userId,
-      )));
+      pending.add(
+        _pendingToJson(
+          PendingAttempt(
+            submission: submission,
+            state: AttemptSyncState.pendingSync,
+            attemptCount: 0,
+            ownerUserId: userId,
+          ),
+        ),
+      );
       changed = true;
     }
     if (changed) {
@@ -280,28 +285,27 @@ class AttemptQueueStore {
     PendingAttempt pending,
     ExamResult result, {
     String? ownerUserId,
-  }) =>
-      _locked(() async {
-        final data = await _read();
-        final items = List<dynamic>.from(data['pending'] as List? ?? const []);
-        items.removeWhere(
-          (item) =>
-              (item as Map)['clientAttemptId'] ==
-              pending.submission.clientAttemptId,
-        );
-        final completed = Map<String, dynamic>.from(
-          data['completed'] as Map? ?? const {},
-        );
-        completed[pending.submission.clientAttemptId] = {
-          ..._resultToJson(result),
-          'syncSubmission': _submissionToJson(pending.submission),
-          'ownerUserId': ownerUserId,
-        };
-        data
-          ..['pending'] = items
-          ..['completed'] = completed;
-        await _write(data);
-      });
+  }) => _locked(() async {
+    final data = await _read();
+    final items = List<dynamic>.from(data['pending'] as List? ?? const []);
+    items.removeWhere(
+      (item) =>
+          (item as Map)['clientAttemptId'] ==
+          pending.submission.clientAttemptId,
+    );
+    final completed = Map<String, dynamic>.from(
+      data['completed'] as Map? ?? const {},
+    );
+    completed[pending.submission.clientAttemptId] = {
+      ..._resultToJson(result),
+      'syncSubmission': _submissionToJson(pending.submission),
+      'ownerUserId': ownerUserId,
+    };
+    data
+      ..['pending'] = items
+      ..['completed'] = completed;
+    await _write(data);
+  });
 
   Future<Map<String, ExamResult>> completed() => _locked(() async {
     final data = await _read();
@@ -421,7 +425,8 @@ class AttemptSyncService {
       return AttemptSyncOutcome(
         attempt: pending.copyWith(
           state: AttemptSyncState.requiresAttention,
-          lastError: 'Entre na conta que iniciou esta entrega para sincronizar.',
+          lastError:
+              'Entre na conta que iniciou esta entrega para sincronizar.',
         ),
       );
     }
