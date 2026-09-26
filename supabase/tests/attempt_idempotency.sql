@@ -230,4 +230,44 @@ end
 $$;
 rollback;
 
+-- The deployed legacy grants must not survive the compatibility migration.
+do $$
+declare
+  role_name text;
+  table_name text;
+begin
+  foreach role_name in array array['anon', 'authenticated'] loop
+    foreach table_name in array array['public.attempts', 'public.attempt_answers'] loop
+      if has_table_privilege(role_name, table_name,
+          'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') then
+        raise exception 'unexpected direct write privilege for % on %', role_name, table_name;
+      end if;
+    end loop;
+  end loop;
+  if has_table_privilege('anon', 'public.attempts', 'SELECT') then
+    raise exception 'anonymous attempt history must not be exposed';
+  end if;
+end
+$$;
+
+-- Old clients still submit through the unchanged four-argument RPC.
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+do $$
+declare
+  result jsonb;
+begin
+  result := public.submit_exam_attempt(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    jsonb_build_object('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 1),
+    '{}'::uuid[], 20
+  );
+  if result ->> 'attempt_id' is null or (result ->> 'correct')::integer <> 1 then
+    raise exception 'legacy RPC regression';
+  end if;
+end
+$$;
+rollback;
+
 select 'attempt idempotency tests passed' as result;

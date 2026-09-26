@@ -45,6 +45,10 @@ try {
     }
     await db.exec(sql);
     console.log(`Migration executada: ${name}`);
+    if (name === '202609210001_core.sql') {
+      await db.exec(await readFile(resolve(root, 'supabase/tests/legacy_attempt_schema.sql'), 'utf8'));
+      console.log('Fixture: NOT NULL e grants legados reproduzidos.');
+    }
   }
   let sql = await readFile(resolve(root, 'supabase/tests/attempt_idempotency.sql'), 'utf8');
   sql = sql.replace(/^\\set ON_ERROR_STOP on\s*$/m, '');
@@ -58,6 +62,9 @@ try {
   await db.exec(sql.slice(split));
   const rows = (await db.query('select count(*)::int as total from public.attempts')).rows;
   assert.equal(rows[0].total, 2, 'Rollback preserva tentativas');
+  await db.exec(await readFile(resolve(root, 'supabase/tests/deployed_attempt_smoke.sql'), 'utf8'));
+  assert.equal((await db.query('select count(*)::int as total from public.attempts')).rows[0].total, 2);
+  console.log('PASS: smoke test transacional, RPC legada e bloqueio de escrita direta.');
   console.log('PASS: retries sequenciais, visitante, vínculo autenticado, RLS, grants e rollback.');
   console.log('NÃO TESTADO: concorrência entre conexões, pgcrypto, Auth/JWT e Supabase remoto.');
 } finally {

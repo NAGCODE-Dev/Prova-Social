@@ -10,7 +10,7 @@ Data: 26/09/2026. Base: `main`, `6d3ed92`, com trabalho local preexistente prese
 | Home/busca/perfil | Parcial | Repositório consulta dados reais, perfil usa sessão e estados vazios existem; sem métricas demonstrativas encontradas na busca estática. |
 | Biblioteca/offline | Parcial, novo lote não validado | Conteúdo iniciado persistido e retomada direta; resultados locais persistidos; falta execução Flutter. |
 | Rascunhos | Parcial | Escritas serializadas, flush na saída e snapshot de respostas; testes existem, não executados neste ambiente. |
-| Entrega/idempotência | Bloqueada externamente | RPC de cinco argumentos e client_attempt_id ausentes no Supabase implantado. Código local usa ID estável, fila, backoff e lock. |
+| Entrega/idempotência | Parcial; backend validado | Migration secure_attempt_delivery aplicada; visitante/retry/vínculo/RLS/RPC antiga verificados no remoto com rollback. Flutter e concorrência entre conexões pendentes. |
 | Focus Mode | Parcial | Alternativas, navegação, revisão e timer isolado/ocultável presentes; configuração prévia dos timers incompleta; runtime pendente. |
 | Resultado | Parcial | Contagens reais, enunciado, procedência e disciplina no código; histórico local acrescentado. Explicações/discursivas incompletas. |
 | Procedência | Parcial | Três badges e URL HTTPS; colunas confirmadas remotamente. Verificação visual pendente. |
@@ -27,4 +27,4 @@ Data: 26/09/2026. Base: `main`, `6d3ed92`, com trabalho local preexistente prese
 
 ## Lote P0 realizado e próximo gate
 
-Lote incremental: persistir conteúdo iniciado e resultados locais, manter retry quando RPC ainda não implantada e tornar revisão útil. Sem troca de arquitetura, pacote novo ou publicação. Testes adicionados; 52 arquivos Dart parseados/formatados por ferramenta WASM auxiliar e YAML validado. O lote só poderá ser chamado de funcional depois de format/analyze/test e fluxo offline executados em ambiente Flutter compatível. A migration remota permanece bloqueador confirmado.
+Lote incremental: persistir conteúdo iniciado e resultados locais, manter retry quando RPC ainda não implantada e tornar revisão útil. Sem troca de arquitetura, pacote novo ou publicação. Testes adicionados; 52 arquivos Dart parseados/formatados por ferramenta WASM auxiliar e YAML validado. O lote só poderá ser chamado de funcional depois de format/analyze/test e fluxo offline executados em ambiente Flutter compatível. O bloqueio da migration remota foi resolvido; ver REVISAO_MIGRATION_REMOTA.md.

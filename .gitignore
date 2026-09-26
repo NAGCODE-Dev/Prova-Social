@@ -41,3 +41,6 @@ android/key.properties
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Supabase CLI local metadata
+supabase/.temp/

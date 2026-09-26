@@ -64,6 +64,10 @@ SQL
 for migration in "$repo_dir"/supabase/migrations/*.sql; do
   echo "Aplicando $(basename "$migration")"
   psql "$test_uri" -v ON_ERROR_STOP=1 -f "$migration"
+  if [ "$(basename "$migration")" = 202609210001_core.sql ]; then
+    psql "$test_uri" -v ON_ERROR_STOP=1 \
+      -f "$repo_dir/supabase/tests/legacy_attempt_schema.sql"
+  fi
 done
 
 echo "Executando testes SQL sequenciais, RLS e rollback"

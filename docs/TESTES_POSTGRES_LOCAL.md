@@ -64,3 +64,14 @@ instruções e asserções SQL são executadas sem substituição por mocks.
 O runner não é substituto do teste nativo de concorrência nem autorização para
 implantar migrations. A dependência é instalada fora do repositório e não faz
 parte do aplicativo. Documentação: [PGlite](https://pglite.dev/docs/).
+
+
+## Verificação da compatibilidade implantada
+
+Os runners agora reproduzem o schema legado usando
+`supabase/tests/legacy_attempt_schema.sql` (somente banco descartável), antes
+da migration corretiva. Também verificam bloqueio de escrita direta e RPC antiga.
+`supabase/tests/deployed_attempt_smoke.sql` é um smoke test autorizado separado:
+usa um perfil existente, cria fixtures dentro de uma transação e sempre termina
+com rollback quando aprovado. Foi executado no projeto remoto em 26/09/2026;
+nenhum usuário Auth foi criado e nenhuma fixture permaneceu no banco.

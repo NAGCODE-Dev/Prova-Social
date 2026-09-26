@@ -1,5 +1,7 @@
 # Relatório P0 — 26/09/2026
 
+**Atualização posterior:** push autorizado concluído em `ff04f25`; correção Supabase autorizada e aplicada como `20260926160028_secure_attempt_delivery`. Smoke test remoto aprovado com rollback. Veja [evidências atuais](REVISAO_MIGRATION_REMOTA.md). O relatório abaixo preserva a auditoria anterior; os bloqueios remotos ali descritos foram resolvidos. Flutter permanece pendente.
+
 O P0 **não está concluído nem validado para distribuição**. Esta execução preservou o trabalho local, confirmou o estado remoto por consultas somente de leitura e acrescentou correções locais. Nenhum commit, push, tag, release, deploy ou alteração no Supabase foi realizado.
 
 ## 1. SHA e branch iniciais
