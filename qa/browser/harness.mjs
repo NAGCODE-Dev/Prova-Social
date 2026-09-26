@@ -8,6 +8,7 @@ export const test = base.extend({
   audit: [async ({ page, context }, use, info) => {
     const logs = [], fatal = [];
     const audit = { offline: false };
+    const cancelledAssets = new Set();
     const record = (kind, message, fails = false) => {
       const entry = { at: new Date().toISOString(), kind, message: redact(message) };
       logs.push(entry);
@@ -25,6 +26,13 @@ export const test = base.extend({
       page.on('crash', () => record('crash', 'Chromium page crashed', true));
       page.on('requestfailed', request => {
         const url = new URL(request.url());
+        const cancelledFontManifest = url.origin === origin &&
+          url.pathname === '/assets/FontManifest.json' && request.failure()?.errorText === 'net::ERR_ABORTED';
+        if (cancelledFontManifest) {
+          cancelledAssets.add(url.href);
+          record('cancelled-font-manifest', 'Font manifest request cancelled; availability checked at teardown');
+          return;
+        }
         // Only the intentional offline health probe is expected to fail.
         const expected = url.origin === origin && url.pathname === '/__qa/health' && audit.offline;
         record(expected ? 'expected-offline' : 'requestfailed',
@@ -50,6 +58,13 @@ export const test = base.extend({
     try {
       await use(audit);
     } finally {
+      for (const url of cancelledAssets) {
+        try {
+          const response = await context.request.get(url, { timeout: 5000 });
+          expect(response.status(), 'Cancelled font manifest remains available locally').toBe(200);
+          expect(Array.isArray(await response.json()), 'Font manifest is valid JSON').toBe(true);
+        } catch { record('font-manifest-unavailable', 'Cancelled manifest could not be reloaded', true); }
+      }
       if (info.status !== info.expectedStatus || fatal.length) {
         try { await evidence(context.pages().find(p => !p.isClosed()) ?? page, info, 'failure'); } catch (error) {
           record('capture-error', error.message);

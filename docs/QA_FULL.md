@@ -890,3 +890,7 @@ Causas reproduzidas: decoração opaca da sidebar oculta pintura de ListTile; ov
 ### Diagnóstico remoto de 3876484 — 2026-09-26
 
 Execução `36270101469`: 105 testes Flutter PASS / 1 FAIL (18 s de testes; baseline completo ~3,5 min). Sidebar, editor e publicação contextual passaram. Browser: 3 PASS / 1 FAIL, demais não executados após primeira falha. Fonte local removeu as requisições externas dos smokes executados. O último overflow foi localizado no BrandLockup da tela Auth em 320 px; aplicado FittedBox como nos demais cabeçalhos. A resposta foi persistida, mas `selected` em Semantics com papel button não expôs estado no browser; acrescentado `toggled` para estado pressionado acessível. Integração real recebe a mesma correção de navegação até a última questão; formatter remoto aplicado. Nova revisão ainda requer execução.
+
+### Diagnóstico remoto de 1790ea2 — 2026-09-26
+
+Execução `36270408688`: **106/106 testes Flutter PASS**, analyze PASS, concorrência PostgreSQL nativa PASS. Browser interrompido após 2 PASS e um falso negativo de infraestrutura: `FontManifest.json` respondeu `ERR_ABORTED` na sequência fechar login/reload. O harness passa a registrar esse cancelamento específico e comprovar ao final HTTP 200 + JSON válido do mesmo arquivo local; falhas de disponibilidade continuam fatais. Nenhum erro RPC, asset ausente ou exceção Flutter é ignorado. Patch do formatter aplicado. Integração/APK permanecem BLOCKED até browser PASS.

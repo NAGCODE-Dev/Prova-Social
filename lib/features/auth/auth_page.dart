@@ -172,7 +172,10 @@ class _AuthPageState extends State<AuthPage> {
                 children: [
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: FittedBox(fit: BoxFit.scaleDown, child: BrandLockup()),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: BrandLockup(),
+                    ),
                   ),
                   const SizedBox(height: 36),
                   Text(
