@@ -1,12 +1,14 @@
 workflows:
-  # Manual only: no triggers, credentials, signing, artifacts or publishing.
+  # Manual only: evidence artifacts, no triggers, credentials or publishing.
   qa-full:
     name: Prova Social - QA completo sem publicação
+    instance_type: linux_x2
     max_build_duration: 60
     environment:
       flutter: stable
       node: 22
       java: 17
+      ubuntu: "24.04"
     scripts:
       - name: Mostrar versão Flutter
         script: flutter --version
@@ -40,10 +42,35 @@ workflows:
               cp -R "$qa_platform_dir/android" android
             fi
           fi
-      - name: Validar compilação Flutter Web
-        script: flutter build web --release --no-pub
+      - name: Compilar Flutter Web isolado para QA
+        script: |
+          set -eu
+          flutter build web --debug --no-pub --no-web-resources-cdn \
+            --dart-define=SUPABASE_URL=http://127.0.0.1:8787 \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=qa-public-placeholder \
+            --dart-define=WEB_AUTH_CALLBACK=http://127.0.0.1:8787/
+      - name: Preparar Chromium e infraestrutura de QA
+        script: |
+          set -eu
+          cd qa/browser
+          timeout --kill-after=15s 300s npm ci --ignore-scripts --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=1
+          timeout --kill-after=15s 600s npx --no-install playwright install --with-deps --only-shell chromium
+          timeout --kill-after=15s 60s npm run test:infra
+      - name: QA Flutter Web em Chromium headless
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          mkdir -p artifacts/browser
+          cd qa/browser
+          set +e
+          timeout --kill-after=15s 900s npm test 2>&1 | tee ../../artifacts/browser/runner.log
+          qa_browser_status=${PIPESTATUS[0]}
+          set -e
+          exit "$qa_browser_status"
       - name: Validar compilação APK debug
         script: flutter build apk --debug --no-pub
+    artifacts:
+      - artifacts/browser/**
 
   p0-validation:
     name: Prova Social - Validar P0 sem publicação

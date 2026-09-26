@@ -44,3 +44,7 @@ android/key.properties
 
 # Supabase CLI local metadata
 supabase/.temp/
+
+# Isolated browser QA dependencies and evidence
+qa/browser/node_modules/
+artifacts/browser/

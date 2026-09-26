@@ -7,7 +7,8 @@ preparou a infraestrutura; a etapa 2 amplia somente a cobertura Dart/Flutter P0,
 sem refactor do aplicativo. **`qa-full` nunca publica produto.**
 Não faz deploy, upload Cloudflare, commit, push, tag, GitHub Release ou migration
 remota; não importa grupos de segredos, assinatura de produção ou credenciais.
-Os builds não são distribuídos nem listados como artefatos deste workflow.
+Os builds não são distribuídos. A partir da etapa 3, somente evidências de QA
+são coletadas como artifacts.
 
 Iniciar manualmente no Codemagic selecionando `qa-full` e a branch alvo `main`,
 após incorporar a alteração por processo autorizado. A ausência de `triggering`
@@ -86,7 +87,8 @@ if [ ! -d web ] || [ ! -d android ]; then
 fi
 ```
 
-Por fim, somente compilação, sem configurações de produção:
+Na etapa 1, os comandos finais eram somente de compilação. Na etapa 3, o build
+Web abaixo foi substituído pelo build isolado e QA browser documentados ao final:
 
 ```sh
 flutter build web --release --no-pub
@@ -94,7 +96,7 @@ flutter build apk --debug --no-pub
 ```
 
 Falhas encerram o passo com código não zero e interrompem o workflow. Não há
-`ignore_failure`, `|| true`, pipeline de logs ou pós-processamento que substitua
+`ignore_failure`, `|| true` ou pós-processamento que substitua
 o status original. O gate de formatação não reescreve arquivos. Não imprimir
 ambiente, tokens ou segredos. O APK usa somente assinatura debug do SDK.
 
@@ -274,3 +276,165 @@ Revisão estática dos testes feita contra os contratos e textos atuais do códi
 Não foi instalado SDK grande, não houve QA de navegador e não foi acionado CI.
 A matriz precisa ser acompanhada pelos logs de uma execução Flutter antes de
 considerar o fluxo P0 validado.
+
+## Etapa 3 — Flutter Web em Chromium headless
+
+### Decisão e isolamento
+
+Playwright Test **1.63.0**, fixado em `qa/browser/package.json` e `package-lock.json`,
+com Chromium headless shell correspondente. A instalação usa `npm ci`, sem scripts
+npm, e `playwright install --with-deps --only-shell chromium`. Não adiciona pacote
+Flutter nem dependência de produção. A escolha segue a preferência desta etapa e
+permite [controle de rede](https://playwright.dev/docs/api/class-browsercontext#browser-context-set-offline),
+[relatórios e execução CI](https://playwright.dev/docs/ci) na mesma ferramenta.
+
+`qa-full` usa explicitamente `linux_x2` com Ubuntu 24.04, Node 22 e Java 17.
+A [máquina Linux X2 do Codemagic](https://docs.codemagic.io/specs-linux/ubuntu-24.04/)
+permite instalar dependências Chromium com o procedimento oficial. A disponibilidade
+na conta/billing não foi consultada; deve ser confirmada na primeira execução.
+Os outros workflows foram preservados. O workflow continua manual e nunca publica.
+
+O build usa o entrypoint normal do aplicativo e configuração fictícia:
+
+```sh
+flutter build web --debug --no-pub --no-web-resources-cdn \
+  --dart-define=SUPABASE_URL=http://127.0.0.1:8787 \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=qa-public-placeholder \
+  --dart-define=WEB_AUTH_CALLBACK=http://127.0.0.1:8787/
+```
+
+Debug foi escolhido para expor assertions e diagnósticos de overflow Flutter;
+não certifica otimizações do build release. `--no-web-resources-cdn` mantém o
+renderer local. Qualquer dependência externa inesperada, inclusive fonte/CDN,
+será bloqueada e falhará o teste, sem liberar produção para contornar a falha.
+O build resultante é exclusivo de QA, não é distribuído.
+
+### Servidor, fixtures e ciclo de vida
+
+`server.mjs` serve exclusivamente `build/web` em `127.0.0.1:8787`. Valida a presença
+de `index.html`, `flutter_bootstrap.js` e `main.dart.js` antes da readiness.
+`/__qa/health` responde somente após iniciar o servidor. O `webServer` do
+[Playwright](https://playwright.dev/docs/test-webserver) espera até 30 segundos,
+não reutiliza servidor preexistente e encerra o processo com SIGTERM (limite de
+cinco segundos). O servidor fecha conexões em SIGTERM/SIGINT; não há processo em
+background iniciado manualmente ou URL configurável para produção.
+
+- Catálogo e pesquisa: `/rest/v1/exams` e `/rest/v1/questions` retornam fixtures
+  sintéticas de `fixtures.mjs`. Não há proxy nem chamada a Supabase real.
+- Prova privada: fixture de três questões inserida no `localStorage` do contexto
+  descartável, no formato real de `shared_preferences_web`. Não injeta respostas,
+  draft, resultado, sessão ou token. Nunca sobrescreve progresso no reload.
+- Interações e retomada passam pelas telas reais. A fixture privada tem gabarito
+  para validar correção offline sem RPC; não se apresenta como prova oficial.
+- Servidor recusa métodos de escrita (405) e endpoints não implementados. Não há
+  criação de conta, publicação nem sincronização real de tentativas.
+- Browser bloqueia toda origem externa e WebSockets. Nenhum `service_role`, cookie
+  de autenticação ou credencial de produção é necessário.
+
+### Fluxos programados e estado real
+
+**Nenhum teste de produto em browser foi executado nesta sessão.** `PASS` abaixo
+aplica-se somente às verificações de infraestrutura efetivamente executadas.
+As linhas da etapa 2 continuam sendo uma matriz histórica de cobertura escrita.
+
+| Fluxo/verificação | Estado | Evidência ou limite |
+| --- | --- | --- |
+| Servidor: ausência de build, readiness, arquivos/MIME, fixtures, isolamento de escrita e symlink | PASS | `node --test qa/browser/infra.test.mjs`: 2/2 |
+| Descoberta da suíte Playwright e sintaxe JS | PASS | `npm run list` e `node --check`; não iniciam Chromium |
+| Smoke HTTP → Flutter → onboarding → visitante → Home | NOT RUN | Programado nos três viewports, valida semantics e estado utilizável |
+| Navegação Início/Explorar/Publicar/Biblioteca/Perfil e reload | NOT RUN | Programado nos três viewports |
+| Pesquisa com resultado, consulta vazia/sem resultado e abertura | NOT RUN | Catálogo local, mobile 390×844 |
+| Login contextual ao salvar prova pública | NOT RUN | Abre formulário e fecha; não autentica |
+| Prova privada: responder, trocar resposta, avançar/voltar, marcar, sair/retomar | NOT RUN | Mobile 390×844, estado DOM/ARIA e persistência local |
+| Reload durante tentativa e retomada explícita na Biblioteca | NOT RUN | Confere questão atual, seleção, marcação e ID/payload persistido |
+| Offline real: continuar, navegar e finalizar localmente | NOT RUN | `context.setOffline(true)` + `navigator.onLine` e fetch local que deve falhar |
+| Revisão pré-entrega, branco/marcada, resultado e revisão | NOT RUN | Uma correta, uma errada e uma em branco: 1/3, 33%, marcada=1 |
+| Reconectar, reload e reabrir resultado do histórico | NOT RUN | Resultado salvo, uma conclusão, nenhuma fila para prova privada |
+| Robustez: três ciclos anterior/próxima, mudança de alternativa, modal e duplo clique de entrega | NOT RUN | Sequência curta sem sleeps fixos; verifica ausência de duplicação local |
+| Responsividade 360×640, 390×844 e 1366×768 | NOT RUN | Smoke/navegação; viewport, overflow DOM e diagnósticos Flutter |
+| Semântica e foco básico de teclado no desktop | NOT RUN | Botões/campos com nomes acessíveis, seleção ARIA e Tab |
+| Dark mode via preferência do sistema | NOT RUN | `emulateMedia({colorScheme:'dark'})` no desktop e navegação; não existe seletor de tema no app |
+| Reload totalmente offline | BLOCKED | Service workers desabilitados para isolamento; não se afirma suporte PWA offline |
+| Sincronização/idempotência com servidor real | BLOCKED | Backend QA real não configurado; simulação Dart pertence à etapa 2 |
+| Explicação das respostas | BLOCKED | Modelo atual não oferece `explanation` |
+| Detecção completa de truncamento/contraste e auditoria de acessibilidade | PARTIAL | Asserções de controles/estado + screenshots; não é auditoria WCAG ou comparação visual automática |
+
+Há nove combinações descobertas: três smoke, três busca e três P0; os testes de
+busca/P0 são intencionalmente pulados fora de 390×844. Portanto cinco execuções
+ativas e quatro skips de matriz. `retries: 0` impede que uma falha seja escondida
+por repetição; `forbidOnly: true` impede publicação acidental de suíte reduzida.
+
+### Semantics e mudanças no aplicativo
+
+Nenhum arquivo do aplicativo foi alterado. A automação ativa o botão invisível
+[Enable accessibility do Flutter](https://docs.flutter.dev/ui/accessibility/web-accessibility)
+para obter o DOM semântico. Depois usa labels/textos existentes, como “Continuar”,
+“Explorar sem conta”, “Fazer prova”, “Marcar para revisão” e “Revisar entrega”.
+Não usa coordenadas fixas nem screenshots como critério único. Se o DOM semântico
+produzido pelo SDK não expuser os contratos esperados, o teste falha para revisão;
+não há fallback que marque PASS sem interação.
+
+### Offline, console e evidências
+
+Offline real é distinto do catálogo fictício: o catálogo é um servidor HTTP local,
+e a perda de rede é aplicada ao contexto Chromium. A prova privada em andamento
+continua usando dados carregados. Não recarrega offline; após restaurar rede,
+recarrega e abre o resultado persistido. Esse cenário não comprova sincronização
+remota e não a substitui pelos mocks da etapa 2.
+
+Todos os testes capturam console, page errors, crash, respostas HTTP >=400,
+requests falhas e tentativas de acesso externo. `console.error`, exceções e
+mensagens de assertion/overflow Flutter falham a suíte. Warnings são registrados.
+A única falha de rede esperada é o GET de prova de offline em `/__qa/health`
+enquanto o contexto está explicitamente offline; sua mensagem específica
+`ERR_INTERNET_DISCONNECTED` é classificada separadamente. Outros erros continuam
+fatais, inclusive durante offline. Favicon opcional responde 204 no servidor.
+
+Artifacts de `qa-full`: `artifacts/browser/**`, contendo:
+
+- `runner.log`: stdout/stderr do runner, incluindo ciclo de vida do servidor;
+- `html/`: relatório navegável;
+- `report.json` e `junit.xml`: resultados estruturados;
+- `results/`: screenshots e anexos `console.json` por teste;
+- screenshots de startup, Home em cada viewport, login contextual, prova,
+  retomada após reload, revisão offline, resultado restaurado e desktop dark;
+- screenshot automática de falha, inclusive quando erros de console são
+  detectados no encerramento do teste.
+
+Não grava HAR, trace, vídeo, headers, storageState nem dump de localStorage.
+Logs de console passam por redação de tokens, senhas e parâmetros de URLs.
+Screenshots contêm somente fixtures e navegação visitante, sem login real.
+
+### Comandos CI e timeouts
+
+Após build Web e antes do APK debug:
+
+```sh
+cd qa/browser
+timeout --kill-after=15s 300s npm ci --ignore-scripts --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=1
+timeout --kill-after=15s 600s npx --no-install playwright install --with-deps --only-shell chromium
+timeout --kill-after=15s 60s npm run test:infra
+```
+
+O passo seguinte executa `timeout --kill-after=15s 900s npm test` e captura saída
+com `tee`; guarda `${PIPESTATUS[0]}` e retorna o mesmo código. Não usa
+`ignore_failure`, `|| true` ou warnings para mascarar falhas. O runner limita a
+suíte a 12 minutos, cada teste a dois minutos, navegação a 30 segundos e ações/
+asserções a 15 segundos. APK debug só roda após sucesso. Artifacts são coletados
+pelo Codemagic mesmo quando o teste falha, desde que tenham sido produzidos.
+O limite global do workflow permanece 60 minutos.
+
+### Validação local e pendências reais
+
+Flutter/Dart ausentes e `build/web` inexistente: compilação e todos os fluxos do
+produto em Chromium estão **NOT RUN**. Não foi baixado SDK Flutter nem utilizado
+site publicado como substituto. Instalação npm isolada, testes do servidor,
+descoberta Playwright, sintaxe JS/YAML/shell e `git diff --check` foram verificados.
+A execução no Codemagic ainda é necessária para validar o build, instalação de
+Chromium, seletores efetivos do renderer e os cenários de produto.
+
+Riscos observados por leitura, ainda sem reprodução em navegador: onboarding com
+preview fixo de 230 px pode não caber em 360×640; textos/cores fixos podem limitar
+dark mode; fontes externas podem ser solicitadas mesmo com renderer local.
+Não foram registrados como bugs reproduzidos nem corrigidos nesta etapa. Falhas
+reais devem preservar o relatório e ser tratadas em lote posterior.
