@@ -870,3 +870,13 @@ O resultado concluído também fica acessível enquanto um vínculo offline agua
 retry, sem remover a pendência nem apresentar o vínculo como concluído.
 Os testes de respostas inválidas/RPC agora verificam a causa específica, evitando
 falso PASS provocado por uma exceção genérica do mock.
+
+Revisão `e113067` (run `36268017205`): 91 testes Flutter PASS, quatro testes de
+busca FAIL por mocks HTTP sem request, e um teste de inicialização com progresso
+não terminou. O Web compilou em 69 s. Os testes browser falharam no baseline:
+semântica Flutter agrupava os textos e o roteiro local omitia o botão “Começar
+prova”. As falhas posteriores de tortura não comprovam falhas do produto.
+Correções incrementais: liberar a fila ociosa de LocalExamStore, completar os
+mocks de busca, procurar texto acessível agrupado e seguir a página da prova.
+O browser agora para na primeira falha. Integração real e APK aguardam sucesso
+unitário/widget e browser, evitando builds caros enquanto o baseline está falho.

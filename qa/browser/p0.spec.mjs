@@ -63,6 +63,7 @@ test('P0 privado: persistência, reload, offline real, resultado e revisão', as
   await button(page, 'Pular').click();
   await clickText(page, 'Biblioteca');
   await button(page, 'Fazer prova').click();
+  await button(page, 'Começar prova').click();
   await expect(text(page, 'QA: quanto é 1 + 1?')).toBeVisible();
   const first = page.getByRole('button', { name: /Alternativa A, Um/ });
   const second = page.getByRole('button', { name: /Alternativa B, Dois/ });

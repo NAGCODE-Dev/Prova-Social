@@ -34,11 +34,11 @@ try {
   await step('chromium', 'node', [playwright, 'install', '--with-deps', '--only-shell', 'chromium'], ['browser-deps', 'web-build'], { timeoutMs: 600000 });
   await step('browser', 'node', [playwright, 'test', '--config=qa/browser/playwright.config.mjs'], ['chromium', 'web-build'], { timeoutMs: 900000 });
   await step('browser-evidence', 'node', ['qa/gate/browser-report.mjs', 'artifacts/browser/report.json', '14'], ['browser']);
-  await step('apk-build', 'flutter', ['build', 'apk', '--debug', '--no-pub', '--dart-define=SUPABASE_URL=http://127.0.0.1:54321',
-    '--dart-define=SUPABASE_PUBLISHABLE_KEY=qa-public-placeholder'], ['android-icons'], { timeoutMs: 600000 });
-  await step('build-inspection', 'python3', ['qa/gate/artifacts.py'], ['web-build', 'apk-build']);
   // The integration runner records its own BLOCKED cause (e.g. missing Docker).
-  await step('integration', 'node', ['qa/integration/run.mjs'], ['qa-deps', 'guards'], { timeoutMs: 1500000, blockedExitCodes: [2], killGraceMs: 130000 });
+  await step('integration', 'node', ['qa/integration/run.mjs'], ['qa-deps', 'guards', 'flutter-tests', 'browser'], { timeoutMs: 1500000, blockedExitCodes: [2], killGraceMs: 130000 });
+  await step('apk-build', 'flutter', ['build', 'apk', '--debug', '--no-pub', '--dart-define=SUPABASE_URL=http://127.0.0.1:54321',
+    '--dart-define=SUPABASE_PUBLISHABLE_KEY=qa-public-placeholder'], ['android-icons', 'flutter-tests', 'browser'], { timeoutMs: 600000 });
+  await step('build-inspection', 'python3', ['qa/gate/artifacts.py'], ['web-build', 'apk-build']);
   await step('diff', 'git', ['diff', '--check']);
 } catch {
   await runner.record('runner-error', 'FAIL', 'Unexpected runner error; inspect individual stage logs');

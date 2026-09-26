@@ -9,6 +9,7 @@ async function start(page, context, info) {
   await evidence(page, info, 'home-390x844');
   await clickText(page, 'Biblioteca');
   await button(page, 'Fazer prova').click();
+  await button(page, 'Começar prova').click();
   await expect(text(page, 'QA: quanto é 1 + 1?')).toBeVisible();
 }
 async function resume(page) {

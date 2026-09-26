@@ -65,8 +65,8 @@ export const test = base.extend({
 
 // Real labels from Flutter widgets; text leaves and aria-label nodes vary by engine.
 export function text(page, label) {
-  return page.getByText(label, { exact: true })
-    .or(page.locator(`[aria-label=${JSON.stringify(label)}]`)).first();
+  return page.getByText(label, { exact: false })
+    .or(page.locator(`[aria-label*=${JSON.stringify(label)}]`)).first();
 }
 export function button(page, label) {
   return page.getByRole('button', { name: label, exact: true });

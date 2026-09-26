@@ -104,7 +104,7 @@ class LocalExam {
 
 class LocalExamStore {
   static const key = 'private_exams_v1';
-  static Future<void> _tail = Future.value();
+  static Future<void>? _tail;
   Future<List<LocalExam>> load() async {
     await _tail;
     return _read(await SharedPreferences.getInstance());
@@ -132,7 +132,7 @@ class LocalExamStore {
     final snapshot = LocalExam.fromJson(
       jsonDecode(jsonEncode(exam.toJson())) as Map<String, dynamic>,
     );
-    final operation = _tail.then((_) async {
+    Future<void> write() async {
       final prefs = await SharedPreferences.getInstance();
       final items = _read(prefs);
       final previous = jsonEncode(items.map((e) => e.toJson()).toList());
@@ -150,8 +150,22 @@ class LocalExamStore {
           'Não foi possível salvar no aparelho. Tente novamente.',
         );
       }
-    });
-    _tail = operation.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    }
+
+    final previous = _tail;
+    final operation = previous == null
+        ? Future<void>.sync(write)
+        : previous.then((_) => write());
+    late final Future<void> tail;
+    void release() {
+      if (identical(_tail, tail)) _tail = null;
+    }
+
+    tail = operation.then<void>(
+      (_) => release(),
+      onError: (Object _, StackTrace __) => release(),
+    );
+    _tail = tail;
     return operation;
   }
 }
