@@ -44,3 +44,17 @@ android/key.properties
 
 # Supabase CLI local metadata
 supabase/.temp/
+
+# QA Node dependencies
+qa/integration/node_modules/
+
+# Node dependencies
+**/node_modules/
+
+# QA generated files
+**/node_modules/
+artifacts/
+build/qa/
+qa/reports/
+qa/browser/test-results/
+qa/browser/playwright-report/

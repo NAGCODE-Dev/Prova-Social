@@ -376,3 +376,74 @@ workflows:
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
       - build/web/**
+
+  qa-full:
+    name: Prova Social - QA Completo
+    max_build_duration: 45
+
+    environment:
+      groups:
+        - Token
+      flutter: stable
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.npm
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: true
+
+    scripts:
+      - name: Preparar Flutter
+        script: |
+          set -e
+
+          flutter create . \
+            --platforms=web \
+            --project-name=prova_social \
+            --org=dev.nagcode \
+            --no-pub
+
+          rm -f test/widget_test.dart
+
+          flutter pub get
+
+      - name: QA estático
+        script: |
+          set -e
+          bash qa/run_static.sh
+
+      - name: Testes Flutter
+        script: |
+          set -e
+          bash qa/run_tests.sh
+
+      - name: QA P0 e banco local
+        script: |
+          set -e
+          bash qa/run_p0.sh
+
+      - name: Compilar Web para QA
+        script: |
+          set -e
+
+          export WEB_AUTH_CALLBACK="http://127.0.0.1:4173/app/"
+
+          bash qa/run_web.sh
+
+      - name: Browser QA
+        script: |
+          set -e
+          bash qa/run_browser.sh
+
+    artifacts:
+      - build/qa/**
+      - qa/browser/test-results/**
+      - qa/browser/playwright-report/**
