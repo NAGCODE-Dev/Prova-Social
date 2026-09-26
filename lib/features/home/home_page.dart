@@ -119,11 +119,12 @@ class _HomePageState extends State<HomePage> {
         );
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => localError =
               'Não foi possível ler as provas locais. Tente novamente.',
         );
+      }
     }
   }
 
@@ -134,12 +135,13 @@ class _HomePageState extends State<HomePage> {
       final started = await attemptSync.store.startedExams();
       final pending = await attemptSync.store.pending();
       final completed = await attemptSync.store.completed();
-      if (mounted)
+      if (mounted) {
         setState(() {
           pendingAttempts = pending;
           startedExams = started;
           completedAttempts = completed;
         });
+      }
       await attemptSync.syncDue();
       final refreshedPending = await attemptSync.store.pending();
       final refreshedCompleted = await attemptSync.store.completed();
@@ -996,12 +998,13 @@ class _ProfilePage extends StatelessWidget {
               try {
                 await Supabase.instance.client.auth.signOut();
               } catch (_) {
-                if (context.mounted)
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Não foi possível sair. Tente novamente.'),
                     ),
                   );
+                }
               }
             },
           ),
@@ -1198,12 +1201,13 @@ class _UserTile extends StatelessWidget {
               try {
                 await Supabase.instance.client.auth.signOut();
               } catch (_) {
-                if (context.mounted)
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Não foi possível sair. Tente novamente.'),
                     ),
                   );
+                }
               }
             }
           },

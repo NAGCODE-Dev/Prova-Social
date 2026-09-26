@@ -125,8 +125,9 @@ class ExamResult {
     final totals = <String, ({int correct, int total})>{};
     for (var index = 0; index < exam.questions.length; index++) {
       final question = exam.questions[index];
-      if (question.topic.trim().isEmpty || question.correctIndex == null)
+      if (question.topic.trim().isEmpty || question.correctIndex == null) {
         continue;
+      }
       final previous = totals[question.topic] ?? (correct: 0, total: 0);
       totals[question.topic] = (
         correct:

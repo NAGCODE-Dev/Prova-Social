@@ -14,14 +14,16 @@ class AttemptRepository implements AttemptSubmitter {
   @override
   Future<ExamResult> submit(AttemptSubmission submission) async {
     final exam = submission.exam;
-    if (exam.isLocal)
+    if (exam.isLocal) {
       throw StateError('Provas locais não podem ser enviadas ao servidor.');
+    }
     final payload = <String, int>{};
     for (var index = 0; index < exam.questions.length; index++) {
       final questionId = exam.questions[index].id;
       final selected = submission.answers[index];
-      if (questionId.isNotEmpty && selected != null)
+      if (questionId.isNotEmpty && selected != null) {
         payload[questionId] = selected;
+      }
     }
     try {
       final response = await _client
