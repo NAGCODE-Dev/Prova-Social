@@ -1,10 +1,10 @@
 # Diagnóstico atual
 
-Data: 26/09/2026. Base: `main`, `6d3ed92`, com trabalho local preexistente preservado. Código inspecionado; consultas Supabase somente de leitura. Ver [relatório completo](RELATORIO_P0_20260926.md).
+Data: 26/09/2026. Código consolidado: `main`, `4be6972`. Trabalho preexistente preservado e enviado; migration corretiva aplicada e smoke remoto aprovado com rollback. Ver [relatório consolidado para revisão externa](REVISAO_EXTERNA_20260926.md).
 
 | Área | Classificação | Evidência e limite |
 | --- | --- | --- |
-| Git | Funcional | Fetch aprovado; HEAD igual a origin/main; worktree modificado preservado. |
+| Git | Funcional | Commits ff04f25 e 4be6972 enviados a origin/main; worktree limpo antes deste lote documental. |
 | Navegação visitante/onboarding | Parcial, não validada em runtime | Cinco abas, onboarding dispensável e login contextual presentes. |
 | Auth | Parcial | E-mail/Google e callbacks oficiais no código/CI; intenção de publicação local persistida. OAuth real e retomada de favoritos após reload pendentes. |
 | Home/busca/perfil | Parcial | Repositório consulta dados reais, perfil usa sessão e estados vazios existem; sem métricas demonstrativas encontradas na busca estática. |
@@ -17,7 +17,7 @@ Data: 26/09/2026. Base: `main`, `6d3ed92`, com trabalho local preexistente prese
 | Importação | Parcial/P1 | Texto nativo, OCR seletivo e editor existem; parser linear sem coordenadas e sem fixture real de 80 questões. |
 | Imagens/compactação | Parcial | Pacote gzip/hash e upload existentes; associação espacial e fluxo completo não validados. |
 | Discussões/comunidades | Parcial/ausente | Não fazem parte do lote P0; fluxo social completo ausente. |
-| Schema/RLS | Parcial | Advisors consultados, migrations locais inspecionadas; não executar testes de escrita em produção. |
+| Schema/RLS | Parcial | Advisors e schema inspecionados; smoke transacional autorizado no remoto aprovado com rollback. Auditoria global pendente. |
 | Marca/design/skeletons | Parcial | Ativos próprios e componentes presentes; plataformas geradas pelo CI; não há APK/Web validados aqui. |
 | Atualizações | Parcial | Timeout/API de releases; comparação SemVer ainda simplificada. |
 | CI/CD | Parcial | Gates estritos e workflow manual sem publicação preparados; plataformas repetidas, dois builds APK e publicação acoplada persistem. |
@@ -27,4 +27,4 @@ Data: 26/09/2026. Base: `main`, `6d3ed92`, com trabalho local preexistente prese
 
 ## Lote P0 realizado e próximo gate
 
-Lote incremental: persistir conteúdo iniciado e resultados locais, manter retry quando RPC ainda não implantada e tornar revisão útil. Sem troca de arquitetura, pacote novo ou publicação. Testes adicionados; 52 arquivos Dart parseados/formatados por ferramenta WASM auxiliar e YAML validado. O lote só poderá ser chamado de funcional depois de format/analyze/test e fluxo offline executados em ambiente Flutter compatível. O bloqueio da migration remota foi resolvido; ver REVISAO_MIGRATION_REMOTA.md.
+Lote incremental: persistir conteúdo iniciado e resultados locais, manter retry quando RPC ainda não implantada e tornar revisão útil. Sem troca de arquitetura ou pacote novo no app. Código enviado e migration aplicada com autorização; release não criada. Testes adicionados; 52 arquivos Dart parseados/formatados por ferramenta WASM auxiliar e YAML validado. O lote só poderá ser chamado de funcional depois de format/analyze/test e fluxo offline executados em ambiente Flutter compatível. O bloqueio da migration remota foi resolvido; ver REVISAO_MIGRATION_REMOTA.md.

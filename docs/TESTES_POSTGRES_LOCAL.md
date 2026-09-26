@@ -50,8 +50,8 @@ npm install --prefix /tmp/prova-p0-pglite --ignore-scripts --no-audit --no-fund 
 node scripts/pglite_test.mjs /tmp/prova-p0-pglite/node_modules/@electric-sql/pglite/dist/index.js
 ```
 
-Executado em 26/09/2026: aprovado no PostgreSQL 18.3/PGlite 0.5.8. Executa as
-três migrations locais e o fixture SQL sequencial: retry autenticado, visitante,
+Executado em 26/09/2026: aprovado no PostgreSQL 18.3/PGlite 0.5.8. Executa todas as
+quatro migrations locais atuais e o fixture SQL sequencial: retry autenticado, visitante,
 vínculo posterior, RLS de proprietário, grants e rollback preservando linhas.
 
 Limitações explícitas: o Supabase implantado usa PostgreSQL 17; o PGlite tem
