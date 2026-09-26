@@ -6,7 +6,7 @@ import 'supabase_config.dart';
 
 class AuthRepository {
   AuthRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 
@@ -20,36 +20,29 @@ class AuthRepository {
     required String email,
     required String password,
     required String displayName,
-  }) =>
-      _client.auth.signUp(
-        email: email.trim(),
-        password: password,
-        data: {'display_name': displayName.trim()},
-        emailRedirectTo: _redirectTo,
-      );
+  }) => _client.auth.signUp(
+    email: email.trim(),
+    password: password,
+    data: {'display_name': displayName.trim()},
+    emailRedirectTo: _redirectTo,
+  );
 
   Future<AuthResponse> signIn({
     required String email,
     required String password,
   }) =>
-      _client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
-      );
+      _client.auth.signInWithPassword(email: email.trim(), password: password);
 
   Future<bool> signInWithGoogle() => _client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: _redirectTo,
-        authScreenLaunchMode: kIsWeb
-            ? LaunchMode.platformDefault
-            : LaunchMode.externalApplication,
-      );
+    OAuthProvider.google,
+    redirectTo: _redirectTo,
+    authScreenLaunchMode: kIsWeb
+        ? LaunchMode.platformDefault
+        : LaunchMode.externalApplication,
+  );
 
   Future<void> sendPasswordReset(String email) =>
-      _client.auth.resetPasswordForEmail(
-        email.trim(),
-        redirectTo: _redirectTo,
-      );
+      _client.auth.resetPasswordForEmail(email.trim(), redirectTo: _redirectTo);
 
   Future<void> signOut() => _client.auth.signOut();
 }

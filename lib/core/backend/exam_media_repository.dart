@@ -23,7 +23,7 @@ class ExamMediaInput {
 
 class ExamMediaRepository {
   ExamMediaRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   static const bucket = 'exam-content';
   static const allowedMimeTypes = {
@@ -63,21 +63,30 @@ class ExamMediaRepository {
       asset = Map<String, dynamic>.from(existing);
     } else {
       final objectKey = '${user.id}/media/$hash.$extension';
-      await _client.storage.from(bucket).uploadBinary(
+      await _client.storage
+          .from(bucket)
+          .uploadBinary(
             objectKey,
             media.bytes,
-            fileOptions: FileOptions(contentType: media.mimeType, upsert: false),
+            fileOptions: FileOptions(
+              contentType: media.mimeType,
+              upsert: false,
+            ),
           );
       try {
-        asset = await _client.from('media_assets').insert({
-          'owner_id': user.id,
-          'object_key': objectKey,
-          'sha256': hash,
-          'mime_type': media.mimeType,
-          'byte_size': media.bytes.length,
-          'width': media.width,
-          'height': media.height,
-        }).select().single();
+        asset = await _client
+            .from('media_assets')
+            .insert({
+              'owner_id': user.id,
+              'object_key': objectKey,
+              'sha256': hash,
+              'mime_type': media.mimeType,
+              'byte_size': media.bytes.length,
+              'width': media.width,
+              'height': media.height,
+            })
+            .select()
+            .single();
       } catch (_) {
         await _client.storage.from(bucket).remove([objectKey]);
         rethrow;

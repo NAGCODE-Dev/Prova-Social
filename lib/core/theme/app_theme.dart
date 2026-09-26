@@ -40,8 +40,8 @@ abstract final class AppMotion {
 
   static Duration of(BuildContext context, Duration duration) =>
       MediaQuery.maybeOf(context)?.disableAnimations == true
-          ? Duration.zero
-          : duration;
+      ? Duration.zero
+      : duration;
 }
 
 abstract final class AppTheme {
@@ -61,27 +61,84 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       fontFamily: 'sans-serif',
       textTheme: const TextTheme(
-        displaySmall: TextStyle(fontSize: 36, height: 1.08, fontWeight: FontWeight.w700, letterSpacing: -1.2),
-        headlineMedium: TextStyle(fontSize: 28, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -.6),
-        headlineSmall: TextStyle(fontSize: 22, height: 1.2, fontWeight: FontWeight.w700),
+        displaySmall: TextStyle(
+          fontSize: 36,
+          height: 1.08,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -1.2,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 28,
+          height: 1.15,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -.6,
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 22,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
         titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(fontSize: 16, height: 1.45),
         bodyMedium: TextStyle(fontSize: 14, height: 1.45),
       ),
-      appBarTheme: const AppBarTheme(backgroundColor: AppColors.background, foregroundColor: AppColors.ink, surfaceTintColor: Colors.transparent, elevation: 0),
-      cardTheme: const CardThemeData(color: AppColors.surface, surfaceTintColor: Colors.transparent, elevation: 0, margin: EdgeInsets.zero, shape: RoundedRectangleBorder(side: BorderSide(color: AppColors.line), borderRadius: BorderRadius.all(Radius.circular(12)))),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.ink,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      cardTheme: const CardThemeData(
+        color: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: AppColors.line),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+      ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        border: OutlineInputBorder(borderSide: BorderSide(color: AppColors.line), borderRadius: BorderRadius.all(Radius.circular(10))),
-        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.line), borderRadius: BorderRadius.all(Radius.circular(10))),
-        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.brand, width: 1.5), borderRadius: BorderRadius.all(Radius.circular(10))),
+        border: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.line),
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.line),
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.brand, width: 1.5),
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
       ),
-      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(minimumSize: const Size(44, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)), textStyle: const TextStyle(fontWeight: FontWeight.w700))),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(minimumSize: const Size(44, 44), side: const BorderSide(color: AppColors.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)), foregroundColor: AppColors.ink, textStyle: const TextStyle(fontWeight: FontWeight.w600))),
-      navigationBarTheme: const NavigationBarThemeData(backgroundColor: AppColors.surface, surfaceTintColor: Colors.transparent, indicatorColor: AppColors.brandSoft, height: 68, labelBehavior: NavigationDestinationLabelBehavior.alwaysShow),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          side: const BorderSide(color: AppColors.line),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          foregroundColor: AppColors.ink,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: AppColors.brandSoft,
+        height: 68,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      ),
       dividerColor: AppColors.line,
     );
   }

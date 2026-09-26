@@ -1,3 +1,17 @@
+# Roadmap de execução — atualização 26/09/2026
+
+Consulte [diagnóstico](DIAGNOSTICO_ATUAL.md) e [relatório P0](RELATORIO_P0_20260926.md). O texto histórico abaixo não comprova validação.
+
+## Gate imediato P0
+
+1. Executar format/analyze/test no Flutter compatível via workflow manual `p0-validation` (sem publicação). SDK ausente no Termux atual; testes escritos não contam como aprovados.
+2. Validar o lote local: conteúdo iniciado offline, histórico de resultados locais, transição atômica para fila, retry PGRST202 e revisão com procedência.
+3. Validar migration `202609210003_attempt_idempotency.sql` em ambiente isolado compatível com Supabase 17 e concorrência; fixture sequencial já passou no PGlite 18.3. Ausência no Supabase remoto confirmada por histórico, coluna e assinatura. Implantar só com autorização explícita.
+4. Exercitar ciclo integral, OAuth/retomada de intenção e troca de contas em aparelho/Web.
+5. Só depois distribuição e P1. Nenhuma release/tag/commit/push autorizada nesta execução.
+
+## Histórico anterior (preservado)
+
 # Roadmap de execução
 
 ## P0 — produto utilizável

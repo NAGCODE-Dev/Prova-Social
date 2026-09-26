@@ -1,4 +1,4 @@
-const steps = ['Importe uma prova', 'Resolva uma questão', 'Veja onde melhorar', 'Refaça seus erros'];
+const steps = ['Conheça o fluxo', 'Resolva uma questão', 'Veja onde melhorar', 'Refaça seus erros'];
 let currentStep = 0;
 const stepElements = [...document.querySelectorAll('[data-step]')];
 const title = document.querySelector('[data-step-title]');
@@ -18,15 +18,21 @@ document.querySelectorAll('[data-answer]').forEach(button => {
   button.addEventListener('click', () => {
     document.querySelectorAll('[data-answer]').forEach(item => {
       item.classList.toggle('selected', item === button);
-      item.setAttribute('aria-checked', String(item === button));
+      item.setAttribute('aria-pressed', String(item === button));
     });
+    const correct = button.dataset.answer === 'C';
+    document.querySelector('[data-score]').textContent = correct ? '1/1' : '0/1';
+    document.querySelector('.score-ring').style.setProperty('--score', correct ? '100%' : '0%');
+    document.querySelector('[data-result]').textContent = correct ? 'Você acertou este exercício.' : 'Este exercício precisa de revisão.';
+    document.querySelector('[data-feedback]').textContent = '6 × 4 = 24: seis grupos de quatro unidades.';
+    document.querySelector('[data-review]').textContent = correct ? 'Nenhum erro nesta tentativa. Experimente com sua própria prova.' : 'Uma questão errada nesta tentativa. Revise a explicação e tente novamente.';
     document.querySelector('[data-answer-hint]').textContent = `Alternativa ${button.dataset.answer} selecionada.`;
     document.querySelector('[data-step="1"] [data-next]').disabled = false;
   });
 });
 
 document.querySelector('[data-restart]').addEventListener('click', () => {
-  document.querySelectorAll('[data-answer]').forEach(item => { item.classList.remove('selected'); item.setAttribute('aria-checked', 'false'); });
+  document.querySelectorAll('[data-answer]').forEach(item => { item.classList.remove('selected'); item.setAttribute('aria-pressed', 'false'); });
   document.querySelector('[data-answer-hint]').textContent = 'Escolha uma alternativa para continuar.';
   document.querySelector('[data-step="1"] [data-next]').disabled = true;
   renderStep(0);

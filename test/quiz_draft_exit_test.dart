@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:prova_social/core/backend/attempt_draft_store.dart';
 import 'package:prova_social/domain/models/exam.dart';
 import 'package:prova_social/features/quiz/quiz_page.dart';
@@ -28,22 +29,45 @@ class SlowDraftStorage implements DraftStorage {
 }
 
 void main() {
-  testWidgets('sair espera a gravação pendente e preserva a resposta', (tester) async {
+  testWidgets('sair espera a gravação pendente e preserva a resposta', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
     final storage = SlowDraftStorage();
     final store = AttemptDraftStore(storage: storage);
     const exam = Exam(
-      id: 'exam', category: 'Geral', title: 'Prova', description: '',
-      author: 'Fonte', durationMinutes: 30, attempts: 0,
-      questions: [Question(id: 'q1', topic: 'Geral', statement: 'Pergunta?', options: ['Um', 'Dois'])],
+      id: 'exam',
+      category: 'Geral',
+      title: 'Prova',
+      description: '',
+      author: 'Fonte',
+      durationMinutes: 30,
+      attempts: 0,
+      questions: [
+        Question(
+          id: 'q1',
+          topic: 'Geral',
+          statement: 'Pergunta?',
+          options: ['Um', 'Dois'],
+        ),
+      ],
     );
-    await tester.pumpWidget(MaterialApp(home: Scaffold(
-      body: Builder(builder: (context) => TextButton(
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-          builder: (_) => QuizPage(exam: exam, draftStore: store),
-        )),
-        child: const Text('Abrir'),
-      )),
-    )));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => QuizPage(exam: exam, draftStore: store),
+                ),
+              ),
+              child: const Text('Abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
     await tester.tap(find.text('Abrir'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Dois'));

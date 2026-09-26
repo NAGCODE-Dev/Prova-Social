@@ -36,3 +36,8 @@ google-services.json
 *.keystore
 *.jks
 android/key.properties
+
+# Flutter/Dart local generated state
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies

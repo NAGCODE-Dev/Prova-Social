@@ -10,11 +10,11 @@ class ImportedQuestion {
   int? correctIndex;
 
   Map<String, Object?> toJson(int position) => {
-        'position': position,
-        'statement': statement.trim(),
-        'options': options.map((text) => {'text': text.trim()}).toList(),
-        'correctIndex': correctIndex,
-      };
+    'position': position,
+    'statement': statement.trim(),
+    'options': options.map((text) => {'text': text.trim()}).toList(),
+    'correctIndex': correctIndex,
+  };
 }
 
 class QuestionParser {
@@ -25,25 +25,24 @@ class QuestionParser {
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
         .replaceAll(RegExp(r'[ \t]+'), ' ');
-    final explicitStarts = RegExp(
-      r'^\s*(?:quest[aã]o|questao)\s*(\d{1,3})\s*(?:[.:)–-]+\s*)?',
-      caseSensitive: false,
-      multiLine: true,
-    ).allMatches(normalized).map(
-          (match) => _QuestionStart(
-            start: match.start,
-            contentStart: match.end,
-          ),
-        );
-    final numericStarts = RegExp(
-      r'^\s*(\d{1,3})(?:\s*[.:)–-]+\s*|\s*(?=\n))',
-      multiLine: true,
-    ).allMatches(normalized).map(
-          (match) => _QuestionStart(
-            start: match.start,
-            contentStart: match.end,
-          ),
-        );
+    final explicitStarts =
+        RegExp(
+              r'^\s*(?:quest[aã]o|questao)\s*(\d{1,3})\s*(?:[.:)–-]+\s*)?',
+              caseSensitive: false,
+              multiLine: true,
+            )
+            .allMatches(normalized)
+            .map(
+              (match) =>
+                  _QuestionStart(start: match.start, contentStart: match.end),
+            );
+    final numericStarts =
+        RegExp(r'^\s*(\d{1,3})(?:\s*[.:)–-]+\s*|\s*(?=\n))', multiLine: true)
+            .allMatches(normalized)
+            .map(
+              (match) =>
+                  _QuestionStart(start: match.start, contentStart: match.end),
+            );
     final byOffset = <int, _QuestionStart>{};
     for (final candidate in [...explicitStarts, ...numericStarts]) {
       byOffset[candidate.start] = candidate;
@@ -53,7 +52,9 @@ class QuestionParser {
     final questions = <ImportedQuestion>[];
     for (var index = 0; index < starts.length; index++) {
       final start = starts[index].contentStart;
-      final end = index + 1 < starts.length ? starts[index + 1].start : normalized.length;
+      final end = index + 1 < starts.length
+          ? starts[index + 1].start
+          : normalized.length;
       final parsed = _parseBlock(normalized.substring(start, end));
       if (parsed != null) {
         questions.add(parsed);
@@ -78,7 +79,9 @@ class QuestionParser {
     final options = <String>[];
     for (var index = 0; index < matches.length; index++) {
       final start = matches[index].end;
-      final end = index + 1 < matches.length ? matches[index + 1].start : block.length;
+      final end = index + 1 < matches.length
+          ? matches[index + 1].start
+          : block.length;
       final text = block.substring(start, end).trim();
       if (text.isNotEmpty) {
         options.add(text);
@@ -87,15 +90,15 @@ class QuestionParser {
     if (options.length < 2) {
       return null;
     }
-    return ImportedQuestion(statement: statement, options: options.take(5).toList());
+    return ImportedQuestion(
+      statement: statement,
+      options: options.take(5).toList(),
+    );
   }
 }
 
 class _QuestionStart {
-  const _QuestionStart({
-    required this.start,
-    required this.contentStart,
-  });
+  const _QuestionStart({required this.start, required this.contentStart});
 
   final int start;
   final int contentStart;

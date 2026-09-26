@@ -20,15 +20,23 @@ class PdfExtractionResult {
   final bool ocrAvailable;
 
   bool get looksScanned =>
-      pageCount > 0 && pagesWithText < (pageCount * .25).ceil() && ocrPages == 0;
+      pageCount > 0 &&
+      pagesWithText < (pageCount * .25).ceil() &&
+      ocrPages == 0;
 }
 
 class PdfTextExtractor {
   const PdfTextExtractor();
 
-  Future<PdfExtractionResult> extract(Uint8List bytes, {String? sourceName}) async {
+  Future<PdfExtractionResult> extract(
+    Uint8List bytes, {
+    String? sourceName,
+  }) async {
     const ocr = OcrService();
-    final document = await PdfDocument.openData(bytes, sourceName: sourceName ?? 'import.pdf');
+    final document = await PdfDocument.openData(
+      bytes,
+      sourceName: sourceName ?? 'import.pdf',
+    );
     try {
       final buffer = StringBuffer();
       var pagesWithText = 0;

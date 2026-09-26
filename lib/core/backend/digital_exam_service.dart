@@ -19,9 +19,9 @@ class DigitalExamService {
     ContentPackageService? packages,
     ContentDeliveryRepository? content,
     ExamMediaRepository? media,
-  })  : _packages = packages ?? ContentPackageService(),
-        _content = content ?? ContentDeliveryRepository(),
-        _media = media ?? ExamMediaRepository();
+  }) : _packages = packages ?? ContentPackageService(),
+       _content = content ?? ContentDeliveryRepository(),
+       _media = media ?? ExamMediaRepository();
 
   final ContentPackageService _packages;
   final ContentDeliveryRepository _content;

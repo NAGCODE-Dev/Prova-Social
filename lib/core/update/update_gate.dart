@@ -65,8 +65,6 @@ class _UpdateGateState extends State<UpdateGate> {
   }
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
-        color: AppColors.background,
-        child: widget.child,
-      );
+  Widget build(BuildContext context) =>
+      ColoredBox(color: AppColors.background, child: widget.child);
 }

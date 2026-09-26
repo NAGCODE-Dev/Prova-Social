@@ -59,8 +59,16 @@ void main() {
   });
 
   test('bloqueia URLs que não são HTTPS válidas', () {
-    for (final url in ['http://example.org', 'javascript:alert(1)', '/prova', 'https:']) {
-      final exam = ExamRepository.mapPublishedExam({...row, 'source_url': url}, questions);
+    for (final url in [
+      'http://example.org',
+      'javascript:alert(1)',
+      '/prova',
+      'https:',
+    ]) {
+      final exam = ExamRepository.mapPublishedExam({
+        ...row,
+        'source_url': url,
+      }, questions);
       expect(exam.safeSourceUrl, isNull);
     }
   });

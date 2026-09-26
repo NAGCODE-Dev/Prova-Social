@@ -23,7 +23,9 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _load() async {
     final preferences = await SharedPreferences.getInstance();
     if (mounted) {
-      setState(() => completed = preferences.getBool('onboarding_complete') ?? false);
+      setState(
+        () => completed = preferences.getBool('onboarding_complete') ?? false,
+      );
     }
   }
 

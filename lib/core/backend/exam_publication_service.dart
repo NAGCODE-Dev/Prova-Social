@@ -4,7 +4,7 @@ import '../import/question_parser.dart';
 
 class ExamPublicationService {
   ExamPublicationService({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 
@@ -22,12 +22,14 @@ class ExamPublicationService {
     }
 
     if (questions.isEmpty ||
-        questions.any((question) =>
-            question.statement.trim().length < 2 ||
-            question.options.length < 2 ||
-            question.correctIndex == null ||
-            question.correctIndex! < 0 ||
-            question.correctIndex! >= question.options.length)) {
+        questions.any(
+          (question) =>
+              question.statement.trim().length < 2 ||
+              question.options.length < 2 ||
+              question.correctIndex == null ||
+              question.correctIndex! < 0 ||
+              question.correctIndex! >= question.options.length,
+        )) {
       throw const FormatException('Revise todas as questões e o gabarito.');
     }
     final examId = await _client.rpc<String>(
@@ -40,14 +42,16 @@ class ExamPublicationService {
         'p_year': year,
         'p_duration_minutes': durationMinutes,
         'p_questions': questions
-            .map((question) => {
-                  'topic': 'Geral',
-                  'statement': question.statement.trim(),
-                  'options': question.options
-                      .map((text) => text.trim())
-                      .toList(growable: false),
-                  'correct_index': question.correctIndex,
-                })
+            .map(
+              (question) => {
+                'topic': 'Geral',
+                'statement': question.statement.trim(),
+                'options': question.options
+                    .map((text) => text.trim())
+                    .toList(growable: false),
+                'correct_index': question.correctIndex,
+              },
+            )
             .toList(growable: false),
       },
     );

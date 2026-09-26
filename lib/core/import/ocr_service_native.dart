@@ -16,8 +16,9 @@ class OcrService {
 
   Future<String> recognizePage(PdfPage page) async {
     if (!isSupported) return '';
-    final scale =
-        math.min(2.2, 2200 / math.max(page.width, page.height)).toDouble();
+    final scale = math
+        .min(2.2, 2200 / math.max(page.width, page.height))
+        .toDouble();
     final rendered = await page.render(
       fullWidth: page.width * scale,
       fullHeight: page.height * scale,

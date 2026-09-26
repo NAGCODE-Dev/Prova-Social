@@ -18,7 +18,11 @@ class AttemptSubmission {
 }
 
 class AttemptSubmissionException implements Exception {
-  const AttemptSubmissionException({required this.message, required this.transient, this.cause});
+  const AttemptSubmissionException({
+    required this.message,
+    required this.transient,
+    this.cause,
+  });
   final String message;
   final bool transient;
   final Object? cause;

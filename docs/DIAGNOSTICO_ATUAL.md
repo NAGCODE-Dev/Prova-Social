@@ -1,22 +1,30 @@
 # Diagnóstico atual
 
-Data: 2026-09-21. Base: leitura estática do repositório em `main`. O estado implantado do Supabase, do Codemagic e do site não foi verificado.
+Data: 26/09/2026. Base: `main`, `6d3ed92`, com trabalho local preexistente preservado. Código inspecionado; consultas Supabase somente de leitura. Ver [relatório completo](RELATORIO_P0_20260926.md).
 
-| Área | Classificação | Evidência |
+| Área | Classificação | Evidência e limite |
 | --- | --- | --- |
-| Navegação visitante e onboarding | Parcial | Cinco abas e acesso sem login; intenção após login nem sempre é retomada automaticamente. |
-| Provas públicas, busca e biblioteca | Parcial | Leitura do Supabase e filtro local; biblioteca e filtros incompletos. |
-| Procedência | Parcial após este lote | Schema possui tipo e URL; modelo e interface passam a exibir os três tipos, com fallback conservador e link HTTPS. Dados implantados não verificados. |
-| Focus Mode, retomada e resultado | Parcial | Rascunho local e correção por RPC; gravação local não aguardada e entrega depende de rede. |
-| Importação | Parcial | PDF, OCR e revisão existem; parser linear não resolve coordenadas e duas colunas. |
-| Questão social e comunidades | Parcial / ausente | Há SQL auxiliar, sem fluxo completo de discussão ou comunidades no app. |
-| Schema e RLS | Parcial; implantação não verificável | Migrations têm políticas e RPC; execução e testes no projeto real não confirmados. |
-| Marca e distribuição | Parcial; publicação não verificável | Ativos e workflows existem; plataformas são geradas no CI. |
-| CI e atualização | Parcial | CI recria plataformas, formata e compila Android duas vezes. |
-| Testes | Parcial | Testes unitários existentes; faltam integração e verificação visual. Flutter e Dart indisponíveis neste ambiente. |
+| Git | Funcional | Fetch aprovado; HEAD igual a origin/main; worktree modificado preservado. |
+| Navegação visitante/onboarding | Parcial, não validada em runtime | Cinco abas, onboarding dispensável e login contextual presentes. |
+| Auth | Parcial | E-mail/Google e callbacks oficiais no código/CI; intenção de publicação local persistida. OAuth real e retomada de favoritos após reload pendentes. |
+| Home/busca/perfil | Parcial | Repositório consulta dados reais, perfil usa sessão e estados vazios existem; sem métricas demonstrativas encontradas na busca estática. |
+| Biblioteca/offline | Parcial, novo lote não validado | Conteúdo iniciado persistido e retomada direta; resultados locais persistidos; falta execução Flutter. |
+| Rascunhos | Parcial | Escritas serializadas, flush na saída e snapshot de respostas; testes existem, não executados neste ambiente. |
+| Entrega/idempotência | Bloqueada externamente | RPC de cinco argumentos e client_attempt_id ausentes no Supabase implantado. Código local usa ID estável, fila, backoff e lock. |
+| Focus Mode | Parcial | Alternativas, navegação, revisão e timer isolado/ocultável presentes; configuração prévia dos timers incompleta; runtime pendente. |
+| Resultado | Parcial | Contagens reais, enunciado, procedência e disciplina no código; histórico local acrescentado. Explicações/discursivas incompletas. |
+| Procedência | Parcial | Três badges e URL HTTPS; colunas confirmadas remotamente. Verificação visual pendente. |
+| Importação | Parcial/P1 | Texto nativo, OCR seletivo e editor existem; parser linear sem coordenadas e sem fixture real de 80 questões. |
+| Imagens/compactação | Parcial | Pacote gzip/hash e upload existentes; associação espacial e fluxo completo não validados. |
+| Discussões/comunidades | Parcial/ausente | Não fazem parte do lote P0; fluxo social completo ausente. |
+| Schema/RLS | Parcial | Advisors consultados, migrations locais inspecionadas; não executar testes de escrita em produção. |
+| Marca/design/skeletons | Parcial | Ativos próprios e componentes presentes; plataformas geradas pelo CI; não há APK/Web validados aqui. |
+| Atualizações | Parcial | Timeout/API de releases; comparação SemVer ainda simplificada. |
+| CI/CD | Parcial | Gates estritos e workflow manual sem publicação preparados; plataformas repetidas, dois builds APK e publicação acoplada persistem. |
+| Testes Flutter | Bloqueados no ambiente | dart/flutter ausentes. Sem instalação de toolchain grande. |
+| Testes PostgreSQL | Parcial | Cluster nativo incompleto preservado. Fixture sequencial/RLS/grants/rollback aprovado em PGlite 18.3; pgcrypto e concorrência não validados. |
+| Testes site | Funcional no escopo unitário | 3/3 testes Node aprovados; não equivale a validação visual do Flutter. |
 
-## Riscos imediatos
+## Lote P0 realizado e próximo gate
 
-- Confirmar no Supabase implantado a presença de `source_type` e `source_url` antes de distribuir este cliente.
-- Executar `dart format --output=none --set-exit-if-changed .`, `flutter analyze` e `flutter test` no Codemagic. Nenhum deles foi executado localmente.
-- Conferir o link e os três badges em tela pequena, desktop e temas claro/escuro.
+Lote incremental: persistir conteúdo iniciado e resultados locais, manter retry quando RPC ainda não implantada e tornar revisão útil. Sem troca de arquitetura, pacote novo ou publicação. Testes adicionados; 52 arquivos Dart parseados/formatados por ferramenta WASM auxiliar e YAML validado. O lote só poderá ser chamado de funcional depois de format/analyze/test e fluxo offline executados em ambiente Flutter compatível. A migration remota permanece bloqueador confirmado.

@@ -19,12 +19,12 @@ class AttemptDraft {
   final String? clientAttemptId;
 
   AttemptDraft snapshot() => AttemptDraft(
-        answers: Map.of(answers),
-        review: Set.of(review),
-        current: current,
-        elapsedSeconds: elapsedSeconds,
-        clientAttemptId: clientAttemptId,
-      );
+    answers: Map.of(answers),
+    review: Set.of(review),
+    current: current,
+    elapsedSeconds: elapsedSeconds,
+    clientAttemptId: clientAttemptId,
+  );
 }
 
 enum DraftSaveStatus { saving, saved, failed }
@@ -42,7 +42,10 @@ class _PreferencesDraftStorage implements DraftStorage {
 
   @override
   Future<void> write(String key, String value) async {
-    final saved = await (await SharedPreferences.getInstance()).setString(key, value);
+    final saved = await (await SharedPreferences.getInstance()).setString(
+      key,
+      value,
+    );
     if (!saved) throw StateError('Não foi possível salvar o rascunho.');
   }
 
@@ -55,7 +58,7 @@ class _PreferencesDraftStorage implements DraftStorage {
 
 class AttemptDraftStore {
   AttemptDraftStore({DraftStorage? storage})
-      : _storage = storage ?? _PreferencesDraftStorage();
+    : _storage = storage ?? _PreferencesDraftStorage();
 
   final DraftStorage _storage;
   final status = ValueNotifier<DraftSaveStatus>(DraftSaveStatus.saved);
@@ -72,23 +75,29 @@ class AttemptDraftStore {
   Future<void> _enqueue(String examId, AttemptDraft draft, int revision) {
     status.value = DraftSaveStatus.saving;
     final operation = _tail.then((_) async {
-      await _storage.write(_key(examId), jsonEncode({
-        'answers': draft.answers.map((key, value) => MapEntry('$key', value)),
-        'review': draft.review.toList(),
-        'current': draft.current,
-        'elapsedSeconds': draft.elapsedSeconds,
-        'clientAttemptId': draft.clientAttemptId,
-      }));
+      await _storage.write(
+        _key(examId),
+        jsonEncode({
+          'answers': draft.answers.map((key, value) => MapEntry('$key', value)),
+          'review': draft.review.toList(),
+          'current': draft.current,
+          'elapsedSeconds': draft.elapsedSeconds,
+          'clientAttemptId': draft.clientAttemptId,
+        }),
+      );
       if (revision > _savedRevision) _savedRevision = revision;
       if (!_disposed && revision == _revision) {
         status.value = DraftSaveStatus.saved;
       }
     });
-    _tail = operation.then<void>((_) {}, onError: (Object error, StackTrace stack) {
-      if (!_disposed && revision == _revision) {
-        status.value = DraftSaveStatus.failed;
-      }
-    });
+    _tail = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {
+        if (!_disposed && revision == _revision) {
+          status.value = DraftSaveStatus.failed;
+        }
+      },
+    );
     return _tail;
   }
 
@@ -121,7 +130,9 @@ class AttemptDraftStore {
     final json = Map<String, dynamic>.from(jsonDecode(raw) as Map);
     final answers = Map<String, dynamic>.from(json['answers'] as Map);
     return AttemptDraft(
-      answers: answers.map((key, value) => MapEntry(int.parse(key), value as int)),
+      answers: answers.map(
+        (key, value) => MapEntry(int.parse(key), value as int),
+      ),
       review: Set<int>.from(json['review'] as List),
       current: json['current'] as int,
       elapsedSeconds: json['elapsedSeconds'] as int,

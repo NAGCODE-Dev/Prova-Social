@@ -27,14 +27,16 @@ class GithubReleaseService {
 
   Future<ReleaseInfo?> findUpdate() async {
     final package = await PackageInfo.fromPlatform();
-    final response = await http.get(
-      Uri.parse(_latestRelease),
-      headers: const {
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'Prova-Social-App',
-      },
-    ).timeout(const Duration(seconds: 8));
+    final response = await http
+        .get(
+          Uri.parse(_latestRelease),
+          headers: const {
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'Prova-Social-App',
+          },
+        )
+        .timeout(const Duration(seconds: 8));
 
     if (response.statusCode != 200) return null;
     final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -51,9 +53,9 @@ class GithubReleaseService {
       }
     }
     apk ??= assets.cast<Map<String, dynamic>?>().firstWhere(
-          (asset) => (asset?['name'] as String? ?? '').endsWith('.apk'),
-          orElse: () => null,
-        );
+      (asset) => (asset?['name'] as String? ?? '').endsWith('.apk'),
+      orElse: () => null,
+    );
 
     final releaseUrl = Uri.tryParse(json['html_url'] as String? ?? '');
     final downloadUrl = Uri.tryParse(

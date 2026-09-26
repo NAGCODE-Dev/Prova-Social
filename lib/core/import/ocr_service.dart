@@ -1,2 +1,1 @@
-export 'ocr_service_stub.dart'
-    if (dart.library.io) 'ocr_service_native.dart';
+export 'ocr_service_stub.dart' if (dart.library.io) 'ocr_service_native.dart';

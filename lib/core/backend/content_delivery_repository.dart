@@ -6,7 +6,7 @@ import 'content_package_service.dart';
 
 class ContentDeliveryRepository {
   ContentDeliveryRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   static const bucket = 'exam-content';
   final SupabaseClient _client;
@@ -22,7 +22,9 @@ class ContentDeliveryRepository {
     final objectKey =
         '${session.user.id}/exams/$examId/content/${package.sha256}.json.gz';
 
-    await _client.storage.from(bucket).uploadBinary(
+    await _client.storage
+        .from(bucket)
+        .uploadBinary(
           objectKey,
           package.bytes,
           fileOptions: const FileOptions(
@@ -32,19 +34,23 @@ class ContentDeliveryRepository {
         );
 
     try {
-      return await _client.from('content_files').insert({
-        'owner_id': session.user.id,
-        'exam_id': examId,
-        'provider': 'supabase_storage',
-        'object_key': objectKey,
-        'original_name': fileName,
-        'mime_type': 'application/json',
-        'content_encoding': 'gzip',
-        'sha256': package.sha256,
-        'uncompressed_bytes': package.uncompressedBytes,
-        'compressed_bytes': package.bytes.length,
-        'status': 'ready',
-      }).select().single();
+      return await _client
+          .from('content_files')
+          .insert({
+            'owner_id': session.user.id,
+            'exam_id': examId,
+            'provider': 'supabase_storage',
+            'object_key': objectKey,
+            'original_name': fileName,
+            'mime_type': 'application/json',
+            'content_encoding': 'gzip',
+            'sha256': package.sha256,
+            'uncompressed_bytes': package.uncompressedBytes,
+            'compressed_bytes': package.bytes.length,
+            'status': 'ready',
+          })
+          .select()
+          .single();
     } catch (_) {
       await _client.storage.from(bucket).remove([objectKey]);
       rethrow;

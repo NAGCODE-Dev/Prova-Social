@@ -44,9 +44,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => login
-            ? const AuthPage(closeAfterAuth: true)
-            : const HomePage(),
+        builder: (_) =>
+            login ? const AuthPage(closeAfterAuth: true) : const HomePage(),
       ),
     );
   }
@@ -82,10 +81,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 controller: controller,
                 itemCount: slides.length,
                 onPageChanged: (value) => setState(() => page = value),
-                itemBuilder: (context, index) => _OnboardingSlide(
-                  data: slides[index],
-                  index: index,
-                ),
+                itemBuilder: (context, index) =>
+                    _OnboardingSlide(data: slides[index], index: index),
               ),
             ),
             Padding(
@@ -116,9 +113,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     onPressed: last
                         ? () => _finish()
                         : () => controller.nextPage(
-                              duration: AppMotion.of(context, AppMotion.normal),
-                              curve: Curves.easeOutCubic,
-                            ),
+                            duration: AppMotion.of(context, AppMotion.normal),
+                            curve: Curves.easeOutCubic,
+                          ),
                     child: Text(last ? 'Explorar sem conta' : 'Continuar'),
                   ),
                   if (last) ...[
@@ -146,28 +143,32 @@ class _OnboardingSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _FeaturePreview(icon: data.$1, text: data.$4, index: index),
-            const SizedBox(height: 36),
-            Text(data.$2, style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 12),
-            Text(
-              data.$3,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ],
+    padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FeaturePreview(icon: data.$1, text: data.$4, index: index),
+        const SizedBox(height: 36),
+        Text(data.$2, style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: 12),
+        Text(
+          data.$3,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _FeaturePreview extends StatelessWidget {
-  const _FeaturePreview({required this.icon, required this.text, required this.index});
+  const _FeaturePreview({
+    required this.icon,
+    required this.text,
+    required this.index,
+  });
 
   final IconData icon;
   final String text;
@@ -175,43 +176,43 @@ class _FeaturePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        height: 230,
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
-          borderRadius: BorderRadius.circular(AppRadius.xl),
+    height: 230,
+    width: double.infinity,
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      border: Border.all(color: Theme.of(context).colorScheme.outline),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.brandSoft,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Icon(icon, color: AppColors.brandHover, size: 32),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.brandSoft,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Icon(icon, color: AppColors.brandHover, size: 32),
-              ),
-            ),
-            const Spacer(),
-            if (index == 1) ...[
-              const LinearProgressIndicator(value: .42, minHeight: 6),
-              const SizedBox(height: 16),
-            ],
-            Text(text, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            Container(
-              height: 8,
-              width: index == 2 ? 150 : 210,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ],
+        const Spacer(),
+        if (index == 1) ...[
+          const LinearProgressIndicator(value: .42, minHeight: 6),
+          const SizedBox(height: 16),
+        ],
+        Text(text, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        Container(
+          height: 8,
+          width: index == 2 ? 150 : 210,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.outline,
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
