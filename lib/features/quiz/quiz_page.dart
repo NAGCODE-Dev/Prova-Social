@@ -688,9 +688,9 @@ class _QuestionContent extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: Semantics(
-            button: true,
+            checked: active,
+            inMutuallyExclusiveGroup: true,
             selected: active,
-            toggled: active,
             label: 'Alternativa $letter, ${question.options[index]}',
             child: InkWell(
               onTap: () => onSelected(index),

@@ -17,7 +17,7 @@ async function resume(page) {
   await clickText(page, 'Biblioteca');
   await clickText(page, 'Continuar — disponível offline');
 }
-const answer = (page, name) => page.getByRole('button', { name }).click();
+const answer = (page, name) => page.getByRole('radio', { name }).click();
 async function assertDraft(page, answers, current, review, id) {
   await expect.poll(async () => {
     const value = await draft(page);

@@ -94,7 +94,7 @@ test('real JSON import, contextual Auth, explicit publication, search, offline d
   await page.reload(); await semantics(page);
   await search(page, title);
   await expect(text(page, importFixture.questions[0].statement)).toBeVisible();
-  await page.getByRole('button', { name: /Alternativa B, Dois/ }).click();
+  await page.getByRole('radio', { name: /Alternativa B, Dois/ }).click();
   audit.offline = true; await context.setOffline(true);
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   await button(page, 'Próxima').click();
@@ -135,7 +135,7 @@ test('visitor result must become account history after real login', async ({ pag
   expect((await owner.client.rpc('publish_exam', publication(title))).status).toBe(200);
   await open(page); await button(page, 'Pular').click();
   await search(page, title);
-  await page.getByRole('button', { name: /Alternativa B, Dois/ }).click();
+  await page.getByRole('radio', { name: /Alternativa B, Dois/ }).click();
   await button(page, 'Próxima').click();
   await button(page, 'Revisar entrega').click();
   await button(page, 'Entregar mesmo com questões em branco').click();

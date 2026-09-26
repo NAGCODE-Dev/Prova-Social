@@ -894,3 +894,7 @@ Execução `36270101469`: 105 testes Flutter PASS / 1 FAIL (18 s de testes; base
 ### Diagnóstico remoto de 1790ea2 — 2026-09-26
 
 Execução `36270408688`: **106/106 testes Flutter PASS**, analyze PASS, concorrência PostgreSQL nativa PASS. Browser interrompido após 2 PASS e um falso negativo de infraestrutura: `FontManifest.json` respondeu `ERR_ABORTED` na sequência fechar login/reload. O harness passa a registrar esse cancelamento específico e comprovar ao final HTTP 200 + JSON válido do mesmo arquivo local; falhas de disponibilidade continuam fatais. Nenhum erro RPC, asset ausente ou exceção Flutter é ignorado. Patch do formatter aplicado. Integração/APK permanecem BLOCKED até browser PASS.
+
+### Diagnóstico remoto de 93cf95b — 2026-09-26
+
+Execução `36270830304`: Flutter 106 PASS, browser 3 PASS / 1 FAIL. Confirmado na árvore acessível: Flutter mapeia `toggled` para switch, incompatível com alternativas exclusivas. Corrigido para `checked` + `inMutuallyExclusiveGroup` (radio); testes verificam `toBeChecked` e flags nativas, preservando seleção e persistência. Cancelamento de fonte não voltou a bloquear o smoke. Limite browser ajustado para três falhas, permitindo observar mais causas independentes por rodada sem executar builds pesados após falha.

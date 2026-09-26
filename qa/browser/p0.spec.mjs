@@ -65,8 +65,8 @@ test('P0 privado: persistência, reload, offline real, resultado e revisão', as
   await button(page, 'Fazer prova').click();
   await button(page, 'Começar prova').click();
   await expect(text(page, 'QA: quanto é 1 + 1?')).toBeVisible();
-  const first = page.getByRole('button', { name: /Alternativa A, Um/ });
-  const second = page.getByRole('button', { name: /Alternativa B, Dois/ });
+  const first = page.getByRole('radio', { name: /Alternativa A, Um/ });
+  const second = page.getByRole('radio', { name: /Alternativa B, Dois/ });
   await first.click();
   await second.click();
   await expect.poll(async () => (await draft(page))?.answers['0']).toBe(1);
@@ -76,7 +76,7 @@ test('P0 privado: persistência, reload, offline real, resultado e revisão', as
   }
   await selected(page, /Alternativa B, Dois/);
   await button(page, 'Próxima').click();
-  await page.getByRole('button', { name: /Alternativa B, Quatro/ }).click();
+  await page.getByRole('radio', { name: /Alternativa B, Quatro/ }).click();
   await button(page, 'Marcar para revisão').click();
   await expect.poll(async () => (await draft(page))?.review).toEqual([1]);
   await evidence(page, info, 'prova-em-andamento');
@@ -110,7 +110,7 @@ test('P0 privado: persistência, reload, offline real, resultado e revisão', as
     catch { return true; }
   })).toBe(true);
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
-  await page.getByRole('button', { name: /Alternativa A, Três/ }).click();
+  await page.getByRole('radio', { name: /Alternativa A, Três/ }).click();
   await expect.poll(async () => (await draft(page))?.answers['1']).toBe(0);
   await button(page, 'Próxima').click();
   await expect(text(page, 'QA: quanto é 3 + 3?')).toBeVisible();

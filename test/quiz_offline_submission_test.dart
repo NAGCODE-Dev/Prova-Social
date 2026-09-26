@@ -187,6 +187,8 @@ void main() {
       ),
     );
     expect(selected.properties.selected, isTrue);
+    expect(selected.properties.checked, isTrue);
+    expect(selected.properties.inMutuallyExclusiveGroup, isTrue);
     final restored = (await drafts.load(exam.id))!;
     expect(restored.answers, saved.answers);
     expect(restored.review, saved.review);

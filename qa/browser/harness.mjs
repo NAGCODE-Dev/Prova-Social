@@ -134,9 +134,7 @@ export async function layout(page) {
   // Canvas overflow is also checked through Flutter debug console diagnostics.
 }
 export async function selected(page, answer) {
-  await expect.poll(async () => page.getByRole('button', { name: answer }).evaluate(
-    el => el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-pressed') === 'true',
-  )).toBe(true);
+  await expect(page.getByRole('radio', { name: answer })).toBeChecked();
 }
 export async function draft(page) {
   return page.evaluate(() => {
