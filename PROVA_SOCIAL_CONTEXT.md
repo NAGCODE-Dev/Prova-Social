@@ -1,1137 +1,993 @@
-# Prova Social --- Contexto Mestre do Projeto
+# PROVA SOCIAL — CONTEXTO DO PROJETO
 
-> Arquivo raiz de contexto do projeto. Atualizado em **27/09/2026**.
->
-> Este documento reúne o contexto conhecido sobre o Prova Social para
-> desenvolvimento, QA, arquitetura, UX/UI, produto, monetização e
-> roadmap. Itens marcados como ideia ou planejados não devem ser
-> tratados como implementados.
+> Documento raiz de contexto técnico, produto, arquitetura e roadmap.
+> Atualizado em 27/09/2026.
 
-## 1. Visão geral
+---
 
-**Nome:** Prova Social\
-**Repositório:** `NAGCODE-Dev/Prova-Social`\
-**Tecnologia principal:** Flutter/Dart\
-**Plataforma prioritária:** Android/mobile-first
+## 1. Visão do produto
 
-### Ideia central
+**Prova Social** é uma plataforma mobile-first para digitalizar, organizar, resolver e compartilhar provas e questões.
 
-Digitalizar provas e transformá-las em uma experiência completa de
-estudo:
+A ideia central não é apenas oferecer um banco de questões. O produto conecta o documento original à experiência completa de estudo:
 
-``` text
-Importar/Criar prova
-→ OCR/Edição
-→ Resolver
-→ Pausar/Retomar
-→ Finalizar
-→ Corrigir
-→ Histórico
-→ Estatísticas
-→ Identificar dificuldades
-→ Praticar novamente
-```
+**prova física/PDF → digitalização/OCR → estruturação → revisão → publicação → resolução → tentativa → retomada/offline → sincronização → resultado → histórico**
 
-Além do núcleo de estudos, a **v1** deve incluir uma camada social:
+### Princípio central
 
-``` text
-Publicar prova
-→ Biblioteca pública
-→ Resolver/Favoritar
-→ Dúvidas
-→ Respostas
-→ Destaques
-→ Perfis
-→ Denúncias/Moderação
-```
+> **Preservar a prova e preservar a trajetória de quem estudou com ela.**
 
-O produto deve ser utilizável por uma pessoa que nunca viu o código, sem
-depender do desenvolvedor.
+O produto deve permitir que uma prova que originalmente existia apenas em papel ou PDF se torne um conteúdo estruturado e reutilizável, sem perder sua origem, enquanto as tentativas e resultados do estudante formam um histórico contínuo.
 
-------------------------------------------------------------------------
+---
 
-# 2. Objetivos
+## 2. Estado atual resumido
 
-O Prova Social deve:
+O projeto já ultrapassou a ideia de um simples protótipo ou banco de questões.
 
--   digitalizar provas;
--   usar OCR para acelerar a criação;
--   permitir correção manual do OCR;
--   permitir criação manual;
--   permitir resolução e retomada;
--   registrar respostas;
--   corrigir tentativas;
--   manter histórico;
--   gerar estatísticas reais;
--   ajudar o usuário a identificar dificuldades;
--   oferecer biblioteca pessoal;
--   oferecer biblioteca pública;
--   permitir publicação comunitária;
--   oferecer dúvidas e interação;
--   ter perfis;
--   ter moderação básica;
--   possuir monetização opcional;
--   preservar o estudo básico gratuito;
--   manter baixo custo operacional;
--   priorizar privacidade e segurança.
+Há uma base funcional envolvendo:
 
-Pode atender ENEM, vestibulares, concursos, Barro Branco, provas
-escolares, simulados e outras avaliações.
+- autenticação;
+- onboarding;
+- catálogo público;
+- busca;
+- favoritos;
+- biblioteca;
+- provas locais;
+- importação de PDF;
+- OCR;
+- parser de questões;
+- revisão antes da publicação;
+- publicação comunitária;
+- proveniência;
+- execução de provas;
+- marcação para revisão;
+- salvamento de rascunho;
+- retomada;
+- submissão offline;
+- sincronização;
+- tentativas;
+- proteção contra duplicidade/idempotência;
+- resultados detalhados;
+- desempenho por tópico;
+- pacotes JSON compactados;
+- SHA-256;
+- mídia estruturada;
+- backup local;
+- QA automatizado;
+- atualização por GitHub Releases.
 
-------------------------------------------------------------------------
+O diferencial não está em uma única funcionalidade, mas na integração dessas partes.
 
-# 3. Estado conhecido do repositório
+---
 
-Em uma verificação feita em **27/09/2026**:
+# 3. Proposta de valor
 
--   repositório público;
--   `NAGCODE-Dev/Prova-Social`;
--   branch padrão: `main`;
--   linguagem principal: Dart;
--   issues abertas: 0 naquele momento;
--   tamanho aproximado: 1,3 MB;
--   tags conhecidas: `v0.2.0` a `v0.6.3`;
--   commit de `main` observado: `d74b3c2`;
--   desenvolvimento ativo;
--   não havia licença identificada na verificação.
+## Para quem possui uma prova
 
-Esses dados podem mudar e não devem ser tratados como estado permanente
-sem nova verificação.
+Transformar uma prova física ou um documento existente em um conteúdo digital estruturado e reutilizável.
 
-Documentação/estrutura conhecida:
+## Para quem estuda
 
--   `CODEX_QA_COMPLETO_PROVA_SOCIAL.md`
--   `docs/qa/`
--   `qa/`
--   workflows do Codemagic.
+Resolver provas, acompanhar tentativas, identificar desempenho e preservar sua evolução.
 
-Um build observado em 26/09/2026 passou por:
+## Para a comunidade
 
-``` text
-Preparing build machine
-Fetching app sources
-Restoring cache
-Installing SDKs
-Preparar Flutter
-QA estático
-Testes Flutter
-```
+Compartilhar provas e materiais de estudo que podem ser encontrados, salvos e resolvidos por outras pessoas.
 
-Os testes Flutter daquele build levaram aproximadamente 4m38s.
+## Para o produto
 
-**CI verde não significa que todo o produto esteja pronto.**
+Criar uma base de conteúdo estruturado que possa evoluir para busca, estatísticas, organização, dúvidas e recursos sociais sem depender de um formato único de documento.
 
-------------------------------------------------------------------------
+---
 
-# 4. Princípios de desenvolvimento
+# 4. Diferencial de preservação
 
-Prioridade:
+A preservação possui duas dimensões.
 
-1.  funcionalidade real;
-2.  persistência real;
-3.  segurança;
-4.  UX;
-5.  baixo custo;
-6.  privacidade;
-7.  arquitetura sustentável;
-8.  QA automatizado;
-9.  capacidade de evolução.
+### 4.1 Preservação do documento
 
-Evitar:
+A prova deixa de depender exclusivamente do PDF ou da folha física original.
 
--   telas falsas;
--   botões sem função;
--   dados mockados apresentados como reais;
--   hardcode indevido;
--   funcionalidades que só funcionam no happy path;
--   complexidade desnecessária;
--   estética genérica de aplicativo de IA.
+Fluxo previsto:
 
-------------------------------------------------------------------------
+**foto/scan/PDF → OCR → estrutura → revisão → prova digital**
 
-# 5. Stack e infraestrutura planejada
+O documento original e seus elementos de mídia devem permanecer associados quando necessário.
 
-## App
+### 4.2 Preservação da trajetória
 
--   Flutter
--   Dart
--   Android prioritário
--   mobile-first
+A plataforma também preserva:
 
-## OCR
+- provas realizadas;
+- respostas;
+- acertos e erros;
+- questões não respondidas;
+- marcações para revisão;
+- tentativas;
+- resultados;
+- desempenho por tópico;
+- progresso.
 
--   Tesseract/OCR ou solução compatível.
+Assim, o conteúdo não termina quando o estudante envia a prova.
 
-O OCR nunca deve ser tratado como perfeito. O usuário deve poder revisar
-e corrigir.
+---
 
-## Backend/infrastrutura
+# 5. Arquitetura de conteúdo
 
-Direções já discutidas:
+Uma prova digital pode ser representada como um pacote estruturado.
 
--   Supabase;
--   Turso;
--   Cloudflare Pages;
--   Cloudflare R2;
--   Cloudflare Workers;
--   GitHub;
--   GitHub Releases;
--   Codemagic.
+Fluxo atual:
 
-A arquitetura final dessas integrações precisa ser validada durante a
-implementação. Não assumir que todas já estão funcionando.
+**payload JSON → UTF-8 → GZip → SHA-256 → armazenamento → download → descompressão → JSON**
 
-------------------------------------------------------------------------
+O pacote possui metadados como:
 
-# 6. Design system
+- `sha256`;
+- tamanho comprimido;
+- tamanho descomprimido;
+- `examId`;
+- `schemaVersion`;
+- referência aos arquivos de questões;
+- índice de mídia.
 
-## Identidade
+### Armazenamento
 
-Verde esmeralda:
+O projeto possui infraestrutura para:
 
-``` text
-#16A36A
-```
+- Supabase Storage;
+- bucket privado `exam-content`;
+- metadados em `content_files`;
+- políticas RLS;
+- possibilidade arquitetural de provider `supabase_storage` ou `cloudflare_r2`.
+
+### Cache
+
+O `ContentDeliveryRepository` mantém cache em memória para pacotes já baixados durante a execução.
+
+> Não assumir cache persistente em disco sem verificar implementação específica.
+
+### Integridade
+
+SHA-256 é utilizado para identificar/verificar o conteúdo comprimido.
+
+---
+
+# 6. Digitalização e OCR
+
+A digitalização é uma das portas de entrada do produto.
+
+## Fluxo
+
+1. Usuário fornece PDF/imagem.
+2. Páginas podem ser renderizadas.
+3. OCR extrai texto.
+4. O texto é normalizado.
+5. `QuestionParser` identifica questões e alternativas.
+6. Questões são transformadas em estruturas editáveis.
+7. Usuário revisa/corrige.
+8. Conteúdo validado pode ser publicado ou utilizado.
+
+### OCR
+
+Existe implementação nativa para Android/iOS usando reconhecimento de texto.
+
+### Parser
+
+O parser reconhece padrões como:
+
+- `Questão N`;
+- `Questao N`;
+- numeração de questões;
+- alternativas A–E;
+- blocos de enunciado.
+
+A normalização reduz diferenças de espaçamento e quebras de linha.
+
+### Regra importante
+
+OCR não é considerado infalível.
+
+A revisão humana continua sendo parte importante do fluxo, especialmente para provas com layouts incomuns, imagens, tabelas ou formatação complexa.
+
+---
+
+# 7. Provas estruturadas
+
+O domínio possui modelos para:
+
+- prova;
+- questão;
+- alternativas;
+- tópico;
+- resultado;
+- origem/proveniência.
+
+Uma questão possui estrutura própria em vez de ser apenas texto bruto.
+
+Isso permite:
+
+- resolução;
+- correção;
+- busca por tópico;
+- estatísticas;
+- histórico;
+- publicação;
+- reutilização.
+
+---
+
+# 8. Proveniência
+
+As provas possuem informações de origem.
+
+Tipos existentes:
+
+- `official`;
+- `community`;
+- `unverified`.
+
+Também existe `sourceUrl`.
+
+URLs de origem aceitas pelo modelo são restritas a HTTPS.
+
+A interface possui indicação de origem/proveniência.
+
+Objetivo: deixar claro ao estudante de onde o conteúdo veio, sem confundir material oficial com conteúdo comunitário.
+
+---
+
+# 9. Catálogo e busca
+
+O catálogo público pode ser explorado sem login.
+
+A busca considera informações como:
+
+- título;
+- descrição;
+- categoria;
+- fonte;
+- nome da fonte;
+- tópico das questões.
+
+Características observadas:
+
+- debounce de aproximadamente 350 ms;
+- proteção contra resultados fora de ordem;
+- limite de consulta;
+- estados de carregamento;
+- estados vazios;
+- tratamento de erro;
+- possibilidade de retry.
+
+---
+
+# 10. Biblioteca
+
+A Biblioteca funciona como um hub do estado de estudo.
+
+Pode reunir:
+
+- provas salvas;
+- provas locais;
+- provas iniciadas;
+- tentativas pendentes;
+- resultados concluídos.
+
+Favoritos são persistidos por meio da estrutura `favorites`.
+
+A biblioteca, portanto, não é apenas uma coleção de PDFs: ela representa parte da trajetória do estudante.
+
+---
+
+# 11. Execução de provas
+
+O fluxo de resolução inclui:
+
+- seleção de respostas;
+- navegação;
+- marcação para revisão;
+- saída com salvamento;
+- retomada;
+- finalização;
+- submissão;
+- resultado.
+
+O estado da prova pode ser preservado para que o estudante continue posteriormente.
+
+---
+
+# 12. Offline e sincronização
+
+Há suporte para fluxo de tentativa com possibilidade de trabalho offline.
+
+Arquitetura observada:
+
+**draft → attempt → pending sync → sync → result**
+
+Componentes relacionados incluem:
+
+- `AttemptDraftStore`;
+- `AttemptSyncService`;
+- `AttemptRepository`;
+- `AttemptSubmission`.
+
+Também existe mecanismo de `clientAttemptId` para reduzir risco de duplicação em reenvios.
+
+Existe migração relacionada à idempotência; a implantação efetiva no ambiente remoto deve ser validada separadamente.
+
+---
+
+# 13. Integridade das tentativas
+
+O sistema valida dados recebidos antes de aceitar uma tentativa/resultados.
+
+As validações incluem elementos como:
+
+- IDs;
+- quantidade de questões;
+- índices;
+- respostas;
+- marcações;
+- contagens.
+
+Objetivo: não aceitar cegamente uma resposta ou resultado inconsistente.
+
+---
+
+# 14. Resultados
+
+O modelo de resultado contempla:
+
+- total de questões;
+- acertos;
+- percentual;
+- erros;
+- não respondidas;
+- tempo;
+- data de finalização;
+- respostas selecionadas;
+- respostas corretas;
+- marcações de revisão;
+- desempenho por tópico.
+
+O método `byTopic` permite agrupar desempenho por assunto.
+
+Isso cria uma base para recursos futuros de análise de desempenho.
+
+---
+
+# 15. Persistência local
+
+Provas privadas locais possuem armazenamento próprio.
+
+O `LocalExamStore`:
+
+- serializa dados em JSON;
+- utiliza armazenamento local;
+- mantém backup;
+- valida estrutura;
+- possui limites de tamanho;
+- tenta recuperar dados por backup quando necessário.
+
+Há proteção contra estruturas inválidas, incluindo limites de quantidade de questões/opções.
+
+---
+
+# 16. Publicação comunitária
+
+O fluxo de publicação passa por validação.
+
+Antes de publicar, o sistema verifica condições como:
+
+- existência de questões;
+- tamanho mínimo do enunciado;
+- quantidade de alternativas;
+- índice correto válido.
+
+A publicação utiliza uma operação de backend/RPC.
+
+O conceito é:
+
+**importar → revisar → corrigir → validar → publicar**
+
+A intenção é evitar que o conteúdo bruto do OCR seja imediatamente tratado como prova definitiva.
+
+---
+
+# 17. Navegação principal
+
+A estrutura observada possui:
+
+- **Início**
+- **Explorar**
+- **Publicar**
+- **Biblioteca**
+- **Perfil**
+
+Há adaptação de navegação para diferentes larguras:
+
+- navegação inferior no mobile;
+- sidebar/top bar em telas maiores.
+
+---
+
+# 18. Autenticação
+
+O projeto utiliza autenticação integrada ao backend.
+
+O catálogo pode ser acessado sem conta em partes que não exigem dados pessoais.
+
+Operações como salvar conteúdo e publicar exigem autenticação quando necessário.
+
+A interface acompanha mudanças de estado de autenticação.
+
+---
+
+# 19. QA e CI
+
+O projeto possui automação relacionada a:
+
+- análise estática;
+- testes Flutter;
+- testes específicos de conteúdo;
+- testes de draft;
+- testes offline;
+- testes de proveniência;
+- Codemagic;
+- builds Android.
+
+Testes existentes verificam, entre outras coisas:
+
+- compressão/restauração de conteúdo;
+- integridade SHA-256;
+- estrutura de provas;
+- saída/retomada;
+- submissão offline;
+- proveniência.
+
+---
+
+# 20. Atualização do aplicativo
+
+Existe código relacionado à verificação/atualização através de GitHub Releases.
+
+A estratégia permite separar a distribuição do aplicativo do conteúdo armazenado no backend.
+
+---
+
+# 21. Design system
+
+### Cores principais
+
+**Verde**
+`#16A36A`
 
 ### Light
 
-``` text
-#F7F8F6
-#FFFFFF
-#171A18
-#68706B
-#E3E7E4
-```
+- `#F7F8F6`
+- `#FFFFFF`
+- `#171A18`
+- `#68706B`
+- `#E3E7E4`
 
 ### Dark
 
-``` text
-#101311
-#181C19
-#F3F5F3
-#2A302C
-```
+- `#101311`
+- `#181C19`
+- `#F3F5F3`
+- `#2A302C`
 
 ### Estados
 
-``` text
-#E5A524  revisão
-#DC4C4C  perigo/erro
-```
+- Amber: `#E5A524`
+- Danger: `#DC4C4C`
 
 Evitar:
 
--   azul genérico como identidade;
--   gradiente roxo de IA;
--   excesso de cores;
--   interface carregada.
+- azul genérico como identidade principal;
+- gradientes roxo/“AI”;
+- excesso de texto;
+- estética genérica de banco de questões.
 
-## UX
+Direção visual:
 
--   mobile-first;
--   limpa;
--   rápida;
--   pouco texto;
--   hierarquia visual forte;
--   skeleton loading;
--   estados vazios;
--   estados de erro;
--   feedback imediato;
--   dark mode;
--   acessibilidade.
+- limpa;
+- funcional;
+- mobile-first;
+- minimalista;
+- cards expansíveis;
+- skeleton loading;
+- botão `+` central;
+- navegação simples.
 
-## Cards
+---
 
-Ideia de cards de prova expansíveis, com informações principais visíveis
-e detalhes sob interação. Long press pode ser utilizado quando fizer
-sentido.
+# 22. Identidade
 
-## Botão +
+Direção de logo:
 
-Botão verde centralizado na região inferior, abrindo opções como
-criar/importar.
+**verde da marca + livro aberto**
 
-## Logo
+Existe preferência por uma versão que também funcione bem sobre fundo preto.
 
-Direção:
-
--   verde da identidade;
--   livro aberto;
--   versão sobre fundo preto;
--   simples e legível em ícone pequeno.
+A identidade deve comunicar estudo/documento sem parecer uma plataforma genérica de IA.
 
-------------------------------------------------------------------------
+---
 
-# 7. Núcleo da v1
+# 23. Comunidade — estado atual
 
-A definição atual é:
+A base de publicação e descoberta comunitária já existe.
 
-> **A v1 deve ser um produto praticamente operável, não apenas um MVP
-> visual.**
+### Já observado
 
-Uma pessoa externa deve conseguir instalar e usar o aplicativo sem
-intervenção do desenvolvedor.
+- catálogo público;
+- publicação;
+- busca;
+- favoritos;
+- origem da prova.
 
-## Provas
+### Ainda não localizado como sistema independente
 
--   importar;
--   OCR;
--   revisão do OCR;
--   criar manualmente;
--   editar;
--   visualizar;
--   resolver;
--   pausar;
--   retomar;
--   finalizar;
--   corrigir;
--   salvar tentativa;
--   excluir/arquivar.
+- dúvidas sociais completas;
+- respostas/interações em dúvidas;
+- destaque/boost de dúvidas;
+- perfil social completo;
+- sistema de verificação de perfil;
+- moderação social completa;
+- notificações sociais.
 
-## Questões
+Esses itens não devem ser considerados implementados apenas por existirem modelos ou planos relacionados.
 
--   alternativas;
--   resposta marcada;
--   questão em dúvida;
--   navegação;
--   correção;
--   explicação/observação quando houver.
+---
 
-## Histórico
+# 24. Monetização — direção planejada
 
--   provas;
--   tentativas;
--   resultados;
--   progresso;
--   retomada.
+Modelo pensado:
 
-## Estatísticas
+### Gratuito
 
--   questões;
--   acertos;
--   erros;
--   percentual;
--   desempenho por prova;
--   matéria;
--   assunto quando os dados permitirem;
--   evolução;
--   tentativas;
--   dificuldades.
+Acesso ao núcleo do produto.
 
-Não apresentar estatística que não possa ser calculada corretamente.
+### Plus
 
-------------------------------------------------------------------------
+Hipótese anteriormente considerada:
 
-# 8. Biblioteca pessoal
+**R$ 7,90/mês**
 
-Possíveis categorias:
+Possíveis recursos:
 
--   minhas provas;
--   em andamento;
--   concluídas;
--   favoritas;
--   importadas;
--   criadas;
--   simulados.
+- estatísticas avançadas;
+- filtros e organização avançados;
+- destaques;
+- OCR/importação avançada;
+- ausência de anúncios.
 
-Importação privada não deve tornar uma prova pública automaticamente.
+### Microtransações
 
-------------------------------------------------------------------------
+Podem existir recursos pontuais relacionados a visibilidade/destaque.
 
-# 9. Comunidade na v1
+Importante: qualquer monetização deve preservar transparência e não prejudicar o funcionamento básico do produto.
 
-A camada social deve existir já na v1.
+Os recursos de Plus, microtransações e anúncios ainda não devem ser marcados como implementados sem evidência no código/ambiente.
 
-Funcionalidades:
+---
 
--   publicar prova;
--   editar publicação própria;
--   excluir publicação própria;
--   biblioteca pública;
--   busca;
--   filtros;
--   visualizar autor;
--   favoritar;
--   denunciar;
--   moderação básica.
+# 25. Privacidade e segurança
 
-A publicação comunitária é diferente da importação privada.
+Princípios:
 
-------------------------------------------------------------------------
+- conteúdo privado deve permanecer privado;
+- RLS no backend;
+- bucket privado para conteúdo protegido;
+- permissões por proprietário;
+- leitura pública condicionada quando o exame é público/publicado;
+- URLs de origem seguras;
+- validação de dados;
+- rate limiting/moderação quando aplicável;
+- logs e tratamento de erros.
 
-# 10. Limites de publicação
+Segurança é parte da arquitetura, não apenas uma etapa posterior.
 
-Modelo discutido:
+---
 
--   importações pessoais podem ser livres;
--   publicações públicas podem possuir limite gratuito;
--   capacidade adicional pode ser vendida ou incluída no Plus.
+# 26. O que diferencia o produto
 
-O objetivo do limite é controlar:
+Os diferenciais mais importantes atualmente são a combinação:
 
--   armazenamento;
--   processamento;
--   moderação;
--   spam;
--   abuso;
--   custo da comunidade.
+### 1. Digitalização de documentos reais
 
-Os valores finais não estão definidos.
+Uma prova física pode entrar no ecossistema.
 
-------------------------------------------------------------------------
+### 2. Conteúdo estruturado
 
-# 11. Sistema de dúvidas
+A prova não precisa permanecer presa ao PDF.
 
-Na v1:
+### 3. Preservação
 
--   marcar questão como dúvida;
--   publicar dúvida;
--   visualizar;
--   responder/interagir;
--   acompanhar próprias dúvidas;
--   destacar dúvida.
+Documento + questões + mídia + histórico podem formar uma continuidade.
 
-## Destaque
+### 4. Histórico de estudo
 
-Conceito discutido:
+A tentativa não desaparece depois que a prova termina.
 
--   pagar para aumentar a visibilidade por determinado período;
--   exemplo hipotético: R\$1,99 por 24h.
+### 5. Offline
 
-Não vender resposta garantida. Vender visibilidade.
+O fluxo de estudo pode continuar mesmo com conectividade limitada.
 
-------------------------------------------------------------------------
+### 6. Comunidade
 
-# 12. Perfis
+O conteúdo pode ser compartilhado e descoberto.
 
-A v1 deve possuir:
+### 7. Proveniência
 
--   nome/username;
--   avatar;
--   bio;
--   provas publicadas;
--   atividade;
--   estatísticas públicas configuráveis;
--   dúvidas;
--   configurações de privacidade.
+O usuário pode distinguir origem oficial, comunitária e não verificada.
 
-------------------------------------------------------------------------
+### 8. Arquitetura modular
 
-# 13. Perfil verificado
+Conteúdo, mídia, tentativas e resultados possuem responsabilidades separadas.
 
-O conceito de **Perfil Verificado** pode existir na v1.
+---
 
-A interface deve explicar o que foi verificado, por exemplo:
+# 27. O verdadeiro diferencial estrutural
 
--   identidade;
--   instituição;
--   informação específica.
+O Prova Social não deve ser descrito apenas como:
 
-Não tratar verificação como sinônimo de "pessoa confiável".
+> “um app para fazer provas”.
 
-------------------------------------------------------------------------
+Uma descrição mais fiel à arquitetura atual é:
 
-# 14. Moderação
+> **Uma plataforma que transforma provas em conteúdo digital estruturado e preserva a trajetória de estudo construída sobre elas.**
 
-Base necessária:
+O diferencial está no ciclo:
 
--   denúncias;
--   spam;
--   conteúdo inadequado;
--   duplicatas;
--   abuso;
--   fraude;
--   remoção;
--   bloqueio/suspensão quando necessário;
--   registro mínimo de ações.
+**documento → conteúdo → estudo → tentativa → resultado → histórico**
 
-Pode começar simples e evoluir.
+Esse ciclo conecta duas coisas que normalmente ficam separadas:
 
-------------------------------------------------------------------------
+**o documento que a pessoa estudou** e **a história do que ela fez com aquele documento**.
 
-# 15. Monetização
+---
 
-Princípio:
+# 28. Definição de v1
 
-> Monetizar conveniência, visibilidade e recursos avançados, não o
-> direito básico de estudar.
+A v1 deve ser considerada “praticamente operável” quando uma pessoa real conseguir:
 
-## Gratuito
+1. instalar o aplicativo;
+2. criar/importar uma prova;
+3. digitalizar ou importar conteúdo;
+4. revisar/corrigir;
+5. salvar/publicar quando aplicável;
+6. encontrar uma prova;
+7. resolver;
+8. pausar;
+9. retomar;
+10. finalizar;
+11. receber resultado;
+12. consultar histórico;
+13. consultar desempenho;
+14. utilizar recursos comunitários disponíveis;
+15. fazer tudo isso sem intervenção do desenvolvedor.
 
-Deve ser possível:
+A v1 não deve depender de telas falsas, dados mockados ou botões sem função.
 
--   importar provas pessoais;
--   resolver;
--   corrigir;
--   histórico básico;
--   estatísticas básicas;
--   acessar biblioteca;
--   participar da comunidade dentro das regras.
+---
 
-## Prova Social Plus
+# 29. Roadmap conceitual
 
-Preço discutido como hipótese:
+## V1 — núcleo operável
 
-``` text
-R$7,90/mês
-```
+Foco:
 
-Possíveis benefícios:
+- conteúdo;
+- digitalização;
+- resolução;
+- histórico;
+- biblioteca;
+- comunidade básica;
+- persistência;
+- segurança;
+- QA.
 
--   sem anúncios;
--   estatísticas avançadas;
--   filtros avançados;
--   organização avançada;
--   destaques incluídos;
--   OCR/importação avançados;
--   outros recursos premium.
+## V1.x — refinamento
 
-Preço não é definitivo.
+Foco:
 
-------------------------------------------------------------------------
+- UX;
+- performance;
+- pesquisa;
+- organização;
+- melhorias no OCR;
+- melhorias offline;
+- observabilidade;
+- moderação;
+- confiabilidade.
 
-# 16. Microtransações
+## Fases posteriores
 
-Hipóteses já discutidas:
+Possibilidades:
 
-``` text
-R$0,99 → +5 publicações
-R$1,99 → destaque de dúvida
-R$4,99 → 5 destaques
-```
+- dúvidas sociais;
+- perfis;
+- verificação;
+- notificações;
+- estatísticas avançadas;
+- monetização;
+- recursos sociais;
+- escala de conteúdo.
 
-São apenas exemplos e precisam ser validados.
+---
 
-------------------------------------------------------------------------
+# 30. Regras de classificação de estado
 
-# 17. Publicidade
+Usar os seguintes marcadores na documentação:
 
-Foi proposta a ideia de anúncios visualmente semelhantes a uma questão
-de prova.
+- `[IDEIA]` — apenas conceito.
+- `[PLANEJADO]` — decidido para desenvolvimento futuro.
+- `[EM DESENVOLVIMENTO]` — implementação em andamento.
+- `[IMPLEMENTADO]` — existe no código.
+- `[VALIDADO]` — implementação testada/verificada.
+- `[PRODUÇÃO]` — funcionamento confirmado no ambiente de produção.
 
-Se usada:
+Não usar `[PRODUÇÃO]` apenas porque algo existe no repositório.
 
--   deve ser claramente identificada como publicidade/anúncio;
--   não pode parecer questão oficial;
--   não pode enganar o usuário;
--   não deve interromper uma questão de forma enganosa;
--   deve ter frequência controlada;
--   deve evitar formatos abusivos;
--   deve respeitar regras de publicidade.
+---
 
-O Plus pode remover anúncios.
+# 31. Mapa atual de capacidades
 
-------------------------------------------------------------------------
+| Área | Estado observado |
+|---|---|
+| Auth | `[IMPLEMENTADO]` |
+| Onboarding | `[IMPLEMENTADO]` |
+| Catálogo público | `[IMPLEMENTADO]` |
+| Busca | `[IMPLEMENTADO]` |
+| Busca por tópico | `[IMPLEMENTADO]` |
+| Favoritos | `[IMPLEMENTADO]` |
+| Biblioteca | `[IMPLEMENTADO]` |
+| Provas locais | `[IMPLEMENTADO]` |
+| Importação PDF | `[IMPLEMENTADO]` |
+| OCR | `[IMPLEMENTADO]` |
+| Parser de questões | `[IMPLEMENTADO]` |
+| Revisão antes da publicação | `[IMPLEMENTADO]` |
+| Publicação comunitária | `[IMPLEMENTADO]` |
+| Proveniência | `[IMPLEMENTADO]` |
+| Execução de prova | `[IMPLEMENTADO]` |
+| Marcar para revisão | `[IMPLEMENTADO]` |
+| Salvar rascunho | `[IMPLEMENTADO]` |
+| Retomar prova | `[IMPLEMENTADO]` |
+| Submissão offline | `[IMPLEMENTADO]` |
+| Retry/sync | `[IMPLEMENTADO]` |
+| Idempotência | `[IMPLEMENTADO]` no código/migração |
+| Resultado detalhado | `[IMPLEMENTADO]` |
+| Resultado por tópico | `[IMPLEMENTADO]` no domínio |
+| JSON/GZip | `[IMPLEMENTADO]` |
+| SHA-256 | `[IMPLEMENTADO]` |
+| Mídia estruturada | `[IMPLEMENTADO]` |
+| Backup local | `[IMPLEMENTADO]` |
+| QA automatizado | `[IMPLEMENTADO]` |
+| Atualização por Releases | `[IMPLEMENTADO]` |
+| Dúvidas sociais completas | `[NÃO LOCALIZADO]` |
+| Perfil social completo | `[NÃO LOCALIZADO]` |
+| Verificação de perfil | `[NÃO LOCALIZADO]` |
+| Moderação social completa | `[NÃO LOCALIZADO]` |
+| Plus | `[PLANEJADO]` |
+| Microtransações | `[PLANEJADO]` |
+| Anúncios | `[PLANEJADO]` |
+| Notificações | `[PLANEJADO]` |
 
-# 18. Backend e dados
+---
 
-Entidades conceituais possíveis:
+# 32. Pontos que ainda precisam de validação
 
-``` text
-User
-Profile
-Verification
-Exam
-Question
-Alternative
-Attempt
-Answer
-Subject
-Topic
-Doubt
-DoubtHighlight
-PublicExam
-Favorite
-Report
-ModerationAction
-Subscription
-Purchase
-Advertisement
-Notification
-```
+A existência de código não significa automaticamente funcionamento completo em produção.
 
-Os nomes podem mudar.
+Devem ser confirmados separadamente:
 
-Separar conceitualmente:
+- migrations aplicadas no projeto Supabase real;
+- RLS efetivamente ativo;
+- storage configurado;
+- permissões de produção;
+- sincronização real em diferentes condições de rede;
+- idempotência no backend implantado;
+- limites reais de armazenamento;
+- atualização por GitHub Releases no aplicativo distribuído;
+- performance do OCR em aparelhos reais;
+- compatibilidade com layouts variados de provas;
+- recuperação em caso de corrupção/interrupção;
+- comportamento com grande volume de conteúdo.
 
-``` text
-Conta
-Perfil
-Dados privados
-Dados públicos
-Conteúdo comunitário
-Desempenho
-Pagamento
-Moderação
-```
+---
 
-Usuário só deve editar seus próprios dados.
+# 33. Riscos de produto
 
-------------------------------------------------------------------------
+## Complexidade
 
-# 19. Persistência
+Quanto mais recursos forem adicionados, maior o risco de a experiência principal ficar difícil.
 
-Dados críticos precisam sobreviver ao fechamento do app:
+## OCR
 
--   provas;
--   questões;
--   alternativas;
--   respostas;
--   progresso;
--   tentativas;
--   resultados;
--   perfil;
--   publicações;
--   dúvidas.
+OCR pode falhar em:
 
-Não considerar uma função pronta se os dados desaparecem ao reiniciar.
+- tabelas;
+- imagens;
+- colunas;
+- fórmulas;
+- layouts incomuns;
+- documentos de baixa qualidade.
 
-------------------------------------------------------------------------
+A revisão manual precisa continuar simples.
 
-# 20. Offline e falhas
+## Conteúdo comunitário
 
-Tratar:
+Quanto maior a comunidade, maior a necessidade de:
 
--   internet indisponível;
--   upload interrompido;
--   OCR falhando;
--   backend indisponível;
--   timeout;
--   sessão expirada;
--   sincronização parcial.
+- moderação;
+- denúncias;
+- controle de spam;
+- proveniência;
+- permissões.
 
-Nunca mostrar sucesso quando a operação falhou.
+## Infraestrutura
 
-------------------------------------------------------------------------
+A separação entre conteúdo, mídia, tentativas e histórico aumenta flexibilidade, mas também exige observabilidade e testes.
 
-# 21. OCR
+---
 
-Fluxo:
+# 34. Métricas importantes
 
-``` text
-Imagem/PDF
-→ OCR
-→ Extração
-→ Questões
-→ Alternativas
-→ Revisão
-→ Correção manual
-→ Salvar
-```
+Não medir apenas downloads.
 
-O usuário deve poder corrigir erros do OCR antes de confiar na prova.
+Métricas úteis:
 
-------------------------------------------------------------------------
+- provas importadas;
+- taxa de conclusão da digitalização;
+- tempo entre importação e primeira resolução;
+- provas resolvidas;
+- tentativas por usuário;
+- taxa de retomada;
+- taxa de submissão offline sincronizada;
+- buscas realizadas;
+- provas salvas;
+- publicações;
+- erros de OCR corrigidos;
+- questões resolvidas;
+- retenção;
+- uso da biblioteca.
 
-# 22. IA
+Uma métrica particularmente importante:
 
-Objetivo de custo:
+**documento digitalizado → primeira tentativa**
 
-> manter processamento de IA barato.
+Ela mede se a principal proposta do produto realmente leva o usuário ao estudo.
 
-IA não deve ser obrigatória para o núcleo.
+---
 
-Possíveis usos futuros:
+# 35. Análise das capacidades já presentes — 27/09/2026
 
--   explicação;
--   análise de erros;
--   recomendações;
--   geração de exercícios;
--   classificação de assuntos.
+A inspeção do projeto mostrou que diversas capacidades que poderiam parecer “diferenciais futuros” já possuem base concreta.
 
-Precisão e custo devem ser avaliados antes de colocar recursos de IA no
-produto.
+## A. Prova como pacote estruturado
 
-------------------------------------------------------------------------
+O conteúdo possui:
 
-# 23. Arquitetura
+- JSON;
+- compressão GZip;
+- hash SHA-256;
+- metadata;
+- manifesto;
+- arquivo de questões;
+- referências de mídia.
 
-Separação conceitual recomendada:
+Isso transforma a prova em um pacote de dados versionável/transportável.
 
-``` text
-Presentation
-    ↓
-Application / Use Cases
-    ↓
-Domain
-    ↓
-Data
-    ↓
-Infrastructure
-```
+## B. Mídia associada à questão
 
-Evitar acoplamento excessivo da UI ao banco.
+A infraestrutura possui `media_assets` e `exam_media`.
 
-------------------------------------------------------------------------
+Isso permite associar imagens e outros elementos à posição/questão, em vez de tratar tudo como um único arquivo.
 
-# 24. Segurança
+## C. Retomada e preservação offline
 
-Prioridades:
+O sistema possui drafts, armazenamento local, tentativa pendente e sincronização.
 
--   autenticação;
--   autorização;
--   regras por usuário;
--   proteção de arquivos;
--   validação;
--   rate limiting;
--   prevenção de abuso;
--   logs sem exposição desnecessária;
--   proteção de dados pessoais.
+Isso permite que o estado de estudo tenha continuidade.
 
-------------------------------------------------------------------------
+## D. Proteção contra duplicidade
 
-# 25. QA
+`clientAttemptId` e a infraestrutura de tentativa fornecem uma base para evitar que reenvios gerem múltiplas tentativas indevidas.
 
-QA é parte do desenvolvimento.
+## E. Validação da correção recebida
 
-Já existe direção para:
+O repositório de tentativas valida estruturas recebidas antes de aceitá-las.
 
--   QA estático;
--   testes Flutter;
--   documentação de QA;
--   Codemagic.
+## F. Preservação local
 
-## Fluxo de prova
+`LocalExamStore` possui backup e recuperação quando a leitura principal falha.
 
-``` text
-Criar/importar
-→ salvar
-→ abrir
-→ responder
-→ pausar
-→ retomar
-→ finalizar
-→ corrigir
-→ histórico
-```
+## G. Proveniência
 
-## Fluxo social
+A prova possui origem explícita e URL de fonte segura.
 
-``` text
-Criar publicação
-→ publicar
-→ encontrar
-→ abrir
-→ favoritar
-→ denunciar
-```
+## H. Atualização
 
-## Fluxo de dúvida
+Há mecanismo relacionado a GitHub Releases para atualização do aplicativo.
 
-``` text
-Marcar
-→ publicar
-→ visualizar
-→ responder
-→ destacar
-```
+## I. QA
 
-## Conta
+O projeto já possui automação e testes cobrindo partes importantes do ciclo.
 
-``` text
-Cadastro
-→ login
-→ sessão
-→ logout
-→ retorno
-```
+---
 
-## Monetização
+# 36. Diagnóstico de produto
 
-``` text
-Free
-→ recurso premium
-→ compra/assinatura
-→ benefício
-→ expiração/cancelamento
-```
+A maior força atual não está em adicionar uma funcionalidade isolada.
 
-------------------------------------------------------------------------
+Está na integração:
 
-# 26. CI/CD
+> **documento → digitalização → estrutura → revisão → publicação → resolução → tentativa → sincronização → resultado → histórico**
 
-Codemagic:
+Isso significa que o próximo salto de qualidade deve priorizar:
 
-``` text
-Push
-↓
-Checkout
-↓
-Dependências
-↓
-Análise estática
-↓
-Testes
-↓
-Build
-↓
-QA
-↓
-Artefato
-```
+1. experiência do primeiro uso;
+2. confiabilidade;
+3. OCR em cenários reais;
+4. velocidade;
+5. clareza da interface;
+6. recuperação de erros;
+7. conteúdo comunitário;
+8. moderação;
+9. análise de desempenho.
 
-Depois:
+Adicionar tecnologia por adicionar não deve ser o objetivo.
 
-``` text
-Release
-↓
-GitHub Release
-↓
-Distribuição
-```
+---
 
-Pode existir verificação de atualização baseada em releases, respeitando
-a forma de distribuição do Android.
+# 37. Pergunta central para validar o produto
 
-------------------------------------------------------------------------
+O principal teste de produto deve ser:
 
-# 27. Roadmap
+> **Uma pessoa que nunca viu o Prova Social consegue pegar uma prova física/PDF, digitalizá-la, revisar o resultado e começar a estudar sem precisar que o desenvolvedor explique o sistema?**
 
-## v0.x --- fundação
+E, no outro lado:
 
--   arquitetura;
--   identidade;
--   navegação;
--   modelos;
--   autenticação;
--   banco;
--   importação;
--   OCR;
--   persistência;
--   histórico;
--   estatísticas;
--   QA;
--   CI/CD.
+> **Uma pessoa consegue encontrar uma prova, resolver, ver o resultado e voltar depois sem precisar entender a arquitetura por trás dela?**
 
-## v0.7--v0.9 --- produto utilizável
+Se os dois fluxos forem naturais, a infraestrutura existente passa a funcionar como uma vantagem real de produto.
 
-Foco em transformar telas e estrutura em fluxos completos:
+---
 
--   criar/importar;
--   OCR;
--   revisar;
--   resolver;
--   pausar/retomar;
--   finalizar;
--   corrigir;
--   histórico real;
--   estatísticas reais;
--   biblioteca;
--   perfil;
--   configurações;
--   backend;
--   segurança;
--   tratamento de erros.
+# 38. Princípio de desenvolvimento
 
-## v1.0 --- produto completo
+Priorizar:
 
-Já deve incluir:
+**funcionalidade real > arquitetura desnecessária**
 
--   núcleo de provas;
--   OCR;
--   resolução;
--   correção;
--   histórico;
--   estatísticas;
--   biblioteca pessoal;
--   biblioteca pública;
--   publicação;
--   perfis;
--   dúvidas;
--   respostas/interação;
--   destaque de dúvidas;
--   denúncias;
--   moderação básica;
--   verificação;
--   anúncios;
--   Plus;
--   microtransações;
--   backend;
--   segurança;
--   persistência;
--   QA;
--   CI/CD.
+**experiência real > quantidade de telas**
 
-## v1.x
+**dados preservados > aparência**
 
-Apenas depois do produto funcional:
+**confiabilidade > novidade**
 
--   recomendações avançadas;
--   IA;
--   gamificação;
--   feed sofisticado;
--   moderação automática;
--   notificações avançadas;
--   analytics;
--   otimização de custos;
--   escalabilidade;
--   recursos institucionais.
+**conteúdo estruturado > PDF isolado**
 
-------------------------------------------------------------------------
+**histórico de estudo > resultado descartável**
 
-# 28. Definition of Done
+---
 
-Uma feature só está pronta quando:
+# 39. Frase de posicionamento interno
 
--   UI existe;
--   loading existe;
--   estado vazio existe;
--   erro é tratado;
--   dados persistem;
--   permissões estão corretas;
--   fluxo principal funciona;
--   falhas são tratadas;
--   teste relevante existe;
--   não depende indevidamente de hardcode;
--   funciona no Android alvo;
--   passou pelo QA necessário.
+> **O Prova Social preserva tanto a prova quanto a trajetória de quem estudou com ela.**
 
-------------------------------------------------------------------------
+Essa frase resume a conexão entre digitalização, conteúdo estruturado, resolução e histórico.
 
-# 29. Critério definitivo da v1
+---
 
-Pergunta:
+# 40. Nota de manutenção deste arquivo
 
-> **"Consigo entregar o aplicativo para uma pessoa que não conhece o
-> projeto e ela consegue utilizá-lo sozinha?"**
+Este documento é o contexto raiz do projeto.
 
-Se não, a v1 ainda não está pronta.
+Sempre que uma análise importante do produto, arquitetura, funcionalidades, roadmap ou estado de implementação for concluída, atualizar este arquivo antes de considerar o contexto encerrado.
 
-------------------------------------------------------------------------
+Não marcar uma funcionalidade como `[VALIDADO]` ou `[PRODUÇÃO]` sem evidência correspondente.
 
-# 30. Modelo comercial
-
-``` text
-Estudar → grátis
-Resolver → grátis
-Importar para si → grátis
-Histórico básico → grátis
-Estatísticas básicas → grátis
-
-Convenience/recursos avançados → Plus
-Visibilidade → microtransações
-Capacidade comunitária → Plus/microtransações
-Sem anúncios → Plus
-```
-
-A função educacional central não deve ser artificialmente bloqueada.
-
-------------------------------------------------------------------------
-
-# 31. Propriedade intelectual
-
-O projeto deve poder ser:
-
--   mantido pelo criador;
--   licenciado;
--   vendido parcialmente;
--   vendido integralmente;
--   transformado em startup.
-
-Para eventual negociação, conceitos mais adequados que uma "garantia de
-lucro" incluem:
-
--   licença;
--   pagamento inicial;
--   remuneração variável;
--   earn-out;
--   participação;
--   prazo;
--   território;
--   exclusividade;
--   renovação;
--   rescisão;
--   condições objetivas de pagamento.
-
-Uma negociação real deve ser feita com orientação jurídica e responsável
-legal quando aplicável.
-
-Ativos que devem ser considerados separadamente:
-
--   código;
--   marca;
--   nome;
--   logo;
--   identidade;
--   domínio;
--   design;
--   banco;
--   infraestrutura;
--   documentação;
--   know-how;
--   conteúdo;
--   versões futuras;
--   produtos derivados.
-
-------------------------------------------------------------------------
-
-# 32. Proteção contra abandono
-
-Em eventual contrato podem ser definidos, com orientação jurídica:
-
--   inadimplência;
--   abandono;
--   falta de operação;
--   descumprimento;
--   rescisão;
--   eventual reversão/reaquisição quando cabível.
-
-Objetivo: impedir que uma aquisição/licença simplesmente deixe o projeto
-abandonado sem consequência contratual.
-
-------------------------------------------------------------------------
-
-# 33. Métricas futuras
-
-Com usuários reais:
-
--   usuários ativos;
--   provas importadas;
--   provas resolvidas;
--   conclusão;
--   retenção;
--   questões respondidas;
--   publicações;
--   dúvidas;
--   respostas;
--   denúncias;
--   conversão Plus;
--   cancelamentos;
--   receita;
--   custo por usuário.
-
-Não fabricar métricas.
-
-------------------------------------------------------------------------
-
-# 34. Valorização --- apenas referência hipotética
-
-Cenários anteriormente discutidos:
-
-``` text
-Somente código:
-~R$10 mil–R$40 mil
-
-Produto com usuários:
-~R$40 mil–R$150 mil
-
-Startup com receita:
-~R$150 mil–R$500 mil+
-```
-
-São estimativas ilustrativas, não avaliações garantidas.
-
-Exemplo matemático:
-
-``` text
-2.000 assinantes × R$10/mês
-= R$20.000 MRR
-= R$240.000/ano
-```
-
-Isso também não é previsão.
-
-------------------------------------------------------------------------
-
-# 35. Regras para agentes de código
-
-Qualquer agente trabalhando no repositório deve:
-
-1.  ler este arquivo antes de grandes alterações;
-2.  preservar decisões estabelecidas;
-3.  não remover funcionalidades sem justificativa;
-4.  não inventar integrações;
-5.  não trocar dados reais por mocks sem deixar claro;
-6.  preservar a identidade visual;
-7.  manter mobile-first;
-8.  priorizar funcionalidade real;
-9.  executar testes após mudanças relevantes;
-10. atualizar documentação quando uma decisão estrutural mudar;
-11. diferenciar planejado de implementado.
-
-------------------------------------------------------------------------
-
-# 36. Estados de implementação
-
-Usar estes estados:
-
-``` text
-[IDEIA]
-Conceito não implementado.
-
-[PLANEJADO]
-Decidido para roadmap, mas não necessariamente implementado.
-
-[EM DESENVOLVIMENTO]
-Implementação em andamento.
-
-[IMPLEMENTADO]
-Código existente e funcional, ainda sujeito a QA.
-
-[VALIDADO]
-Implementado e validado por testes/QA.
-
-[PRODUÇÃO]
-Disponível para usuários reais.
-```
-
-Nunca assumir que algo está implementado apenas porque aparece neste
-documento.
-
-------------------------------------------------------------------------
-
-# 37. Resumo executivo
-
-O Prova Social é um aplicativo Flutter mobile-first para digitalizar,
-organizar, resolver e analisar provas, com biblioteca social, perfis e
-sistema de dúvidas.
-
-A experiência central é:
-
-``` text
-Prova
-→ Questões
-→ Resolução
-→ Correção
-→ Histórico
-→ Desempenho
-→ Dificuldades
-→ Prática
-→ Comunidade
-```
-
-O modelo:
-
-``` text
-Core educacional gratuito
-+
-Comunidade
-+
-Publicidade
-+
-Plus
-+
-Microtransações
-```
-
-A **v1 é propositalmente mais ambiciosa**: deve ser praticamente
-operável e já conter a camada social e a base de monetização, não apenas
-o núcleo de resolução.
-
-------------------------------------------------------------------------
-
-## Última atualização
-
-**27/09/2026**
-
-Atualizar este arquivo quando houver mudança importante em:
-
--   arquitetura;
--   stack;
--   escopo;
--   roadmap;
--   modelo de negócio;
--   identidade visual;
--   segurança;
--   infraestrutura;
--   definição da v1.
+Última atualização: **27/09/2026**.
