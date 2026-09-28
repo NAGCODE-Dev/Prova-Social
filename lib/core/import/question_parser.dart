@@ -30,11 +30,7 @@ class ImportedQuestion {
   };
 }
 
-enum QuestionFormat {
-  multipleChoice,
-  trueFalse,
-  assertion,
-}
+enum QuestionFormat { multipleChoice, trueFalse, assertion }
 
 class QuestionParser {
   const QuestionParser();
@@ -127,7 +123,7 @@ class QuestionParser {
     if (explicit != null) {
       return _QuestionStart(
         lineIndex: -1,
-        number: int.tryParse(explicit.group(1)! ),
+        number: int.tryParse(explicit.group(1)!),
         content: explicit.group(2)?.trim() ?? '',
         confidence: 1,
         explicit: true,
@@ -141,7 +137,7 @@ class QuestionParser {
     if (ordinal != null) {
       return _QuestionStart(
         lineIndex: -1,
-        number: int.tryParse(ordinal.group(1)! ),
+        number: int.tryParse(ordinal.group(1)!),
         content: ordinal.group(2)?.trim() ?? '',
         confidence: 1,
         explicit: true,
@@ -155,7 +151,7 @@ class QuestionParser {
     if (compact != null) {
       return _QuestionStart(
         lineIndex: -1,
-        number: int.tryParse(compact.group(1)! ),
+        number: int.tryParse(compact.group(1)!),
         content: compact.group(2)?.trim() ?? '',
         confidence: .98,
         explicit: true,
@@ -164,21 +160,24 @@ class QuestionParser {
 
     // Numeric markers are deliberately conservative. This avoids turning
     // dates, percentages, enumerations, measurements and years into questions.
-    final numeric = RegExp(
-      r'^\s*(\d{1,4})(?:\s*[.):-]\s*|\s+)(.*)$',
-    ).firstMatch(line);
+    final numeric = RegExp(r'^\s*(\d{1,4})(?:\s*[.):-]\s*|\s+)(.*)$')
+        .firstMatch(line);
     if (numeric == null) return null;
 
     final number = int.tryParse(numeric.group(1)!);
     if (number == null || number > 9999) return null;
     final rest = numeric.group(2)?.trim() ?? '';
 
-    final sequential = previousNumber >= 0 &&
-        (number == previousNumber + 1 ||
-            (previousNumber == 0 && number == 1));
+    final sequential =
+        previousNumber >= 0 &&
+        (number == previousNumber + 1 || (previousNumber == 0 && number == 1));
     final marker = line.trimLeft().substring(number.toString().length).trim();
-    final hasQuestionPunctuation = rest.contains('?') ||
-        RegExp(r'^(?:qual|quais|como|por que|porque|assinale|considere|analise|leia|sobre)\b', caseSensitive: false).hasMatch(rest);
+    final hasQuestionPunctuation =
+        rest.contains('?') ||
+        RegExp(
+          r'^(?:qual|quais|como|por que|porque|assinale|considere|analise|leia|sobre)\b',
+          caseSensitive: false,
+        ).hasMatch(rest);
 
     if (!sequential && !hasQuestionPunctuation && marker.isEmpty) return null;
 
@@ -277,7 +276,8 @@ class QuestionParser {
         result.add(
           _OptionMarker(
             start: offset,
-            contentStart: offset + match.start + match.group(0)!.indexOf(match.group(4)!),
+            contentStart:
+                offset + match.start + match.group(0)!.indexOf(match.group(4)!),
             letter: letter,
             text: match.group(4)!.trim(),
           ),
@@ -330,9 +330,7 @@ class QuestionParser {
     final options = <String>[];
     for (var i = 0; i < markers.length; i++) {
       final marker = markers[i];
-      final end = i + 1 < markers.length
-          ? markers[i + 1].start
-          : block.length;
+      final end = i + 1 < markers.length ? markers[i + 1].start : block.length;
       var text = block.substring(marker.contentStart, end).trim();
       if (text.isEmpty) continue;
       text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -369,7 +367,10 @@ class QuestionParser {
   String _cleanTrueFalseStatement(String content) {
     return content
         .replaceFirst(
-          RegExp(r'^.*?(?:julgue os itens[^.]*\.|julgue o item[^.]*\.)', caseSensitive: false),
+          RegExp(
+            r'^.*?(?:julgue os itens[^.]*\.|julgue o item[^.]*\.)',
+            caseSensitive: false,
+          ),
           '',
         )
         .trim();

@@ -142,7 +142,10 @@ Julgue os itens a seguir.
 ''';
     final questions = parser.parse(source);
     expect(questions, hasLength(3));
-    expect(questions.every((q) => q.format == QuestionFormat.trueFalse), isTrue);
+    expect(
+      questions.every((q) => q.format == QuestionFormat.trueFalse),
+      isTrue,
+    );
     expect(questions.every((q) => q.options.length == 2), isTrue);
   });
 
