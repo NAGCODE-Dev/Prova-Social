@@ -1,0 +1,416 @@
+name: Prova Social CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: '3.47.0'
+
+jobs:
+  qa-full:
+    name: QA Completo
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: qa/browser/package-lock.json
+
+      - name: Preparar Flutter
+        run: |
+          flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
+          rm -f test/widget_test.dart
+          flutter pub get
+
+      - name: QA estático
+        run: bash qa/run_static.sh
+
+      - name: Testes Flutter
+        run: bash qa/run_tests.sh
+
+      - name: QA P0 e banco local
+        run: bash qa/run_p0.sh
+
+      - name: Compilar Web para QA
+        env:
+          WEB_AUTH_CALLBACK: http://127.0.0.1:4173/app/
+        run: bash qa/run_web.sh
+
+      - name: Browser QA
+        run: bash qa/run_browser.sh
+
+      - name: Salvar artefatos QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-results
+          path: |
+            build/qa/**
+            qa/browser/test-results/**
+            qa/browser/playwright-report/**
+          if-no-files-found: ignore
+
+  web-ci:
+    name: Web + Cloudflare Pages
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validar secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -e
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Secret ausente: $name"
+              exit 1
+            fi
+          done
+
+      - name: Preparar Flutter Web
+        run: |
+          flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
+          rm -f test/widget_test.dart
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("web/manifest.json")
+          p.write_text(p.read_text().replace("prova_social", "Prova Social"))
+
+          p = Path("web/index.html")
+          s = p.read_text()
+          s = s.replace("<title>prova_social</title>", "<title>Prova Social</title>")
+          s = s.replace("A new Flutter project.", "Resolva provas e descubra o que precisa estudar.")
+          p.write_text(s)
+          PY
+
+      - name: Instalar e validar
+        run: |
+          flutter pub get
+          dart run tool/generate_web_icons.dart
+          dart format --output=none --set-exit-if-changed lib test tool
+          flutter analyze
+          flutter test
+
+      - name: Build Web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          flutter build web --release --base-href /app/ \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+
+      - name: Preparar site
+        run: |
+          rm -rf site/app
+          mkdir -p site/app
+          cp -R build/web/. site/app/
+          APP_VERSION=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
+          printf '{"version":"%s","build":"%s","date":"%s"}\n' \
+            "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > site/app/version.json
+
+      - name: Deploy Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4.132.0 pages deploy site \
+            --project-name=prova-social \
+            --branch=main
+
+      - name: Salvar Web
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web
+          path: build/web/**
+
+  android-release:
+    name: Android Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Validar secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KEYSTORE_BASE64: ${{ secrets.PROVA_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
+        run: |
+          set -e
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Secret ausente: $name"
+              exit 1
+            fi
+          done
+
+      - name: Preparar Android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PROVA_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
+        run: |
+          set -e
+
+          flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode --no-pub
+          rm -f test/widget_test.dart
+
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/prova-social-release.jks
+
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=../prova-social-release.jks
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text().replace(
+              'android:label="prova_social"',
+              'android:label="Prova Social"'
+          )
+
+          if "android.permission.INTERNET" not in s:
+              s = s.replace(
+                  "<application",
+                  '<uses-permission android:name="android.permission.INTERNET"/>\n'
+                  "    <application",
+                  1,
+              )
+
+          if 'android:scheme="provasocial"' not in s:
+              intent_filter = """                <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="provasocial" android:host="login-callback" />
+                  </intent-filter>"""
+              s = s.replace("</activity>", intent_filter + "\n            </activity>", 1)
+
+          p.write_text(s)
+          PY
+
+          cat > android/app/proguard-rules.pro <<'EOF'
+          -dontwarn com.google.mlkit.vision.text.chinese.**
+          -dontwarn com.google.mlkit.vision.text.devanagari.**
+          -dontwarn com.google.mlkit.vision.text.japanese.**
+          -dontwarn com.google.mlkit.vision.text.korean.**
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          candidates = [
+              Path("android/app/build.gradle.kts"),
+              Path("android/app/build.gradle"),
+          ]
+          path = next((p for p in candidates if p.exists()), None)
+
+          if path is None:
+              raise SystemExit("Gradle Android não foi gerado.")
+
+          s = path.read_text()
+
+          if path.suffix == ".kts":
+              signing = """    signingConfigs {
+                  create("release") {
+                      storeFile = file("../prova-social-release.jks")
+                      storePassword = System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("KEY_ALIAS")
+                      keyPassword = System.getenv("KEY_PASSWORD")
+                  }
+              }
+
+          """
+              if 'create("release")' not in s:
+                  s = s.replace("    buildTypes {", signing + "    buildTypes {", 1)
+
+              s = s.replace(
+                  'signingConfig = signingConfigs.getByName("debug")',
+                  'signingConfig = signingConfigs.getByName("release")'
+              )
+
+              if "proguard-rules.pro" not in s:
+                  s = s.replace(
+                      "        release {",
+                      '        release {\n'
+                      '            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")',
+                      1,
+                  )
+          else:
+              signing = """    signingConfigs {
+                  release {
+                      storeFile file("../prova-social-release.jks")
+                      storePassword System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("KEY_ALIAS")
+                      keyPassword System.getenv("KEY_PASSWORD")
+                  }
+              }
+
+          """
+              if "signingConfigs {" not in s:
+                  s = s.replace("    buildTypes {", signing + "    buildTypes {", 1)
+
+              s = s.replace(
+                  "signingConfig signingConfigs.debug",
+                  "signingConfig signingConfigs.release"
+              )
+
+              if "proguard-rules.pro" not in s:
+                  s = s.replace(
+                      "        release {",
+                      "        release {\n"
+                      "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'",
+                      1,
+                  )
+
+          path.write_text(s)
+          PY
+
+      - name: Instalar e validar
+        run: |
+          flutter pub get
+          dart run flutter_launcher_icons
+          dart run tool/generate_web_icons.dart
+          dart format --output=none --set-exit-if-changed lib test tool
+          flutter analyze
+          flutter test
+
+      - name: Compilar APKs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -e
+
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/prova-social-android.apk
+
+          flutter build apk --release --split-per-abi \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+
+      - name: Salvar APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ github.ref_name }}
+          path: build/app/outputs/flutter-apk/*.apk
+
+      - name: Build Web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          flutter build web --release --base-href /app/ \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+
+      - name: Deploy Web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          rm -rf site/app
+          mkdir -p site/app
+          cp -R build/web/. site/app/
+          APP_VERSION=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
+          printf '{"version":"%s","build":"%s","date":"%s"}\n' \
+            "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > site/app/version.json
+          npx --yes wrangler@4.132.0 pages deploy site \
+            --project-name=prova-social \
+            --branch=main
+
+      - name: Publicar GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          assets=(
+            build/app/outputs/flutter-apk/prova-social-android.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+          )
+
+          if gh release view "$GITHUB_REF_NAME" --repo NAGCODE-Dev/Prova-Social >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
+              --repo NAGCODE-Dev/Prova-Social --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --repo NAGCODE-Dev/Prova-Social \
+              --title "Prova Social $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
