@@ -1,12 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p build/qa
+mkdir -p build/qa/web-root/app
+rm -rf build/qa/web-root/app/*
+cp -a build/web/. build/qa/web-root/app/
 
-python3 -m http.server 4173 \
-  --directory build/web \
-  >build/qa/web-server.log 2>&1 &
+cat > build/qa/web-server.py <<'PY'
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+import os
 
+root = Path("build/qa/web-root").resolve()
+
+class Handler(SimpleHTTPRequestHandler):
+    def translate_path(self, path):
+        clean = path.split("?", 1)[0].split("#", 1)[0]
+        if clean == "/":
+            clean = "/app/"
+        elif not clean.startswith("/app/"):
+            clean = "/app/" + clean.lstrip("/")
+        return str(root / clean.lstrip("/"))
+
+    def log_message(self, fmt, *args):
+        print(fmt % args)
+
+os.chdir(root)
+ThreadingHTTPServer(("127.0.0.1", 4173), Handler).serve_forever()
+PY
+
+python3 build/qa/web-server.py >build/qa/web-server.log 2>&1 &
 SERVER_PID=$!
 
 cleanup() {
@@ -25,5 +47,5 @@ curl -fsS http://127.0.0.1:4173/app/ >/dev/null
 
 cd qa/browser
 npm ci
-npx playwright install chromium
+npx playwright install --with-deps chromium
 npm test

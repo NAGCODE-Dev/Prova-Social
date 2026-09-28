@@ -9,10 +9,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FLUTTER_VERSION: '3.47.0'
+  NODE_VERSION: '22'
+  WRANGLER_VERSION: '4.132.0'
+
+concurrency:
+  group: prova-social-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   qa-full:
@@ -32,7 +38,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: qa/browser/package-lock.json
 
@@ -73,6 +79,7 @@ jobs:
   web-ci:
     name: Web + Cloudflare Pages
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: qa-full
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +94,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Validar secrets
@@ -136,13 +143,18 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
+          set -euo pipefail
           flutter build web --release --base-href /app/ \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+          test -f build/web/index.html
+          test -f build/web/flutter_bootstrap.js
+          test -f build/web/assets/AssetManifest.json
 
       - name: Preparar site
         run: |
+          set -euo pipefail
           rm -rf site/app
           mkdir -p site/app
           cp -R build/web/. site/app/
@@ -156,20 +168,26 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npx --yes wrangler@4.132.0 pages deploy site \
+          npx --yes wrangler@${WRANGLER_VERSION} pages deploy site \
             --project-name=prova-social \
             --branch=main
 
       - name: Salvar Web
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-web
-          path: build/web/**
+          name: flutter-web-${{ github.run_id }}
+          if-no-files-found: error
+          path: |
+            build/web/**
+            site/**
 
   android-release:
     name: Android Release
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -334,6 +352,7 @@ jobs:
 
       - name: Instalar e validar
         run: |
+          set -euo pipefail
           flutter pub get
           dart run flutter_launcher_icons
           dart run tool/generate_web_icons.dart
@@ -346,7 +365,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          set -e
+          set -euo pipefail
 
           flutter build apk --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
@@ -365,6 +384,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-release-${{ github.ref_name }}
+          if-no-files-found: error
           path: build/app/outputs/flutter-apk/*.apk
 
       - name: Build Web
@@ -376,12 +396,16 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+          test -f build/web/index.html
+          test -f build/web/flutter_bootstrap.js
+          test -f build/web/assets/AssetManifest.json
 
       - name: Deploy Web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          set -euo pipefail
           rm -rf site/app
           mkdir -p site/app
           cp -R build/web/. site/app/
@@ -389,7 +413,7 @@ jobs:
           printf '{"version":"%s","build":"%s","date":"%s"}\n' \
             "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > site/app/version.json
-          npx --yes wrangler@4.132.0 pages deploy site \
+          npx --yes wrangler@${WRANGLER_VERSION} pages deploy site \
             --project-name=prova-social \
             --branch=main
 
@@ -405,12 +429,12 @@ jobs:
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           )
 
-          if gh release view "$GITHUB_REF_NAME" --repo NAGCODE-Dev/Prova-Social >/dev/null 2>&1; then
+          if gh release view "$GITHUB_REF_NAME" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
-              --repo NAGCODE-Dev/Prova-Social --clobber
+              --repo "${GITHUB_REPOSITORY}" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
-              --repo NAGCODE-Dev/Prova-Social \
+              --repo "${GITHUB_REPOSITORY}" \
               --title "Prova Social $GITHUB_REF_NAME" \
               --generate-notes
           fi
