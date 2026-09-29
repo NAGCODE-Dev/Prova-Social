@@ -86,7 +86,7 @@ jobs:
       - name: Gerar projeto Android e resolver Dart
         run: |
           flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
-          flutter pub get
+          flutter pub get --enforce-lockfile
           python3 tool/enable_gradle_dependency_locking.py android/app
 
       - name: Gerar lockfile do classpath Android de produção
@@ -128,6 +128,7 @@ jobs:
 
   qa-full:
     name: QA Completo
+    timeout-minutes: 20
     if: github.event_name != 'schedule' && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
@@ -149,15 +150,7 @@ jobs:
         run: |
           flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
-          flutter pub get
-
-      - name: Exportar pubspec.lock resolvido para revisão
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-resolved-pubspec-lock
-          path: pubspec.lock
-          if-no-files-found: error
-          retention-days: 1
+          flutter pub get --enforce-lockfile
 
       - name: QA estático
         run: bash qa/run_static.sh

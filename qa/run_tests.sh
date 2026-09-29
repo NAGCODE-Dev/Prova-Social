@@ -13,7 +13,8 @@ if [[ -n "${FLUTTER_TEST_FILE:-}" ]]; then
   flutter test "${test_args[@]}" "$FLUTTER_TEST_FILE" 2>&1 \
     | tee build/qa/flutter-tests.log || failed=1
 else
-  flutter test --reporter expanded 2>&1 | tee build/qa/flutter-tests.log || failed=1
+  flutter test --reporter expanded --concurrency=1 --timeout=90s 2>&1 \
+    | tee build/qa/flutter-tests.log || failed=1
 fi
 
 exit "$failed"
