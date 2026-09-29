@@ -7,6 +7,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      test_file:
+        description: 'Arquivo Dart opcional para diagnóstico serial da suíte Flutter'
+        required: false
+        type: string
+      test_name:
+        description: 'Nome opcional para filtrar um teste dentro do arquivo'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -50,6 +59,9 @@ jobs:
         run: bash qa/run_static.sh
 
       - name: Testes Flutter
+        env:
+          FLUTTER_TEST_FILE: ${{ inputs.test_file }}
+          FLUTTER_TEST_NAME: ${{ inputs.test_name }}
         run: bash qa/run_tests.sh
 
       - name: QA P0 e banco local
