@@ -598,7 +598,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
                 : 'OCR disponível no aplicativo Android',
             text: result.extraction.ocrAvailable
                 ? 'O OCR foi executado, mas não encontrou texto suficiente. Tente uma digitalização mais nítida, reta e com maior contraste.'
-                : 'A versão Web encontrou ${result.extraction.pagesWithText} páginas com texto em ${result.extraction.pageCount}. Abra o mesmo PDF no aplicativo Android para executar o OCR local.',
+                : 'A versão Web encontrou ${result.extraction.pagesWithText} páginas com texto em ${result.extraction.pageCount}. Abra o PDF no aplicativo móvel para executar o OCR local.',
             action: () => Navigator.pop(context),
             actionLabel: 'Escolher outro arquivo',
           );
@@ -612,11 +612,15 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
             actionLabel: 'Voltar',
           );
         }
+        final extraction = result.extraction;
+        final warningText = extraction.pagesWithWarnings == 0
+            ? ''
+            : ' ${extraction.pagesWithWarnings} página(s) precisam de revisão adicional.';
         return _ProcessMessage(
           icon: Icons.check_circle_outline_rounded,
           title: '${result.questions.length} questões encontradas',
           text:
-              '${result.extraction.pageCount} páginas analisadas, ${result.extraction.ocrPages} por OCR. Revise enunciados, alternativas e gabarito antes de publicar.',
+              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText Revise enunciados, alternativas e gabarito antes de publicar.',
           action: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => ImportReviewPage(

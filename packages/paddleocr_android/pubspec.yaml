@@ -1,0 +1,19 @@
+name: paddleocr_android
+description: Integração Android local do SDK oficial PaddleOCR PP-OCRv6.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.nagcode.paddleocr
+        pluginClass: PaddleOcrPlugin

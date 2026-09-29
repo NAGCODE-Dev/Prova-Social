@@ -131,7 +131,7 @@ jobs:
         run: |
           flutter pub get
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool
+          dart format --output=none --set-exit-if-changed lib test tool packages
           flutter analyze
           flutter test
 
@@ -292,6 +292,7 @@ jobs:
           s = path.read_text()
 
           if path.suffix == ".kts":
+              min_sdk_marker = "minSdk = flutter.minSdkVersion"
               signing = """    signingConfigs {
                   create("release") {
                       storeFile = file("../prova-social-release.jks")
@@ -318,6 +319,7 @@ jobs:
                       1,
                   )
           else:
+              min_sdk_marker = "minSdkVersion flutter.minSdkVersion"
               signing = """    signingConfigs {
                   release {
                       storeFile file("../prova-social-release.jks")
@@ -344,6 +346,10 @@ jobs:
                       1,
                   )
 
+          if min_sdk_marker not in s:
+              raise SystemExit("Não foi possível configurar Android API 26 para o SDK PaddleOCR.")
+          s = s.replace(min_sdk_marker, min_sdk_marker.replace("flutter.minSdkVersion", "26"), 1)
+
           path.write_text(s)
           PY
 
@@ -353,7 +359,7 @@ jobs:
           flutter pub get
           dart run flutter_launcher_icons
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool
+          dart format --output=none --set-exit-if-changed lib test tool packages
           flutter analyze
           flutter test
 

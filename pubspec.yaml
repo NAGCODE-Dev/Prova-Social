@@ -17,6 +17,8 @@ dependencies:
   http: 1.6.0
   image: 4.10.1
   package_info_plus: 10.2.1
+  paddleocr_android:
+    path: packages/paddleocr_android
   path_provider: 2.1.5
   pdfrx: 2.6.1
   shared_preferences: 2.5.3
