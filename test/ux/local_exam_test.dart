@@ -24,18 +24,32 @@ void main() {
     final first = draft('Prova');
     final second = draft('Prova');
     expect(first.attemptExamId, second.attemptExamId);
+    second.questions.single
+      ..confidence = .72
+      ..warning = 'Metadado de extração';
+    expect(first.attemptExamId, second.attemptExamId);
     second.questions.single.options[0] = 'Outra alternativa';
     expect(first.attemptExamId, isNot(second.attemptExamId));
   });
   test(
     'private exam persists, restores answers and publication intent',
     () async {
-      await LocalExamStore().save(draft('Minha prova', pending: true));
+      final imported = draft('Minha prova', pending: true);
+      imported.questions.single
+        ..number = 7
+        ..format = QuestionFormat.assertion
+        ..confidence = .72
+        ..warning = 'Estrutura incerta.';
+      await LocalExamStore().save(imported);
       final restored = (await LocalExamStore().load()).single;
       expect(restored.title, 'Minha prova');
       expect(restored.pendingPublication, isTrue);
       expect(restored.exam.isLocal, isTrue);
       expect(restored.questions.single.correctIndex, 1);
+      expect(restored.questions.single.number, 7);
+      expect(restored.questions.single.format, QuestionFormat.assertion);
+      expect(restored.questions.single.confidence, .72);
+      expect(restored.questions.single.warning, 'Estrutura incerta.');
       expect(restored.toJson().containsKey('is_public'), isFalse);
     },
   );

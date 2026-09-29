@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../import/question_parser.dart';
@@ -21,16 +23,49 @@ class ExamPublicationService {
       throw const AuthException('Entre na conta para publicar.');
     }
 
+    if (title.trim().length < 3 ||
+        title.trim().length > 180 ||
+        category.trim().length < 2 ||
+        category.trim().length > 80 ||
+        source.trim().length < 2 ||
+        source.trim().length > 160 ||
+        durationMinutes < 1 ||
+        durationMinutes > 1440 ||
+        (year != null && (year < 1900 || year > 2200))) {
+      throw const FormatException('Revise os dados e a origem da prova.');
+    }
     if (questions.isEmpty ||
+        questions.length > 300 ||
         questions.any(
           (question) =>
               question.statement.trim().length < 2 ||
+              question.statement.trim().length > 20000 ||
               question.options.length < 2 ||
+              question.options.length > 8 ||
+              question.options.any(
+                (option) =>
+                    option.trim().isEmpty || option.trim().length > 4000,
+              ) ||
               question.correctIndex == null ||
               question.correctIndex! < 0 ||
               question.correctIndex! >= question.options.length,
         )) {
       throw const FormatException('Revise todas as questões e o gabarito.');
+    }
+    final questionPayload = questions
+        .map(
+          (question) => {
+            'topic': 'Geral',
+            'statement': question.statement.trim(),
+            'options': question.options
+                .map((text) => text.trim())
+                .toList(growable: false),
+            'correct_index': question.correctIndex,
+          },
+        )
+        .toList(growable: false);
+    if (utf8.encode(jsonEncode(questionPayload)).length > 8 * 1024 * 1024) {
+      throw const FormatException('O conteúdo excede o limite de 8 MB.');
     }
     final examId = await _client.rpc<String>(
       'publish_exam',
@@ -41,18 +76,7 @@ class ExamPublicationService {
         'p_source_type': 'community',
         'p_year': year,
         'p_duration_minutes': durationMinutes,
-        'p_questions': questions
-            .map(
-              (question) => {
-                'topic': 'Geral',
-                'statement': question.statement.trim(),
-                'options': question.options
-                    .map((text) => text.trim())
-                    .toList(growable: false),
-                'correct_index': question.correctIndex,
-              },
-            )
-            .toList(growable: false),
+        'p_questions': questionPayload,
       },
     );
     return examId;

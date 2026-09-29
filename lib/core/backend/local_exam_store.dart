@@ -38,6 +38,10 @@ class LocalExam {
             'statement': q.statement,
             'options': q.options,
             'correctIndex': q.correctIndex,
+            'number': q.number,
+            'format': q.format.name,
+            'confidence': q.confidence,
+            'warning': q.warning,
           },
         )
         .toList(),
@@ -49,6 +53,15 @@ class LocalExam {
             statement: q['statement'] as String,
             options: List<String>.from(q['options'] as List),
             correctIndex: q['correctIndex'] as int?,
+            number: q['number'] as int?,
+            format: QuestionFormat.values.firstWhere(
+              (format) => format.name == q['format'],
+              orElse: () => QuestionFormat.multipleChoice,
+            ),
+            confidence: ((q['confidence'] as num?)?.toDouble() ?? 1)
+                .clamp(0, 1)
+                .toDouble(),
+            warning: q['warning'] as String?,
           ),
         )
         .toList();
@@ -75,7 +88,7 @@ class LocalExam {
   // Editing the question set starts a distinct attempt instead of restoring
   // answers against different alternatives.
   String get attemptExamId =>
-      '$id-${sha256.convert(utf8.encode(jsonEncode(toJson()['questions'])))}';
+      '$id-${sha256.convert(utf8.encode(jsonEncode(questions.map((q) => {'statement': q.statement, 'options': q.options, 'correctIndex': q.correctIndex}).toList())))}';
 
   Exam get exam => Exam(
     id: attemptExamId,

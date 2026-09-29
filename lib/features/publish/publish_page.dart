@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/backend/exam_publication_service.dart';
 import '../../core/import/pdf_text_extractor.dart';
+import '../../core/import/import_quality_gate.dart';
 import '../../core/import/question_parser.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -563,7 +564,12 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
       sourceName: widget.file.name,
     );
     final questions = const QuestionParser().parse(extraction.text);
-    return _ImportResult(extraction: extraction, questions: questions);
+    final quality = const ImportQualityGate().assess(extraction, questions);
+    return _ImportResult(
+      extraction: extraction,
+      questions: questions,
+      quality: quality,
+    );
   }
 
   @override
@@ -613,14 +619,19 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
           );
         }
         final extraction = result.extraction;
+        final quality = result.quality;
         final warningText = extraction.pagesWithWarnings == 0
             ? ''
             : ' ${extraction.pagesWithWarnings} página(s) precisam de revisão adicional.';
         return _ProcessMessage(
-          icon: Icons.check_circle_outline_rounded,
-          title: '${result.questions.length} questões encontradas',
+          icon: quality.status == ImportQualityStatus.good
+              ? Icons.check_circle_outline_rounded
+              : Icons.fact_check_outlined,
+          title: quality.status == ImportQualityStatus.good
+              ? '${result.questions.length} questões encontradas'
+              : '${result.questions.length} questões para revisar',
           text:
-              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText Revise enunciados, alternativas e gabarito antes de publicar.',
+              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText ${quality.reasons.join(' ')} Revise todos os enunciados, alternativas e gabaritos antes de publicar.',
           action: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => ImportReviewPage(
@@ -641,9 +652,14 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
 }
 
 class _ImportResult {
-  const _ImportResult({required this.extraction, required this.questions});
+  const _ImportResult({
+    required this.extraction,
+    required this.questions,
+    required this.quality,
+  });
   final PdfExtractionResult extraction;
   final List<ImportedQuestion> questions;
+  final ImportQualityAssessment quality;
 }
 
 class _ProcessMessage extends StatelessWidget {
@@ -747,6 +763,10 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             statement: q.statement,
             options: List.of(q.options),
             correctIndex: q.correctIndex,
+            number: q.number,
+            format: q.format,
+            confidence: q.confidence,
+            warning: q.warning,
           ),
         )
         .toList();
@@ -873,7 +893,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             q.options.length >= 2 &&
             q.options.length <= 8 &&
             q.options.every((o) => o.trim().isNotEmpty) &&
-            q.correctIndex != null,
+            q.correctIndex != null &&
+            q.correctIndex! >= 0 &&
+            q.correctIndex! < q.options.length,
       );
   Future<void> _publish() async {
     if (busy) return;
@@ -1008,6 +1030,35 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                 ),
               ],
             ),
+            if (entry.value.confidence < .85 || entry.value.warning != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Revisar extração · confiança ${(entry.value.confidence * 100).round()}%',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    if (entry.value.warning case final warning?) Text(warning),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () {
+                              entry.value.confidence = 1;
+                              entry.value.warning = null;
+                              _changed();
+                            },
+                      child: const Text('Marcar esta questão como revisada'),
+                    ),
+                  ],
+                ),
+              ),
             TextFormField(
               key: ObjectKey(entry.value),
               initialValue: entry.value.statement,

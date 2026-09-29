@@ -22,13 +22,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
       Icons.travel_explore_rounded,
       'Encontre o que estudar',
       'Busque provas por concurso, banca ou matéria e veja a origem antes de começar.',
-      'PM-SP  •  VUNESP  •  Matemática',
+      'Banca  •  concurso  •  matéria',
     ),
     (
       Icons.task_alt_rounded,
       'Resolva sem distrações',
       'Ao iniciar uma prova, a rede desaparece. Ficam apenas questão, tempo e progresso.',
-      'Questão 12 de 80  •  salvo no aparelho',
+      'Questão  •  progresso  •  salvo no aparelho',
     ),
     (
       Icons.document_scanner_outlined,
