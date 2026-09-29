@@ -122,7 +122,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     expect(find.text('Pergunta?'), findsOneWidget);
     expect(find.text('Dois'), findsOneWidget);
     expect(find.text('Enunciado alterado'), findsNothing);
@@ -160,13 +160,13 @@ void main() {
         home: QuizPage(exam: local, draftStore: drafts, syncService: service),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     await tester.tap(find.text('Dois'));
     await tester.pump();
     await tester.tap(find.text('Revisar entrega'));
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     await tester.tap(find.text('Entregar prova'));
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     expect(find.byType(ResultPage), findsOneWidget);
     final restarted = AttemptQueueStore(storage: storage);
     expect((await restarted.completed()).values.single.correct, 1);
@@ -188,13 +188,13 @@ void main() {
         home: QuizPage(exam: exam, draftStore: drafts, syncService: service),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     await tester.tap(find.text('Dois'));
     await tester.pump();
     await tester.tap(find.text('Revisar entrega'));
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     await tester.tap(find.text('Entregar prova'));
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     expect(find.byType(ResultPage), findsOneWidget);
     expect(find.text('100%'), findsOneWidget);
     drafts.dispose();
@@ -214,12 +214,12 @@ void main() {
         home: QuizPage(exam: exam, draftStore: drafts, syncService: sync),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     queue.fail = true;
     await tester.tap(find.text('Dois'));
     await tester.pump();
     await tester.tap(find.text('Revisar entrega'));
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     await tester.tap(find.text('Entregar prova'));
     await tester.pump();
     await tester.pump();
@@ -251,7 +251,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpWithoutWaitingForRecurringTimers(tester);
     expect(find.textContaining('aguardando correção'), findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
     expect(find.textContaining('Gabarito'), findsNothing);
@@ -266,4 +266,9 @@ class _MemoryQueueStorage implements AttemptQueueStorage {
   Future<void> write(String value) async {
     this.value = value;
   }
+}
+
+Future<void> _pumpWithoutWaitingForRecurringTimers(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 350));
 }

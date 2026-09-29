@@ -155,12 +155,10 @@ void main() {
       await tester.pumpAndSettle();
       expect((await LocalExamStore().load()).single.title, 'Prova privada');
       expect(requests.where((r) => r.method == 'POST'), isEmpty);
-      await tester.scrollUntilVisible(
-        find.text('Publicar para todos — requer conta'),
-        400,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('Publicar para todos — requer conta'));
+      final publishButton = find.text('Publicar para todos — requer conta');
+      await tester.ensureVisible(publishButton);
+      await tester.pumpAndSettle();
+      await tester.tap(publishButton);
       await tester.pumpAndSettle();
       expect(find.byType(AuthPage), findsOneWidget);
       expect((await LocalExamStore().load()).single.pendingPublication, isTrue);
