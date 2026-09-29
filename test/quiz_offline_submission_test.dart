@@ -161,6 +161,7 @@ void main() {
       ),
     );
     await _pumpWithoutWaitingForRecurringTimers(tester);
+    await _waitForOption(tester);
     await tester.tap(find.text('Dois'));
     await tester.pump();
     await tester.tap(find.text('Revisar entrega'));
@@ -189,6 +190,7 @@ void main() {
       ),
     );
     await _pumpWithoutWaitingForRecurringTimers(tester);
+    await _waitForOption(tester);
     await tester.tap(find.text('Dois'));
     await tester.pump();
     await tester.tap(find.text('Revisar entrega'));
@@ -215,6 +217,7 @@ void main() {
       ),
     );
     await _pumpWithoutWaitingForRecurringTimers(tester);
+    await _waitForOption(tester);
     queue.fail = true;
     await tester.tap(find.text('Dois'));
     await tester.pump();
@@ -271,4 +274,12 @@ class _MemoryQueueStorage implements AttemptQueueStorage {
 Future<void> _pumpWithoutWaitingForRecurringTimers(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 350));
+}
+
+Future<void> _waitForOption(WidgetTester tester) async {
+  final option = find.text('Dois');
+  for (var attempt = 0; attempt < 20 && option.evaluate().isEmpty; attempt++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(option, findsOneWidget);
 }

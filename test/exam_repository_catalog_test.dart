@@ -47,7 +47,11 @@ void main() {
                   examRow('a', '2026-09-29T10:00:00+00:00'),
                 ]
               : [examRow('z', '2026-09-28T10:00:00+00:00')];
-          return http.Response(jsonEncode(page), 200);
+          return http.Response(
+            jsonEncode(page),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
         }),
       );
       addTearDown(client.dispose);

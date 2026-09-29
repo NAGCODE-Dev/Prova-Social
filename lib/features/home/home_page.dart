@@ -480,7 +480,7 @@ class _HeaderActions extends StatelessWidget {
         const SizedBox(width: 4),
         IconButton(
           onPressed: onProfile,
-          tooltip: user == null ? 'Entrar na conta' : 'Abrir perfil',
+          tooltip: 'Abrir perfil',
           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           icon: CircleAvatar(
             radius: 18,

@@ -109,7 +109,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('Entrar na conta'));
+      await tester.tap(find.byTooltip('Abrir perfil'));
+      await tester.pumpAndSettle();
+      expect(find.text('Você está explorando sem conta'), findsOneWidget);
+      expect(find.byType(AuthPage), findsNothing);
+      await tester.tap(find.text('Entrar ou criar conta'));
       await tester.pumpAndSettle();
       expect(find.byType(AuthPage), findsOneWidget);
       await tester.runAsync(() async {
