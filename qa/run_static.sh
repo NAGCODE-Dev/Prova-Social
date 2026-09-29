@@ -13,7 +13,7 @@ run() {
 
 run "Flutter version" flutter --version
 run "Dart version" dart --version
-run "Dart format" dart format --output=none --set-exit-if-changed lib test tool
+run "Dart format" dart format --output=none --set-exit-if-changed lib test tool packages
 run "Flutter analyze" flutter analyze
 
 exit "$failed"
