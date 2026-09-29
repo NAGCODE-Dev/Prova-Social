@@ -692,3 +692,53 @@ Não começar implementando tudo. Primeiro produzir um diagnóstico do estado at
 - não verificável no ambiente atual.
 
 Depois propor o próximo lote P0 com o menor conjunto de mudanças capaz de entregar uma melhoria completa e testável.
+
+## 15. Base de conhecimento do projeto
+
+A documentação viva do projeto é mantida no vault do Obsidian:
+
+`/storage/emulated/0/Obsidian/Prova-Social/Prova-Social`
+
+Esse diretório também é o repositório Git `NAGCODE-Dev/Prova-Social-Docs`.
+
+### Quando consultar
+
+Consulte a base de conhecimento quando a tarefa envolver:
+
+- arquitetura;
+- decisões técnicas;
+- OCR;
+- Universal Parser;
+- QA;
+- produto;
+- UI/UX;
+- backend;
+- roadmap;
+- revisões ou planos de implementação.
+
+Priorize as notas existentes no vault antes de criar uma nova decisão ou alterar uma decisão já registrada.
+
+### Quando editar
+
+Se a tarefa solicitar documentação, decisão, plano, revisão ou atualização do conhecimento do projeto, edite diretamente os arquivos Markdown do vault.
+
+Não crie uma segunda cópia da documentação dentro deste repositório.
+
+### Separação de responsabilidades
+
+- `/root/Prova-Social-repo` → código-fonte do aplicativo.
+- `/storage/emulated/0/Obsidian/Prova-Social/Prova-Social` → documentação viva do projeto.
+- Obsidian → interface de edição e consulta da documentação.
+- GitHub `NAGCODE-Dev/Prova-Social-Docs` → versionamento e sincronização da documentação.
+
+### Git da documentação
+
+Alterações na documentação podem ser preparadas localmente, mas não devem ser commitadas ou enviadas ao GitHub sem autorização explícita do responsável pelo projeto.
+
+O mesmo vale para o repositório principal do aplicativo.
+
+### Regra de consistência
+
+Não invente decisões, requisitos ou arquitetura ausentes da documentação.
+
+Quando uma alteração de código depender de uma decisão arquitetural ainda não registrada, sinalize isso antes de estabelecer uma nova decisão.
