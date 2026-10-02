@@ -1,64 +1,204 @@
-# Prova Social — Flutter
+Prova Social
 
-Rede de questões e provas construída em Flutter, com identidade Study Surface,
-autenticação e backend Supabase, distribuição Android/Web e atualização por
-GitHub Releases.
+Aplicativo para digitalização, resolução e acompanhamento de provas, desenvolvido em Flutter.
 
-## O que esta versão inclui
+O projeto permite importar provas a partir de arquivos PDF e imagens, processá-las localmente, organizar questões e acompanhar tentativas e resultados.
 
-- login e criação de conta com Supabase Auth;
-- feed, busca, biblioteca, perfil e publicação responsivos;
-- **Focus Mode** para resolver provas sem distrações;
-- cronômetro isolado, mapa de questões, revisão e entrega consciente;
-- fluxo de importação de PDF: seleção, identificação e preparação;
-- pacote digital em JSON GZip e imagens separadas com deduplicação SHA-256;
-- skeletons contextuais, modo escuro e redução de movimento;
-- atualização pelo GitHub e builds Android/Web pelo Codemagic.
-- feed, busca e biblioteca carregados do Supabase;
-- favoritos persistentes por usuário;
-- respostas salvas localmente durante a prova;
-- restauração da tentativa e sincronização do resultado concluído.
+<p align="center">
+  <a href="https://github.com/NAGCODE-Dev/Prova-Social/actions/workflows/flutter-ci.yml"><img src="https://github.com/NAGCODE-Dev/Prova-Social/actions/workflows/flutter-ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Flutter-3.47.0-02569B?logo=flutter&logoColor=white" alt="Flutter 3.47.0">
+  <img src="https://img.shields.io/badge/version-0.7.0-16A36A" alt="Version 0.7.0">
+</p>Funcionalidades
 
-## Abrir no Firebase Studio/IDX, Android Studio ou VS Code
+- Autenticação com Supabase
+- Feed, busca e biblioteca de provas
+- Favoritos por usuário
+- Perfil
+- Resolução de provas
+- Focus Mode
+- Cronômetro
+- Mapa de questões
+- Revisão antes da entrega
+- Importação de PDFs
+- Extração de texto
+- OCR local no Android
+- Identificação automática de questões e alternativas
+- Revisão manual do conteúdo importado
+- Armazenamento de provas em JSON compactado com GZip
+- Deduplicação de imagens por SHA-256
+- Salvamento local das respostas durante a tentativa
+- Restauração de tentativas
+- Sincronização de resultados
+- Tema claro e escuro
+- Suporte a redução de movimento
+- Android e Web
 
-Na raiz desta pasta, execute:
+Processamento de provas
 
-```bash
-flutter create . --platforms=android,web
+O processamento ocorre localmente sempre que possível.
+
+PDF ou imagem
+      |
+      v
+Extração de texto / OCR
+      |
+      v
+Identificação das questões
+      |
+      v
+Revisão do conteúdo
+      |
+      v
+JSON estruturado + GZip
+      |
+      v
+Cache / sincronização
+      |
+      v
+Resolução
+
+No Android, páginas sem camada de texto podem ser renderizadas e processadas por OCR. O importador atualmente trabalha com questões numeradas e alternativas de A a E.
+
+Arquitetura
+
+lib/
+├── core/
+│   ├── backend/
+│   ├── theme/
+│   └── shared/
+├── domain/
+├── features/
+└── ...
+
+packages/
+└── paddleocr_android/
+
+supabase/
+├── migrations/
+├── functions/
+└── ...
+
+test/
+qa/
+tool/
+
+Tecnologias
+
+Área| Tecnologia
+Aplicativo| Flutter / Dart
+Backend| Supabase
+Autenticação| Supabase Auth
+OCR| Google ML Kit / PaddleOCR
+PDF| pdfrx
+Armazenamento local| SharedPreferences / arquivos
+Web| Flutter Web
+Hospedagem Web| Cloudflare Pages
+CI/CD| GitHub Actions
+Distribuição Android| GitHub Releases
+
+Desenvolvimento
+
+Requisitos
+
+- Flutter 3.47.0
+- Dart compatível com Flutter 3.47
+- Android SDK
+- Node.js 22
+- Git
+
+Instalação
+
+git clone https://github.com/NAGCODE-Dev/Prova-Social.git
+cd Prova-Social
 flutter pub get
-flutter test
+
+Executar
+
 flutter run
-```
 
-`flutter create .` completa somente os arquivos nativos gerados pelo SDK; o código da aplicação em `lib/` é preservado.
+Para executar no navegador:
 
-## Gerar APK no Codemagic
+flutter run -d chrome
 
-O arquivo `codemagic.yaml` configura uma compilação automática que instala o Flutter, completa a estrutura Android, verifica o código, executa os testes e gera `app-debug.apk`.
+Testes
 
-No Codemagic:
+flutter analyze
+flutter test
 
-1. conecte sua conta do GitHub;
-2. adicione o repositório `NAGCODE-Dev/Prova-Social`;
-3. selecione a configuração por `codemagic.yaml`;
-4. execute o fluxo **Prova Social - Android e Web**;
-5. baixe o APK ou os arquivos web em **Artifacts** após a compilação.
+Para verificar formatação:
 
-## Estrutura
+dart format --output=none --set-exit-if-changed lib test tool packages
 
-- `lib/core`: tema, backend, atualização e componentes compartilhados
-- `lib/domain`: modelos e regras da aplicação
-- `lib/core/backend`: integração real com autenticação e dados do Supabase
-- `lib/features`: páginas agrupadas por funcionalidade
-- `supabase`: esquema, políticas e funções de armazenamento
-- `test`: testes das regras principais
+Configuração
 
-## Estado do PDF — versão 0.4.0
+Informações sensíveis não devem ser armazenadas no repositório.
 
-PDFs pesquisáveis são lidos no próprio dispositivo. No Android, páginas sem
-camada de texto são renderizadas e processadas localmente por OCR. O importador
-identifica questões numeradas, alternativas A–E e abre uma revisão manual de
-enunciados e gabarito. A versão Web mantém a extração textual e encaminha PDFs
-digitalizados para o aplicativo Android. O PDF original não é distribuído.
+A aplicação utiliza variáveis como:
 
-Nenhuma chave ou segredo deve ser incluído no repositório.
+SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY
+
+Os valores utilizados nos builds de produção são fornecidos pelo GitHub Actions através de secrets.
+
+CI/CD
+
+O GitHub Actions executa automaticamente as verificações do projeto.
+
+A pipeline inclui:
+
+- análise estática;
+- testes Flutter;
+- verificações de QA;
+- build Web;
+- browser QA;
+- validação dos arquivos gerados;
+- deploy para Cloudflare Pages;
+- build Android;
+- publicação dos APKs em GitHub Releases.
+
+Pushes para "main" executam o fluxo Web.
+
+Tags no formato "v*" iniciam o fluxo de release Android.
+
+Versionamento
+
+Versão atual:
+
+0.7.0+10
+
+Releases utilizam tags seguindo o padrão:
+
+v0.7.0
+v0.8.0
+v1.0.0
+
+Estrutura do projeto
+
+.
+├── lib/                 Código da aplicação
+├── packages/            Pacotes locais
+├── assets/              Recursos estáticos
+├── supabase/            Banco e funções do Supabase
+├── test/                Testes
+├── qa/                  Scripts de QA
+├── tool/                Ferramentas auxiliares
+├── android/             Projeto Android gerado/configurado
+├── web/                 Projeto Web
+├── .github/workflows/   CI/CD
+└── pubspec.yaml         Dependências e configuração Flutter
+
+Estado do projeto
+
+O Prova Social está em desenvolvimento ativo. A versão atual concentra-se na importação e resolução de provas, processamento local, persistência de tentativas e infraestrutura de build e distribuição.
+
+Segurança
+
+Não adicione ao repositório:
+
+- chaves privadas;
+- tokens;
+- senhas;
+- arquivos ".env" contendo segredos;
+- keystores;
+- credenciais do Supabase;
+- credenciais do Cloudflare.
