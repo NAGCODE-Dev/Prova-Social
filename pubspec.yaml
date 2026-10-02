@@ -19,7 +19,7 @@ dependencies:
   package_info_plus: 10.2.1
   paddleocr_android:
     path: packages/paddleocr_android
-  path_provider: 2.1.5
+  path_provider: 2.1.6
   pdfrx: 2.6.1
   shared_preferences: 2.5.3
   supabase_flutter: 2.10.0
