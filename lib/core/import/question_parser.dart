@@ -55,7 +55,9 @@ class QuestionParser {
     }
 
     final questions = <ImportedQuestion>[];
-    var inheritedTrueFalse = false;
+    var inheritedTrueFalse =
+        candidates.isNotEmpty &&
+        _looksLikeTrueFalse(lines.take(candidates.first.lineIndex).join('\n'));
     for (var i = 0; i < candidates.length; i++) {
       final candidate = candidates[i];
       final nextLine = i + 1 < candidates.length

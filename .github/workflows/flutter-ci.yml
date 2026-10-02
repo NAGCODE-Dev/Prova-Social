@@ -16,6 +16,8 @@ on:
         description: 'Nome opcional para filtrar um teste dentro do arquivo'
         required: false
         type: string
+  schedule:
+    - cron: '15 6 * * *'
 
 permissions:
   contents: read
@@ -30,9 +32,104 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  npm-security-audit:
+    name: Vulnerabilidades npm
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: qa/browser/package-lock.json
+
+      - name: Validar lockfile e instalar sem scripts
+        working-directory: qa/browser
+        run: npm ci --ignore-scripts
+
+      - name: Bloquear dependências vulneráveis
+        working-directory: qa/browser
+        run: npm audit --audit-level=low
+
+  osv-security-audit:
+    name: Vulnerabilidades Dart e lockfiles
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+
+  android-gradle-lock:
+    name: Resolver dependências Android
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Gerar projeto Android e resolver Dart
+        run: |
+          flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
+          flutter pub get
+          python3 tool/enable_gradle_dependency_locking.py android/app
+
+      - name: Gerar lockfile do classpath Android de produção
+        run: |
+          cd android
+          ./gradlew --no-daemon --write-locks :paddleocr_android:dependencies \
+            --configuration releaseRuntimeClasspath
+          ./gradlew --no-daemon --write-locks :app:dependencies \
+            --configuration releaseRuntimeClasspath
+          test -s app/gradle.lockfile
+          test -s ../packages/paddleocr_android/android/gradle.lockfile
+          cd ..
+
+      - name: Publicar lockfile resolvido
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-gradle-lockfile
+          path: |
+            android/app/gradle.lockfile
+            packages/paddleocr_android/android/gradle.lockfile
+          if-no-files-found: error
+          retention-days: 1
+
+  osv-android-gradle-audit:
+    name: Vulnerabilidades Gradle Android
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    needs: android-gradle-lock
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      download-artifact: android-gradle-lockfile
+      results-file-name: android-gradle-results.sarif
+      scan-args: |-
+        --lockfile=android/app/gradle.lockfile
+        --lockfile=packages/paddleocr_android/android/gradle.lockfile
+
   qa-full:
     name: QA Completo
-    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
+    if: github.event_name != 'schedule' && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +151,14 @@ jobs:
           flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
           flutter pub get
+
+      - name: Exportar lockfile Dart para revisão
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-resolved-pubspec-lock
+          path: pubspec.lock
+          if-no-files-found: error
+          retention-days: 1
 
       - name: QA estático
         run: bash qa/run_static.sh
@@ -89,7 +194,7 @@ jobs:
   web-ci:
     name: Web + Cloudflare Pages
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: qa-full
+    needs: [qa-full, npm-security-audit, osv-security-audit, osv-android-gradle-audit]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +246,7 @@ jobs:
 
       - name: Instalar e validar
         run: |
-          flutter pub get
+          flutter pub get --enforce-lockfile
           dart run tool/generate_web_icons.dart
           dart format --output=none --set-exit-if-changed lib test tool packages
           flutter analyze
@@ -194,6 +299,7 @@ jobs:
   android-release:
     name: Android Release
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: [npm-security-audit, osv-security-audit, osv-android-gradle-audit]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -217,20 +323,27 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           KEYSTORE_BASE64: ${{ secrets.PROVA_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
         run: |
           set -e
-          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
               echo "Secret ausente: $name"
               exit 1
             fi
           done
+
+      - name: Impedir sobrescrita de release existente
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "A release $GITHUB_REF_NAME já existe e não será alterada." >&2
+            exit 1
+          fi
 
       - name: Preparar Android
         env:
@@ -241,7 +354,7 @@ jobs:
         run: |
           set -e
 
-          flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode --no-pub
+          flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
 
           echo "$KEYSTORE_BASE64" | base64 --decode > android/prova-social-release.jks
@@ -365,10 +478,24 @@ jobs:
           path.write_text(s)
           PY
 
+      - name: Habilitar lockfile Android
+        run: python3 tool/enable_gradle_dependency_locking.py android/app
+
+      - name: Usar lockfile Android auditado
+        uses: actions/download-artifact@v4
+        with:
+          name: android-gradle-lockfile
+          path: .
+
+      - name: Confirmar lockfile Android
+        run: |
+          test -s android/app/gradle.lockfile
+          test -s packages/paddleocr_android/android/gradle.lockfile
+
       - name: Instalar e validar
         run: |
           set -euo pipefail
-          flutter pub get
+          flutter pub get --enforce-lockfile
           dart run flutter_launcher_icons
           dart run tool/generate_web_icons.dart
           dart format --output=none --set-exit-if-changed lib test tool packages
@@ -402,36 +529,6 @@ jobs:
           if-no-files-found: error
           path: build/app/outputs/flutter-apk/*.apk
 
-      - name: Build Web
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          flutter build web --release --base-href /app/ \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
-            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
-          test -f build/web/index.html
-          test -f build/web/flutter_bootstrap.js
-          test -f build/web/assets/AssetManifest.json
-
-      - name: Deploy Web
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          rm -rf site/app
-          mkdir -p site/app
-          cp -R build/web/. site/app/
-          APP_VERSION=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
-          printf '{"version":"%s","build":"%s","date":"%s"}\n' \
-            "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            > site/app/version.json
-          npx --yes wrangler@${WRANGLER_VERSION} pages deploy site \
-            --project-name=prova-social \
-            --branch=main
-
       - name: Publicar GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -444,12 +541,7 @@ jobs:
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           )
 
-          if gh release view "$GITHUB_REF_NAME" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
-              --repo "${GITHUB_REPOSITORY}" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --title "Prova Social $GITHUB_REF_NAME" \
-              --generate-notes
-          fi
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Prova Social $GITHUB_REF_NAME" \
+            --generate-notes

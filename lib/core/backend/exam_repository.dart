@@ -2,41 +2,102 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/models/exam.dart';
 
+class ExamCatalogCursor {
+  const ExamCatalogCursor({required this.createdAt, required this.id});
+
+  final String createdAt;
+  final String id;
+}
+
+class ExamCatalogPage {
+  const ExamCatalogPage({
+    required this.exams,
+    required this.hasMore,
+    this.nextCursor,
+  });
+
+  final List<Exam> exams;
+  final bool hasMore;
+  final ExamCatalogCursor? nextCursor;
+}
+
 class ExamRepository {
   ExamRepository({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 
-  Future<List<Map<String, dynamic>>> publishedExams() async {
-    final rows = await _client
+  static const _examSelect =
+      'id,title,description,category,source_name,source_type,source_url,year,'
+      'duration_minutes,attempts_count,created_at,'
+      'questions(id,exam_id,position,topic,statement,options,created_at)';
+
+  Future<ExamCatalogPage> publishedExamPage({
+    ExamCatalogCursor? after,
+    int pageSize = 20,
+  }) async {
+    if (pageSize < 1 || pageSize > 100) {
+      throw ArgumentError.value(
+        pageSize,
+        'pageSize',
+        'Must be between 1 and 100.',
+      );
+    }
+
+    var request = _client
         .from('exams')
-        .select(
-          'id,title,description,category,source_name,source_type,source_url,year,duration_minutes,attempts_count,created_at',
-        )
+        .select(_examSelect)
         .eq('status', 'published')
-        .eq('is_public', true)
-        .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(rows);
-  }
-
-  Future<List<Map<String, dynamic>>> questions(String examId) async {
-    final rows = await _client
-        .from('questions')
-        .select('id,exam_id,position,topic,statement,options,created_at')
-        .eq('exam_id', examId)
-        .order('position');
-    return List<Map<String, dynamic>>.from(rows);
-  }
-
-  Future<List<Exam>> publishedExamModels() async {
-    final rows = await publishedExams();
-    return Future.wait(
-      rows.map((row) async {
-        final questionRows = await questions(row['id'] as String);
-        return mapPublishedExam(row, questionRows);
-      }),
+        .eq('is_public', true);
+    if (after != null) {
+      request = request.or(
+        'created_at.lt.${after.createdAt},and('
+        'created_at.eq.${after.createdAt},id.lt.${after.id})',
+      );
+    }
+    final rows = List<Map<String, dynamic>>.from(
+      await request
+          .order('created_at', ascending: false)
+          .order('id', ascending: false)
+          .order('position', referencedTable: 'questions')
+          .limit(pageSize + 1)
+          .timeout(const Duration(seconds: 15)),
     );
+    final hasMore = rows.length > pageSize;
+    final pageRows = rows.take(pageSize).toList(growable: false);
+    final exams = pageRows
+        .map((row) => mapPublishedExam(row, _embeddedQuestions(row)))
+        .toList(growable: false);
+    final last = pageRows.isEmpty ? null : pageRows.last;
+    return ExamCatalogPage(
+      exams: exams,
+      hasMore: hasMore,
+      nextCursor: hasMore && last != null
+          ? ExamCatalogCursor(
+              createdAt: last['created_at'] as String,
+              id: last['id'] as String,
+            )
+          : null,
+    );
+  }
+
+  Future<List<Exam>> savedExamModels() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return const [];
+    final rows = await _client
+        .from('favorites')
+        .select('exams($_examSelect)')
+        .eq('user_id', user.id)
+        .timeout(const Duration(seconds: 15));
+    return List<Map<String, dynamic>>.from(rows)
+        .map((favorite) => favorite['exams'])
+        .whereType<Map>()
+        .map((row) {
+          final exam = Map<String, dynamic>.from(row);
+          final nestedQuestions = _embeddedQuestions(exam);
+          return mapPublishedExam(exam, nestedQuestions);
+        })
+        .toList(growable: false);
   }
 
   /// Separate ilike filters avoid interpolating input into PostgREST OR syntax.
@@ -74,13 +135,42 @@ class ExamRepository {
       final row = Map<String, dynamic>.from(topic['exams'] as Map);
       rows[row['id'] as String] = row;
     }
-    return Future.wait(
-      rows.values.map(
-        (row) async =>
-            mapPublishedExam(row, await questions(row['id'] as String)),
-      ),
-    ).timeout(const Duration(seconds: 15));
+    final candidates = rows.values.toList()
+      ..sort((first, second) {
+        final firstDate = DateTime.tryParse(
+          first['created_at'] as String? ?? '',
+        );
+        final secondDate = DateTime.tryParse(
+          second['created_at'] as String? ?? '',
+        );
+        final byDate = (secondDate ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(firstDate ?? DateTime.fromMillisecondsSinceEpoch(0));
+        return byDate == 0
+            ? (second['id'] as String).compareTo(first['id'] as String)
+            : byDate;
+      });
+    final selected = candidates.take(50).toList(growable: false);
+    if (selected.isEmpty) return const [];
+    final details = await _client
+        .from('exams')
+        .select(_examSelect)
+        .inFilter('id', selected.map((row) => row['id'] as String).toList())
+        .eq('status', 'published')
+        .eq('is_public', true)
+        .order('created_at', ascending: false)
+        .order('id', ascending: false)
+        .order('position', referencedTable: 'questions')
+        .timeout(const Duration(seconds: 15));
+    return List<Map<String, dynamic>>.from(details)
+        .map((row) => mapPublishedExam(row, _embeddedQuestions(row)))
+        .toList(growable: false);
   }
+
+  static List<Map<String, dynamic>> _embeddedQuestions(
+    Map<String, dynamic> row,
+  ) => List<Map<String, dynamic>>.from(
+    (row['questions'] as List<dynamic>? ?? const []).whereType<Map>(),
+  );
 
   static Exam mapPublishedExam(
     Map<String, dynamic> row,

@@ -8,6 +8,110 @@ insert into auth.users (id, raw_user_meta_data) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '{"display_name":"Usuário A"}'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '{"display_name":"Usuário B"}');
 
+-- Publication is validated at the database trust boundary, not just by Dart.
+set role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  false
+);
+do $$
+declare
+  v_exam_id uuid;
+  v_rejected boolean;
+begin
+  v_rejected := false;
+  begin
+    perform public.publish_exam(
+      'x', 'Teste', 'Fixture', 'community', null, 30,
+      '[{"statement":"Questão válida?","options":["A","B"],"correct_index":0}]'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'short title was accepted'; end if;
+
+  v_rejected := false;
+  begin
+    perform public.publish_exam(
+      'Prova inválida', 'Teste', 'Fixture', 'community', null, 30,
+      '{"not":"an array"}'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'non-array question payload was accepted'; end if;
+
+  v_rejected := false;
+  begin
+    perform public.publish_exam(
+      'Prova inválida', 'Teste', 'Fixture', 'community', null, 30,
+      '[{"statement":"Questão válida?","options":"A","correct_index":0}]'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'non-array options were accepted'; end if;
+
+  v_rejected := false;
+  begin
+    perform public.publish_exam(
+      'Prova inválida', 'Teste', 'Fixture', 'community', null, 30,
+      '[{"statement":"Questão válida?","options":["A","B"],"correct_index":2}]'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'out-of-range answer was accepted'; end if;
+
+  v_rejected := false;
+  begin
+    perform public.publish_exam(
+      'Prova inválida', 'Teste', 'Fixture', 'community', null, 30,
+      '[{"id":"forged-id","statement":"Questão válida?","options":["A","B"],"correct_index":0}]'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'client supplied question ID was accepted'; end if;
+
+  v_exam_id := public.publish_exam(
+    'Prova validada', 'Teste', 'Fonte comunitária', 'community', 2026, 30,
+    '[{"statement":"Questão validada?","topic":"Matemática","options":["Primeira","Segunda"],"correct_index":1}]'
+  );
+  if not exists (
+    select 1 from public.exams
+    where id = v_exam_id and status = 'published' and is_public
+      and question_count = 1 and author_id = auth.uid()
+  ) then
+    raise exception 'valid exam was not published atomically';
+  end if;
+  if not exists (
+    select 1 from public.questions q
+    where q.exam_id = v_exam_id and q.topic = 'Matemática'
+  ) then
+    raise exception 'valid question was not stored';
+  end if;
+end
+$$;
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+do $$
+begin
+  if not exists (
+    select 1 from public.exams e
+    join public.questions q on q.exam_id = e.id
+    join private.question_keys k on k.question_id = q.id
+    where e.title = 'Prova validada' and k.correct_index = 1
+  ) then
+    raise exception 'valid private answer key was not stored';
+  end if;
+  if has_schema_privilege('authenticated', 'private', 'USAGE') then
+    raise exception 'authenticated users can access the private schema';
+  end if;
+end
+$$;
+
 insert into public.exams (
   id, author_id, title, description, category, source_name, source_type,
   duration_minutes, status, is_public, question_count

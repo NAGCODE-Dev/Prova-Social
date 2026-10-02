@@ -37,6 +37,11 @@ class _HomePageState extends State<HomePage> {
   bool resumedPublication = false;
   final saved = <String>{};
   List<Exam> exams = const [];
+  List<Exam> savedExams = const [];
+  ExamCatalogCursor? catalogCursor;
+  bool catalogHasMore = false;
+  bool loadingMoreExams = false;
+  String? loadMoreError;
   List<PendingAttempt> pendingAttempts = const [];
   List<Exam> startedExams = const [];
   Map<String, ExamResult> completedAttempts = const {};
@@ -68,11 +73,17 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadContent() async {
     try {
-      final loadedExams = await repository.publishedExamModels();
+      final page = await repository.publishedExamPage();
       final loadedSaved = await repository.savedExamIds();
+      final loadedSavedExams = await repository.savedExamModels();
       if (!mounted) return;
       setState(() {
-        exams = loadedExams;
+        exams = page.exams;
+        catalogCursor = page.nextCursor;
+        catalogHasMore = page.hasMore;
+        loadingMoreExams = false;
+        loadMoreError = null;
+        savedExams = loadedSavedExams;
         saved
           ..clear()
           ..addAll(loadedSaved);
@@ -86,6 +97,32 @@ class _HomePageState extends State<HomePage> {
           loadError = '$error';
         });
       }
+    }
+  }
+
+  Future<void> _loadMoreExams() async {
+    final cursor = catalogCursor;
+    if (loadingMoreExams || !catalogHasMore || cursor == null) return;
+    setState(() {
+      loadingMoreExams = true;
+      loadMoreError = null;
+    });
+    try {
+      final page = await repository.publishedExamPage(after: cursor);
+      if (!mounted) return;
+      setState(() {
+        final known = exams.map((exam) => exam.id).toSet();
+        exams = [...exams, ...page.exams.where((exam) => known.add(exam.id))];
+        catalogCursor = page.nextCursor;
+        catalogHasMore = page.hasMore;
+        loadingMoreExams = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingMoreExams = false;
+        loadMoreError = 'Não foi possível carregar mais provas.';
+      });
     }
   }
 
@@ -174,6 +211,10 @@ class _HomePageState extends State<HomePage> {
           loading: loading,
           error: loadError,
           onRetry: _loadContent,
+          hasMore: catalogHasMore,
+          loadingMore: loadingMoreExams,
+          loadMoreError: loadMoreError,
+          onLoadMore: _loadMoreExams,
           saved: saved,
           onSave: _toggleSave,
           onOpen: _openExam,
@@ -181,7 +222,7 @@ class _HomePageState extends State<HomePage> {
         SearchPage(search: repository.search, onOpen: _openExam),
         const PublishPage(),
         _LibraryPage(
-          exams: exams,
+          exams: savedExams,
           localExams: localExams,
           localError: localError,
           onRetryLocal: _loadLocal,
@@ -341,10 +382,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openProfile() async {
-    if (Supabase.instance.client.auth.currentUser == null) {
-      await _openLogin();
-      if (!mounted || Supabase.instance.client.auth.currentUser == null) return;
-    }
     setState(() => currentTab = 4);
   }
 
@@ -443,7 +480,7 @@ class _HeaderActions extends StatelessWidget {
         const SizedBox(width: 4),
         IconButton(
           onPressed: onProfile,
-          tooltip: user == null ? 'Entrar na conta' : 'Abrir perfil',
+          tooltip: 'Abrir perfil',
           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           icon: CircleAvatar(
             radius: 18,
@@ -537,6 +574,10 @@ class _HomeFeed extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onRetry,
+    required this.hasMore,
+    required this.loadingMore,
+    required this.loadMoreError,
+    required this.onLoadMore,
     required this.saved,
     required this.onSave,
     required this.onOpen,
@@ -545,6 +586,10 @@ class _HomeFeed extends StatelessWidget {
   final bool loading;
   final String? error;
   final VoidCallback onRetry;
+  final bool hasMore;
+  final bool loadingMore;
+  final String? loadMoreError;
+  final VoidCallback onLoadMore;
   final Set<String> saved;
   final ValueChanged<String> onSave;
   final ValueChanged<Exam> onOpen;
@@ -584,6 +629,29 @@ class _HomeFeed extends StatelessWidget {
           const Text('Nenhuma prova publicada ainda.')
         else
           _ExamGrid(exams: exams, saved: saved, onSave: onSave, onOpen: onOpen),
+        if (loadMoreError != null)
+          ListTile(
+            title: Text(loadMoreError!),
+            trailing: IconButton(
+              onPressed: onLoadMore,
+              tooltip: 'Tentar novamente',
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ),
+        if (hasMore)
+          Align(
+            alignment: Alignment.center,
+            child: OutlinedButton(
+              onPressed: loadingMore ? null : onLoadMore,
+              child: loadingMore
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Carregar mais provas'),
+            ),
+          ),
       ],
     ),
   );

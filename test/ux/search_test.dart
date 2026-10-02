@@ -30,6 +30,14 @@ void main() {
         httpClient: MockClient((request) async {
           requests.add(request.url);
           final params = request.url.queryParameters;
+          if (params['id']?.startsWith('in.') == true) {
+            return http.Response(
+              jsonEncode([
+                {...row('Encontrada'), 'questions': <Map<String, dynamic>>[]},
+              ]),
+              200,
+            );
+          }
           if (params[field]?.startsWith('ilike.') == true) {
             return http.Response(
               jsonEncode(
@@ -60,6 +68,22 @@ void main() {
       expect(
         requests.any((u) => u.queryParameters['topic'] == 'ilike.%municipal%'),
         isTrue,
+      );
+      expect(
+        requests.where(
+          (u) =>
+              u.path.endsWith('/exams') &&
+              u.queryParameters['id']?.startsWith('in.') == true,
+        ),
+        hasLength(1),
+      );
+      expect(
+        requests.where(
+          (u) =>
+              u.path.endsWith('/questions') &&
+              u.queryParameters.containsKey('exam_id'),
+        ),
+        isEmpty,
       );
       await client.dispose();
     });

@@ -79,6 +79,23 @@ void main() {
     requests.clear();
   });
   tearDownAll(() => Supabase.instance.dispose());
+  testWidgets('visitor can open a truthful profile without signing in', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        home: const HomePage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Abrir perfil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Você está explorando sem conta'), findsOneWidget);
+    expect(find.byType(AuthPage), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final width in [320.0, 1280.0]) {
     testWidgets('avatar guest and signed-in, layout $width', (tester) async {
       await tester.binding.setSurfaceSize(Size(width, 900));
@@ -92,7 +109,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('Entrar na conta'));
+      await tester.tap(find.byTooltip('Abrir perfil'));
+      await tester.pumpAndSettle();
+      expect(find.text('Você está explorando sem conta'), findsOneWidget);
+      expect(find.byType(AuthPage), findsNothing);
+      await tester.tap(find.text('Entrar ou criar conta'));
       await tester.pumpAndSettle();
       expect(find.byType(AuthPage), findsOneWidget);
       await tester.runAsync(() async {
@@ -244,6 +265,38 @@ void main() {
       expect(requests, isEmpty);
     },
   );
+  test('publication validates forged answer indices before RPC', () async {
+    await login();
+    final invalidQuestion = ImportedQuestion(
+      statement: 'Enunciado válido?',
+      options: const ['Primeira', 'Segunda'],
+      correctIndex: 2,
+    );
+    await expectLater(
+      ExamPublicationService().publish(
+        title: 'Prova válida',
+        category: 'Matéria',
+        source: 'Origem',
+        durationMinutes: 30,
+        questions: [invalidQuestion],
+      ),
+      throwsFormatException,
+    );
+    await expectLater(
+      ExamPublicationService().publish(
+        title: 'x',
+        category: 'Matéria',
+        source: 'Origem',
+        durationMinutes: 30,
+        questions: editor().questions,
+      ),
+      throwsFormatException,
+    );
+    expect(
+      requests.where((request) => request.url.path.contains('/rpc/')),
+      isEmpty,
+    );
+  });
   test('local exam answers cannot be sent to backend', () async {
     final local = LocalExam(
       id: 'local-1',

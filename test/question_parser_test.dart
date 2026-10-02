@@ -25,6 +25,27 @@ D) 6
     expect(questions.last.options[1], '4');
   });
 
+  test('preserva 80 questões sintéticas em ordem, sem perder alternativas', () {
+    final source = List.generate(80, (index) {
+      final number = index + 1;
+      return '''
+Questão $number. Enunciado de validação da questão número $number?
+A) Primeira alternativa da questão $number.
+B) Segunda alternativa da questão $number.
+C) Terceira alternativa da questão $number.
+D) Quarta alternativa da questão $number.
+E) Quinta alternativa da questão $number.
+''';
+    }).join('\n');
+
+    final questions = parser.parse(source);
+    expect(questions, hasLength(80));
+    expect(questions.map((question) => question.number), [
+      for (var number = 1; number <= 80; number++) number,
+    ]);
+    expect(questions.every((question) => question.options.length == 5), isTrue);
+  });
+
   test('aceita numeração com zero à esquerda e cinco alternativas', () {
     const source = '''
 01
