@@ -326,27 +326,15 @@ Nunca restaure ícone padrão Flutter.
 
 # 12. CI/CD
 
-Arquitetura:
+O workflow atual está em `.github/workflows/flutter-ci.yml` e usa GitHub Actions:
 
-GitHub
-→ Codemagic
-→ análise/testes
-→ Flutter Web/Android
-→ Cloudflare Pages/GitHub Release.
+- `qa-full` valida PRs, execuções manuais e pushes em `main`;
+- `web-ci` publica Flutter Web no Cloudflare Pages após push em `main` e gates aprovados;
+- `android-release` é acionado por tag `v*` e publica APKs no GitHub Release.
 
-Audite `codemagic.yaml`.
+O deploy Web deve permanecer no job `web-ci`, independente da release Android. A criação da release Android deve falhar se a release da tag já existir; não substituir artefatos publicados.
 
-Problemas conhecidos a investigar:
-- `flutter create` repetido;
-- plataformas recriadas;
-- Android compilado mais de uma vez;
-- deploy muito acoplado ao pipeline.
-
-NÃO faça grande refatoração de CI antes do P0 estar estável.
-
-Primeiro garanta confiabilidade. Depois proponha simplificação incremental.
-
-Não crie tag para forçar build. Não publique release. Não faça push.
+Manter mudanças de CI incrementais. Não recriar plataformas nem repetir trabalho sem necessidade. Não crie tag para forçar build. Não publique release nem faça push sem autorização explícita.
 
 ---
 
@@ -441,3 +429,13 @@ NÃO FAÇA PUSH.
 NÃO PUBLIQUE RELEASE.
 
 Pare somente se precisar de autorização para ação destrutiva/publicação, credencial indisponível ou decisão que não possa ser tomada com segurança a partir de `AGENTS.md` e deste documento.
+
+---
+
+# 17. Estado do P0 verificado em 02/10/2026
+
+O código inclui catálogo público paginado por cursor; validação cliente e server-side de publicação; procedência; rascunho local de tentativa, restauração e fila de sincronização idempotente. Existem testes escritos para catálogo, validação de publicação, persistência/restauração, retry e deduplicação da fila.
+
+Esses itens são implementações presentes no código, não aprovação de runtime. O gate Flutter ainda depende de `dart format`, `flutter analyze`, `flutter test`, builds e execução dos fluxos no ambiente Flutter compatível. Focus Mode, retomada offline e sincronização ponta a ponta continuam sem validação integral.
+
+O site possui testes Node independentes, mas eles não substituem a validação do Flutter Web. A importação continua parcial: a validação exigida com prova real de 80 questões permanece pendente e é P1. Discussões e comunidades também permanecem fora do P0 atual.

@@ -323,20 +323,27 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           KEYSTORE_BASE64: ${{ secrets.PROVA_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
         run: |
           set -e
-          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
               echo "Secret ausente: $name"
               exit 1
             fi
           done
+
+      - name: Impedir sobrescrita de release existente
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "A release $GITHUB_REF_NAME já existe e não será alterada." >&2
+            exit 1
+          fi
 
       - name: Preparar Android
         env:
@@ -347,7 +354,7 @@ jobs:
         run: |
           set -e
 
-          flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode --no-pub
+          flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
 
           echo "$KEYSTORE_BASE64" | base64 --decode > android/prova-social-release.jks
@@ -522,36 +529,6 @@ jobs:
           if-no-files-found: error
           path: build/app/outputs/flutter-apk/*.apk
 
-      - name: Build Web
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          flutter build web --release --base-href /app/ \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
-            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
-          test -f build/web/index.html
-          test -f build/web/flutter_bootstrap.js
-          test -f build/web/assets/AssetManifest.json
-
-      - name: Deploy Web
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          rm -rf site/app
-          mkdir -p site/app
-          cp -R build/web/. site/app/
-          APP_VERSION=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
-          printf '{"version":"%s","build":"%s","date":"%s"}\n' \
-            "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            > site/app/version.json
-          npx --yes wrangler@${WRANGLER_VERSION} pages deploy site \
-            --project-name=prova-social \
-            --branch=main
-
       - name: Publicar GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -564,12 +541,7 @@ jobs:
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           )
 
-          if gh release view "$GITHUB_REF_NAME" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
-              --repo "${GITHUB_REPOSITORY}" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --title "Prova Social $GITHUB_REF_NAME" \
-              --generate-notes
-          fi
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Prova Social $GITHUB_REF_NAME" \
+            --generate-notes
