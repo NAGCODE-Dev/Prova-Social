@@ -101,7 +101,7 @@ jobs:
           cd ..
 
       - name: Publicar lockfile resolvido
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-gradle-lockfile
           path: |
@@ -153,7 +153,7 @@ jobs:
           flutter pub get
 
       - name: Exportar lockfile Dart para revisão
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flutter-resolved-pubspec-lock
           path: pubspec.lock
@@ -182,7 +182,7 @@ jobs:
 
       - name: Salvar artefatos QA
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qa-results
           path: |
@@ -288,7 +288,7 @@ jobs:
 
       - name: Salvar Web
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flutter-web-${{ github.run_id }}
           if-no-files-found: error
@@ -523,7 +523,7 @@ jobs:
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
 
       - name: Salvar APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-release-${{ github.ref_name }}
           if-no-files-found: error
