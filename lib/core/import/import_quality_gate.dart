@@ -1,4 +1,5 @@
 import 'pdf_text_extractor.dart';
+import 'import_diagnostic_event.dart';
 import 'question_parser.dart';
 
 enum ImportQualityStatus { good, review, retry }
@@ -10,6 +11,8 @@ class ImportQualityAssessment {
     required this.ocrConfidence,
     required this.questionsNeedingReview,
     required this.unreadablePages,
+    required this.numberingIssues,
+    required this.diagnostics,
     required this.reasons,
   });
 
@@ -18,6 +21,8 @@ class ImportQualityAssessment {
   final double? ocrConfidence;
   final int questionsNeedingReview;
   final int unreadablePages;
+  final int numberingIssues;
+  final List<ImportDiagnosticEvent> diagnostics;
   final List<String> reasons;
 }
 
@@ -56,6 +61,7 @@ class ImportQualityGate {
               question.warning != null,
         )
         .length;
+    final numberingIssues = _countNumberingIssues(questions);
     final reasons = <String>[];
     if (unreadablePages > 0) {
       reasons.add('$unreadablePages página(s) sem texto suficiente.');
@@ -70,6 +76,12 @@ class ImportQualityGate {
         '$questionsNeedingReview questão(ões) com estrutura incerta.',
       );
     }
+    if (numberingIssues > 0) {
+      reasons.add(
+        'Sequência numérica inconsistente em $numberingIssues ponto(s); '
+        'verificar questões ausentes, duplicadas ou fora de ordem.',
+      );
+    }
 
     final status =
         questions.isEmpty ||
@@ -79,13 +91,40 @@ class ImportQualityGate {
         : reasons.isNotEmpty
         ? ImportQualityStatus.review
         : ImportQualityStatus.good;
+    final diagnostics = ImportDiagnosticEvent.collect(
+      extraction: extraction,
+      questions: questions,
+      numberingIssues: numberingIssues,
+      questionsNeedingReview: questionsNeedingReview,
+      parserConfidence: parserConfidence,
+    );
     return ImportQualityAssessment(
       status: status,
       parserConfidence: parserConfidence,
       ocrConfidence: ocrConfidence,
       questionsNeedingReview: questionsNeedingReview,
       unreadablePages: unreadablePages,
+      numberingIssues: numberingIssues,
+      diagnostics: diagnostics,
       reasons: List.unmodifiable(reasons),
     );
+  }
+
+  int _countNumberingIssues(List<ImportedQuestion> questions) {
+    var issues = 0;
+    int? previousNumber;
+    for (final question in questions) {
+      final number = question.number;
+      if (number == null) continue;
+      if (number <= 0) {
+        issues++;
+        continue;
+      }
+      if (previousNumber != null && number != previousNumber + 1) {
+        issues++;
+      }
+      previousNumber = number;
+    }
+    return issues;
   }
 }

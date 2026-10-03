@@ -86,6 +86,51 @@ F) Seis.
     expect(question.warning, contains('6 alternativas'));
   });
 
+  test('preserva texto com marcador repetido sem criar alternativa falsa', () {
+    const source = '''
+QUESTÃO 12
+Escolha a alternativa correta.
+A) Uma.
+B) Duas.
+A) Continuação mal reconhecida de duas.
+C) Três.
+D) Quatro.
+E) Cinco.
+''';
+    final question = parser.parse(source).single;
+
+    expect(question.options, hasLength(5));
+    expect(question.options[1], contains('A) Continuação'));
+    expect(question.warning, contains('incompletos ou fora de ordem'));
+    expect(question.confidence, lessThan(.95));
+  });
+
+  test('não interpreta numeração isolada sem sequência de alternativas', () {
+    const source = '''
+2024
+Página 3
+25 questões objetivas.
+''';
+
+    expect(parser.parse(source), isEmpty);
+  });
+
+  test('reconhece alternativas OCR sem pontuação no marcador', () {
+    const source = '''
+1
+Considere os dados e assinale a conclusão correta.
+A Primeira possibilidade.
+B Segunda possibilidade.
+C Terceira possibilidade.
+D Quarta possibilidade.
+''';
+
+    final question = parser.parse(source).single;
+    expect(question.number, 1);
+    expect(question.options, hasLength(4));
+    expect(question.options.first, 'Primeira possibilidade.');
+  });
+
   test('aceita variantes de marcador', () {
     const source = '''
 QUESTÃO Nº 1: Escolha uma opção.

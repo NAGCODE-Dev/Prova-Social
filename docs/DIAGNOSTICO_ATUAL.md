@@ -14,7 +14,7 @@ Data: 26/09/2026. Código consolidado: `main`, `4be6972`. Trabalho preexistente 
 | Focus Mode | Parcial | Alternativas, navegação, revisão e timer isolado/ocultável presentes; configuração prévia dos timers incompleta; runtime pendente. |
 | Resultado | Parcial | Contagens reais, enunciado, procedência e disciplina no código; histórico local acrescentado. Explicações/discursivas incompletas. |
 | Procedência | Parcial | Três badges e URL HTTPS; colunas confirmadas remotamente. Verificação visual pendente. |
-| Importação | Parcial/P1 | Texto nativo, OCR seletivo e editor existem; parser linear sem coordenadas e sem fixture real de 80 questões. |
+| Importação | Parcial/P1 | Texto nativo, OCR seletivo, editor e fixture sintética de 80 questões existem. O parser preserva alternativas incomuns, sinaliza marcadores inconsistentes e o gate verifica lacunas/ordem dos números; layout nativo em colunas e validação confiável de PDFs reais continuam pendentes. O PDF VUNESP compartilhado localmente ainda não atingiu as 80 questões e não foi incluído no repositório. |
 | Imagens/compactação | Parcial | Pacote gzip/hash e upload existentes; associação espacial e fluxo completo não validados. |
 | Discussões/comunidades | Parcial/ausente | Não fazem parte do lote P0; fluxo social completo ausente. |
 | Schema/RLS | Parcial | Advisors e schema inspecionados; smoke transacional autorizado no remoto aprovado com rollback. Auditoria global pendente. |

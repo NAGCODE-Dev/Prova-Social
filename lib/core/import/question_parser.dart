@@ -45,8 +45,7 @@ class QuestionParser {
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
-      final followingText = lines.skip(i + 1).take(12).join('\n');
-      final hasFollowingOptions = _findOptionMarkers(followingText).length >= 2;
+      final hasFollowingOptions = _hasFollowingOptions(lines, i + 1);
       final candidate = _detectQuestionStart(
         line,
         previousNumber,
@@ -101,6 +100,14 @@ class QuestionParser {
       result.addAll(parse(column));
     }
     return result;
+  }
+
+  bool _hasFollowingOptions(List<String> lines, int start) {
+    if (start >= lines.length) return false;
+    final end = (start + 12).clamp(0, lines.length);
+    final followingText = lines.sublist(start, end).join('\n');
+    final scan = _findOptionMarkers(followingText);
+    return scan.markers.length >= 2 || scan.rawMarkerCount >= 2;
   }
 
   String _normalize(String source) {
@@ -223,22 +230,38 @@ class QuestionParser {
         : _joinContent(block, start.content);
     if (content.trim().length < 4) return null;
 
-    final optionMatches = _findOptionMarkers(content);
-    if (optionMatches.length >= 2) {
-      final parsed = _parseOptions(content, optionMatches);
+    final optionScan = _findOptionMarkers(content);
+    if (optionScan.markers.length >= 2) {
+      final parsed = _parseOptions(content, optionScan.markers);
       if (parsed == null) return null;
       final statement = _cleanStatement(parsed.statement);
       if (!_plausibleStatement(statement)) return null;
-      final warning = parsed.options.length > 5
-          ? 'Estrutura incomum: ${parsed.options.length} alternativas preservadas.'
-          : null;
+      final warnings = <String>[];
+      if (parsed.options.length < 4) {
+        warnings.add(
+          'Foram detectadas ${parsed.options.length} alternativas; revisar estrutura.',
+        );
+      } else if (parsed.options.length > 5) {
+        warnings.add(
+          'Estrutura incomum: ${parsed.options.length} alternativas preservadas.',
+        );
+      }
+      if (optionScan.hasIncoherentMarkers) {
+        warnings.add(
+          'Marcadores de alternativas incompletos ou fora de ordem.',
+        );
+      }
       return ImportedQuestion(
         statement: statement,
         options: parsed.options,
         number: start.number,
         format: QuestionFormat.multipleChoice,
-        confidence: _optionConfidence(start, parsed.options.length),
-        warning: warning,
+        confidence: _optionConfidence(
+          start,
+          parsed.options.length,
+          hasIncoherentMarkers: optionScan.hasIncoherentMarkers,
+        ),
+        warning: warnings.isEmpty ? null : warnings.join(' '),
       );
     }
 
@@ -282,7 +305,7 @@ class QuestionParser {
     return lines.join('\n').trim();
   }
 
-  List<_OptionMarker> _findOptionMarkers(String block) {
+  _OptionScan _findOptionMarkers(String block) {
     final result = <_OptionMarker>[];
     final lines = block.split('\n');
     var offset = 0;
@@ -332,18 +355,35 @@ class QuestionParser {
       }
     }
 
-    return _coherentOptions(result);
+    final coherent = _coherentOptions(result);
+    var expectedLabel = 'A'.codeUnitAt(0);
+    final hasLabelGap =
+        coherent.any((marker) {
+          final label = marker.letter.codeUnitAt(0);
+          final isGap = label != expectedLabel;
+          expectedLabel = label + 1;
+          return isGap;
+        }) ||
+        (coherent.isNotEmpty && coherent.first.letter != 'A');
+    return _OptionScan(
+      markers: coherent,
+      rawMarkerCount: result.length,
+      hasIncoherentMarkers: coherent.length != result.length || hasLabelGap,
+    );
   }
 
   List<_OptionMarker> _coherentOptions(List<_OptionMarker> markers) {
     if (markers.length < 2) return const [];
     final output = <_OptionMarker>[markers.first];
-    var expected = markers.first.letter.codeUnitAt(0) + 1;
+    var previous = markers.first.letter.codeUnitAt(0);
     for (var i = 1; i < markers.length; i++) {
       final code = markers[i].letter.codeUnitAt(0);
-      if (code == expected || (code == 'A'.codeUnitAt(0) && expected > code)) {
+      if (code > previous) {
         output.add(markers[i]);
-        expected = code + 1;
+        previous = code;
+      } else if (code == 'A'.codeUnitAt(0) && previous >= 'E'.codeUnitAt(0)) {
+        output.add(markers[i]);
+        previous = code;
       }
     }
     return output.length >= 2 ? output : const [];
@@ -366,10 +406,15 @@ class QuestionParser {
     return _ParsedOptions(statement: statement, options: options);
   }
 
-  double _optionConfidence(_QuestionStart start, int count) {
+  double _optionConfidence(
+    _QuestionStart start,
+    int count, {
+    required bool hasIncoherentMarkers,
+  }) {
     var score = start.confidence;
     if (count >= 4 && count <= 5) score += .05;
-    if (count == 2 || count == 3 || count > 5) score -= .03;
+    if (count < 4 || count > 5) score -= .1;
+    if (hasIncoherentMarkers) score -= .15;
     return score.clamp(0, 1).toDouble();
   }
 
@@ -457,4 +502,16 @@ class _ParsedOptions {
 
   final String statement;
   final List<String> options;
+}
+
+class _OptionScan {
+  const _OptionScan({
+    required this.markers,
+    required this.rawMarkerCount,
+    required this.hasIncoherentMarkers,
+  });
+
+  final List<_OptionMarker> markers;
+  final int rawMarkerCount;
+  final bool hasIncoherentMarkers;
 }

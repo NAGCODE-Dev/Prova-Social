@@ -610,10 +610,14 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
           );
         }
         if (result.questions.isEmpty) {
+          final diagnosticText = result.quality.diagnostics.isEmpty
+              ? ''
+              : ' Um padrão estrutural foi identificado localmente; o diagnóstico não envia o texto do arquivo.';
           return _ProcessMessage(
             icon: Icons.rule_folder_outlined,
             title: 'Texto lido, estrutura não reconhecida',
-            text: 'O arquivo possui texto, mas as questões não seguem o padrão “Questão 1” com alternativas A–E. Nenhum conteúdo foi publicado.',
+            text:
+                'O arquivo possui texto, mas a estrutura das questões não foi reconhecida. Nenhum conteúdo foi publicado.$diagnosticText',
             action: () => Navigator.pop(context),
             actionLabel: 'Voltar',
           );
@@ -623,6 +627,9 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
         final warningText = extraction.pagesWithWarnings == 0
             ? ''
             : ' ${extraction.pagesWithWarnings} página(s) precisam de revisão adicional.';
+        final diagnosticText = quality.diagnostics.isEmpty
+            ? ''
+            : ' Diagnósticos estruturais desta análise não incluem nem enviam o texto do arquivo.';
         return _ProcessMessage(
           icon: quality.status == ImportQualityStatus.good
               ? Icons.check_circle_outline_rounded
@@ -631,7 +638,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
               ? '${result.questions.length} questões encontradas'
               : '${result.questions.length} questões para revisar',
           text:
-              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText ${quality.reasons.join(' ')} Revise todos os enunciados, alternativas e gabaritos antes de publicar.',
+              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText ${quality.reasons.join(' ')}$diagnosticText Revise todos os enunciados, alternativas e gabaritos antes de publicar.',
           action: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => ImportReviewPage(

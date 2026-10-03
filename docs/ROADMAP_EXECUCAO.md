@@ -28,10 +28,27 @@ Consulte [diagnóstico](DIAGNOSTICO_ATUAL.md) e [relatório P0](RELATORIO_P0_202
 4. **Conteúdo e estados:** completar estados vazios e leitura pública real, sem métricas ou listas simuladas.
 5. **Marca e distribuição:** conferir ícones Android/Web/PWA e simplificar CI sem publicação implícita.
 
-## P1 — importação confiável
+## P1 — Pacer robusto (parcial)
 
-Preservar página e coordenadas, ordenar colunas, combinar evidências estruturais e validar com prova real de 80 questões antes de declarar a importação resolvida.
+- Parser conservador com confiança e avisos; alternativas incomuns não são descartadas.
+- Quality Gate verifica estrutura, OCR, legibilidade e sequência numérica.
+- Regressão sintética original de 80 questões em duas colunas.
+- **Pendente:** reconstruir/validar layout nativo em colunas e atingir o critério de 80 questões em prova real autorizada. O PDF VUNESP compartilhado não passa e não foi incorporado ao repositório.
 
-## P2–P4
+## P2 — Pacer Feedback Loop (fundação local)
 
-Evoluir Focus Mode e prova dos erros; depois questões sociais e comunidades; por fim automatizar distribuição e atualização. Cada lote exige análise, testes e revisão de diff antes de publicação.
+- Eventos tipados de falha e fingerprint determinístico de estrutura, sem conteúdo do documento.
+- Eventos são transitórios, locais e não enviados; não há telemetria remota ou consentimento implementados.
+- **Pendente:** desenho de consentimento explícito, retenção mínima, agregação e revisão pela equipe.
+
+## P3 — Pacer Hardening (pendente)
+
+Regras novas somente após revisão humana; promover cada padrão validado para fixture sintética/sanitizada ou conteúdo autorizado e executar o corpus inteiro antes de versionar o parser.
+
+## P4 — Pacer adaptativo (pendente)
+
+Permitir somente estratégias de recuperação já aprovadas e cobertas por testes. Não modificar regras em produção com base em um documento ou telemetria sem revisão e release.
+
+## V1
+
+Não considerar importação pronta até cumprir o critério de 80 questões com ordem, alternativas, imagens e revisão humana, além de comprovar as autorizações de conteúdo aplicáveis. Evoluir Focus Mode e prova dos erros, questões sociais e comunidades, e distribuição em lotes separados. Cada lote exige análise, testes e revisão de diff antes de publicação.
