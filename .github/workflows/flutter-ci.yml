@@ -85,8 +85,11 @@ jobs:
 
       - name: Gerar projeto Android e resolver Dart
         run: |
+          set -euo pipefail
+          cp pubspec.lock "$RUNNER_TEMP/prova-social-pubspec.lock"
           flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
-          flutter pub get
+          cp "$RUNNER_TEMP/prova-social-pubspec.lock" pubspec.lock
+          flutter pub get --enforce-lockfile
           python3 tool/enable_gradle_dependency_locking.py android/app
 
       - name: Gerar lockfile do classpath Android de produção
@@ -148,10 +151,13 @@ jobs:
 
       - name: Preparar Flutter
         run: |
+          set -euo pipefail
+          cp pubspec.lock "$RUNNER_TEMP/prova-social-pubspec.lock"
           flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
+          cp "$RUNNER_TEMP/prova-social-pubspec.lock" pubspec.lock
           rm -f test/widget_test.dart
           python3 tool/prepare_web.py
-          flutter pub get
+          flutter pub get --enforce-lockfile
 
       - name: Exportar lockfile Dart para revisão
         uses: actions/upload-artifact@v4
@@ -243,7 +249,10 @@ jobs:
 
       - name: Preparar Flutter Web
         run: |
+          set -euo pipefail
+          cp pubspec.lock "$RUNNER_TEMP/prova-social-pubspec.lock"
           flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
+          cp "$RUNNER_TEMP/prova-social-pubspec.lock" pubspec.lock
           rm -f test/widget_test.dart
           python3 tool/prepare_web.py
 
@@ -365,7 +374,9 @@ jobs:
         run: |
           set -e
 
+          cp pubspec.lock "$RUNNER_TEMP/prova-social-pubspec.lock"
           flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode --no-pub
+          cp "$RUNNER_TEMP/prova-social-pubspec.lock" pubspec.lock
           rm -f test/widget_test.dart
 
           echo "$KEYSTORE_BASE64" | base64 --decode > android/prova-social-release.jks
