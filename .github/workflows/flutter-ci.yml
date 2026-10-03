@@ -95,10 +95,8 @@ jobs:
       - name: Gerar lockfile do classpath Android de produção
         run: |
           cd android
-          ./gradlew --no-daemon --write-locks :paddleocr_android:dependencies \
-            --configuration releaseRuntimeClasspath
-          ./gradlew --no-daemon --write-locks :app:dependencies \
-            --configuration releaseRuntimeClasspath
+          ./gradlew --no-daemon --write-locks :paddleocr_android:mergeReleaseNativeLibs
+          ./gradlew --no-daemon --write-locks :app:mergeReleaseNativeLibs
           test -s app/gradle.lockfile
           test -s ../packages/paddleocr_android/android/gradle.lockfile
           cd ..
