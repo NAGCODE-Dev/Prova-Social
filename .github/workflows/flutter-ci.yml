@@ -170,6 +170,9 @@ jobs:
       - name: QA estático
         run: bash qa/run_static.sh
 
+      - name: Preparar PDFium para testes Flutter
+        run: dart run tool/prepare_pdfium_test_runtime.dart
+
       - name: Testes Flutter
         env:
           FLUTTER_TEST_FILE: ${{ inputs.test_file }}

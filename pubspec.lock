@@ -565,7 +565,7 @@ packages:
     source: hosted
     version: "0.3.1"
   pdfium_flutter:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: pdfium_flutter
       sha256: "59897274513984b347fc98e7bf71ba457678daea8b5568cd7c688979aeb77765"
