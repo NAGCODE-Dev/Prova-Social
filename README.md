@@ -6,7 +6,7 @@ O projeto permite importar provas a partir de arquivos PDF e imagens, processá-
 
 <p align="center">
   <a href="https://github.com/NAGCODE-Dev/Prova-Social/actions/workflows/flutter-ci.yml"><img src="https://github.com/NAGCODE-Dev/Prova-Social/actions/workflows/flutter-ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/Flutter-3.47.0-02569B?logo=flutter&logoColor=white" alt="Flutter 3.47.0">
+  <img src="https://img.shields.io/badge/Flutter-3.47.6-02569B?logo=flutter&logoColor=white" alt="Flutter 3.47.6">
   <img src="https://img.shields.io/badge/version-0.7.0-16A36A" alt="Version 0.7.0">
 </p>Funcionalidades
 
@@ -100,7 +100,7 @@ Desenvolvimento
 
 Requisitos
 
-- Flutter 3.47.0
+- Flutter 3.47.6
 - Dart compatível com Flutter 3.47
 - Android SDK
 - Node.js 22
