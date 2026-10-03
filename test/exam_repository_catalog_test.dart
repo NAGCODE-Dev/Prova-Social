@@ -41,16 +41,17 @@ void main() {
         'public-key',
         httpClient: MockClient((request) async {
           requests.add(request.url);
-          final page = request.url.queryParameters['limit'] == '2'
-              ? [
+          final page = request.url.queryParameters.containsKey('or')
+              ? [examRow('z', '2026-09-28T10:00:00+00:00')]
+              : [
                   examRow('b', '2026-09-29T10:00:00+00:00'),
                   examRow('a', '2026-09-29T10:00:00+00:00'),
-                ]
-              : [examRow('z', '2026-09-28T10:00:00+00:00')];
+                ];
           return http.Response(
             jsonEncode(page),
             200,
             headers: {'content-type': 'application/json'},
+            request: request,
           );
         }),
       );
@@ -83,9 +84,9 @@ void main() {
     final client = SupabaseClient(
       'https://example.test',
       'public-key',
-      httpClient: MockClient((_) async {
+      httpClient: MockClient((request) async {
         requested = true;
-        return http.Response('[]', 200);
+        return http.Response('[]', 200, request: request);
       }),
     );
     addTearDown(client.dispose);

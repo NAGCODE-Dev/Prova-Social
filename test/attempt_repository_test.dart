@@ -56,10 +56,11 @@ void main() {
         'https://example.test',
         'public-key',
         httpClient: MockClient(
-          (_) async => http.Response(
+          (request) async => http.Response(
             jsonEncode({'total': 1, 'correct': 1, ...entry.value}),
             200,
             headers: {'content-type': 'application/json'},
+            request: request,
           ),
         ),
       );
@@ -81,7 +82,7 @@ void main() {
       'https://example.test',
       'public-key',
       httpClient: MockClient(
-        (_) async => http.Response(
+        (request) async => http.Response(
           jsonEncode({
             'total': 1,
             'correct': 1,
@@ -89,6 +90,7 @@ void main() {
           }),
           200,
           headers: {'content-type': 'application/json'},
+          request: request,
         ),
       ),
     );
@@ -112,6 +114,7 @@ void main() {
             jsonEncode({'code': code, 'message': 'RPC recusada'}),
             400,
             headers: {'content-type': 'application/json'},
+            request: request,
           );
         }),
       );

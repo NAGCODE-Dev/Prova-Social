@@ -238,7 +238,7 @@ void main() {
       submitter: TransientSubmitter(),
     );
     final submission = AttemptSubmission(
-      clientAttemptId: '11111111-1111-4111-8111-111111111111',
+      clientAttemptId: '22222222-2222-4222-8222-222222222222',
       exam: exam,
       answers: {0: 1},
       markedForReview: {},
@@ -255,7 +255,15 @@ void main() {
       ),
     );
     await _pumpWithoutWaitingForRecurringTimers(tester);
-    expect(find.textContaining('aguardando correção'), findsOneWidget);
+    final queuedStatus = find.textContaining('aguardando correção');
+    for (
+      var attempt = 0;
+      attempt < 20 && queuedStatus.evaluate().isEmpty;
+      attempt++
+    ) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(queuedStatus, findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
     expect(find.textContaining('Gabarito'), findsNothing);
   });

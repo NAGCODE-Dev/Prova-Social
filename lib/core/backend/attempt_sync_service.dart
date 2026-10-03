@@ -74,14 +74,16 @@ class _PreferencesAttemptQueueStorage implements AttemptQueueStorage {
 
 class AttemptQueueStore {
   AttemptQueueStore({AttemptQueueStorage? storage})
-    : _storage = storage ?? _PreferencesAttemptQueueStorage();
+    : _storage = storage ?? _defaultStorage;
 
+  static final _defaultStorage = _PreferencesAttemptQueueStorage();
+  static final _storageTails = Expando<Future<void>>();
   final AttemptQueueStorage _storage;
-  static Future<void> _globalTail = Future<void>.value();
 
   Future<T> _locked<T>(Future<T> Function() operation) {
-    final result = _globalTail.then((_) => operation());
-    _globalTail = result.then<void>((_) {}, onError: (_, __) {});
+    final tail = _storageTails[_storage] ?? Future<void>.value();
+    final result = tail.then((_) => operation());
+    _storageTails[_storage] = result.then<void>((_) {}, onError: (_, __) {});
     return result;
   }
 
@@ -258,14 +260,21 @@ class AttemptSyncOutcome {
   final ExamResult? result;
 }
 
+class _AttemptSyncCoordinator {
+  Future<void> tail = Future<void>.value();
+  final Map<String, Future<AttemptSyncOutcome>> inFlight = {};
+}
+
 class AttemptSyncService {
   AttemptSyncService({AttemptQueueStore? store, this._submitter})
     : store = store ?? AttemptQueueStore();
 
   final AttemptQueueStore store;
   final AttemptSubmitter? _submitter;
-  static final Map<String, Future<AttemptSyncOutcome>> _inFlight = {};
-  static Future<void> _globalSyncTail = Future<void>.value();
+  static final _coordinators = Expando<_AttemptSyncCoordinator>();
+
+  _AttemptSyncCoordinator get _coordinator =>
+      _coordinators[store._storage] ??= _AttemptSyncCoordinator();
 
   static String newClientAttemptId() {
     final random = Random.secure();
@@ -290,22 +299,23 @@ class AttemptSyncService {
     bool ignoreSchedule = false,
     bool retryAttention = false,
   }) {
-    final running = _inFlight[clientAttemptId];
+    final coordinator = _coordinator;
+    final running = coordinator.inFlight[clientAttemptId];
     if (running != null) return running;
-    final operation = _globalSyncTail.then(
+    final operation = coordinator.tail.then(
       (_) => _sync(
         clientAttemptId,
         ignoreSchedule: ignoreSchedule,
         retryAttention: retryAttention,
       ),
     );
-    _globalSyncTail = operation.then<void>((_) {}, onError: (_, __) {});
-    _inFlight[clientAttemptId] = operation;
+    coordinator.tail = operation.then<void>((_) {}, onError: (_, __) {});
+    coordinator.inFlight[clientAttemptId] = operation;
     unawaited(
       operation.then<void>(
-        (_) => _inFlight.remove(clientAttemptId),
+        (_) => coordinator.inFlight.remove(clientAttemptId),
         onError: (Object _, StackTrace __) {
-          _inFlight.remove(clientAttemptId);
+          coordinator.inFlight.remove(clientAttemptId);
         },
       ),
     );

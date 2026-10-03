@@ -11,10 +11,11 @@ test('Prova Social abre sem erro fatal', async ({ page }) => {
     waitUntil: 'networkidle'
   });
 
-  await expect(page.locator('body')).toBeVisible();
-
-  const body = await page.locator('body').innerText();
-  expect(body.trim().length).toBeGreaterThan(0);
+  const canvas = page.locator('flt-glass-pane canvas');
+  await expect(canvas).toBeVisible();
+  const bounds = await canvas.boundingBox();
+  expect(bounds.width).toBeGreaterThan(0);
+  expect(bounds.height).toBeGreaterThan(0);
 
   expect(fatalErrors).toEqual([]);
 });

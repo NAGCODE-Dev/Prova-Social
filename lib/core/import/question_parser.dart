@@ -45,7 +45,13 @@ class QuestionParser {
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
-      final candidate = _detectQuestionStart(line, previousNumber);
+      final followingText = lines.skip(i + 1).take(12).join('\n');
+      final hasFollowingOptions = _findOptionMarkers(followingText).length >= 2;
+      final candidate = _detectQuestionStart(
+        line,
+        previousNumber,
+        hasFollowingOptions: hasFollowingOptions,
+      );
       if (candidate == null) continue;
 
       // A numeric marker is much more trustworthy when the sequence is
@@ -117,7 +123,11 @@ class QuestionParser {
         .join('\n');
   }
 
-  _QuestionStart? _detectQuestionStart(String line, int previousNumber) {
+  _QuestionStart? _detectQuestionStart(
+    String line,
+    int previousNumber, {
+    required bool hasFollowingOptions,
+  }) {
     final explicit = RegExp(
       r'^\s*(?:quest(?:ão|ao)|q(?:uestão|uestao)?\.?)[ \t]*(?:n[º°.]?[ \t]*)?(\d{1,4})\s*(?:[.:)\-]+)?\s*(.*)$',
       caseSensitive: false,
@@ -157,6 +167,17 @@ class QuestionParser {
         content: compact.group(2)?.trim() ?? '',
         confidence: .98,
         explicit: true,
+      );
+    }
+
+    final bareNumber = RegExp(r'^\s*(\d{1,4})[.)]?\s*$').firstMatch(line);
+    if (bareNumber != null && hasFollowingOptions) {
+      return _QuestionStart(
+        lineIndex: -1,
+        number: int.tryParse(bareNumber.group(1)!),
+        content: '',
+        confidence: .86,
+        explicit: false,
       );
     }
 

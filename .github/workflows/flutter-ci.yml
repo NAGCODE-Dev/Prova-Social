@@ -264,7 +264,8 @@ jobs:
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
           test -f build/web/index.html
           test -f build/web/flutter_bootstrap.js
-          test -f build/web/assets/AssetManifest.json
+          test -f build/web/assets/AssetManifest.bin \
+            || test -f build/web/assets/AssetManifest.json
 
       - name: Preparar site
         run: |

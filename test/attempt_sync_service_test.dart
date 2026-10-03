@@ -17,6 +17,22 @@ class MemoryQueueStorage implements AttemptQueueStorage {
   }
 }
 
+class BlockingQueueStorage implements AttemptQueueStorage {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String value) async {
+    if (!entered.isCompleted) entered.complete();
+    await release.future;
+    this.value = value;
+  }
+}
+
 class FakeSubmitter implements AttemptSubmitter {
   FakeSubmitter({this.error});
   AttemptSubmissionException? error;
@@ -78,6 +94,24 @@ AttemptSubmission submission([
 );
 
 void main() {
+  test(
+    'serializa por armazenamento sem bloquear bibliotecas independentes',
+    () async {
+      final blockedStorage = BlockingQueueStorage();
+      final blockedStore = AttemptQueueStore(storage: blockedStorage);
+      final blockedWrite = blockedStore.saveStartedExam(exam);
+      await blockedStorage.entered.future;
+
+      final independentStore = AttemptQueueStore(storage: MemoryQueueStorage());
+      await independentStore
+          .saveStartedExam(exam)
+          .timeout(const Duration(seconds: 1));
+
+      blockedStorage.release.complete();
+      await blockedWrite;
+    },
+  );
+
   test(
     'entrega captura respostas antes de aguardar gravações anteriores',
     () async {
@@ -308,7 +342,54 @@ void main() {
   );
 
   test(
-    'sincronizações de IDs diferentes são serializadas globalmente',
+    'armazenamentos independentes sincronizam sem bloquear um ao outro',
+    () async {
+      final blockedSubmitter = ControlledSubmitter();
+      final blockedValue = submission();
+      final blockedService = AttemptSyncService(
+        store: AttemptQueueStore(storage: MemoryQueueStorage()),
+        submitter: blockedSubmitter,
+      );
+      await blockedService.saveForSync(blockedValue);
+      final blockedSync = blockedService.sync(
+        blockedValue.clientAttemptId,
+        ignoreSchedule: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(blockedSubmitter.calls, 1);
+
+      final independentValue = submission(
+        '22222222-2222-4222-8222-222222222222',
+      );
+      final independentService = AttemptSyncService(
+        store: AttemptQueueStore(storage: MemoryQueueStorage()),
+        submitter: FakeSubmitter(),
+      );
+      await independentService.saveForSync(independentValue);
+      final independentOutcome = await independentService
+          .sync(independentValue.clientAttemptId, ignoreSchedule: true)
+          .timeout(const Duration(seconds: 1));
+      expect(independentOutcome.result, isNotNull);
+
+      blockedSubmitter.gate.complete(
+        ExamResult(
+          exam: blockedValue.exam.copyWith(
+            questions: blockedValue.exam.questions
+                .map((question) => question.copyWith(correctIndex: 1))
+                .toList(),
+          ),
+          answers: blockedValue.answers,
+          markedForReview: blockedValue.markedForReview,
+          durationSeconds: blockedValue.durationSeconds,
+          finishedAt: blockedValue.finishedAt,
+        ),
+      );
+      expect((await blockedSync).result, isNotNull);
+    },
+  );
+
+  test(
+    'sincronizações de IDs diferentes no mesmo armazenamento são serializadas',
     () async {
       final submitter = ControlledSubmitter();
       final service = AttemptSyncService(

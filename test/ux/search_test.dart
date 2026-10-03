@@ -36,6 +36,7 @@ void main() {
                 {...row('Encontrada'), 'questions': <Map<String, dynamic>>[]},
               ]),
               200,
+              request: request,
             );
           }
           if (params[field]?.startsWith('ilike.') == true) {
@@ -48,9 +49,10 @@ void main() {
                     : [row('Encontrada')],
               ),
               200,
+              request: request,
             );
           }
-          return http.Response('[]', 200);
+          return http.Response('[]', 200, request: request);
         }),
       );
       final result = await ExamRepository(client: client).search('municipal');

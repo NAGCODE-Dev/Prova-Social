@@ -108,9 +108,28 @@ Requisitos
 
 Instalação
 
+```sh
 git clone https://github.com/NAGCODE-Dev/Prova-Social.git
 cd Prova-Social
 flutter pub get
+```
+
+Preparar e validar o módulo Android local:
+
+```sh
+flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
+rm -f test/widget_test.dart
+flutter pub get
+cd android
+./gradlew :paddleocr_android:dependencies --configuration releaseRuntimeClasspath
+```
+
+Execute o Gradle pela pasta `android/` gerada na raiz. `packages/paddleocr_android/android`
+é um módulo Flutter, não um projeto Gradle independente: ele recebe os plugins
+Android do projeto hospedeiro. Executar Gradle diretamente nesse subdiretório
+produz `Plugin with id 'com.android.library' not found`. Não fixe nem rebaixe a
+versão do Gradle isoladamente; use o wrapper gerado pela versão Flutter definida
+no workflow.
 
 Executar
 

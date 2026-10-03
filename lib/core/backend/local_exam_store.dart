@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -117,9 +118,10 @@ class LocalExam {
 
 class LocalExamStore {
   static const key = 'private_exams_v1';
-  static Future<void> _tail = Future.value();
+  static Future<void>? _tail;
   Future<List<LocalExam>> load() async {
-    await _tail;
+    final tail = _tail;
+    if (tail != null) await tail;
     return _read(await SharedPreferences.getInstance());
   }
 
@@ -145,26 +147,38 @@ class LocalExamStore {
     final snapshot = LocalExam.fromJson(
       jsonDecode(jsonEncode(exam.toJson())) as Map<String, dynamic>,
     );
-    final operation = _tail.then((_) async {
-      final prefs = await SharedPreferences.getInstance();
-      final items = _read(prefs);
-      final previous = jsonEncode(items.map((e) => e.toJson()).toList());
-      items.removeWhere((e) => e.id == snapshot.id);
-      items.add(snapshot);
-      final encoded = jsonEncode(items.map((e) => e.toJson()).toList());
-      if (utf8.encode(encoded).length > 4 * 1024 * 1024) {
-        throw StateError(
-          'Limite local de 4 MB atingido. Exporte suas provas antes de continuar.',
-        );
-      }
-      if (!await prefs.setString('${key}_backup', previous) ||
-          !await prefs.setString(key, encoded)) {
-        throw StateError(
-          'Não foi possível salvar no aparelho. Tente novamente.',
-        );
-      }
-    });
-    _tail = operation.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    final previous = _tail;
+    final operation = previous == null
+        ? _saveSnapshot(snapshot)
+        : previous.then((_) => _saveSnapshot(snapshot));
+    final tail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    _tail = tail;
+    unawaited(
+      tail.then((_) {
+        if (identical(_tail, tail)) _tail = null;
+      }),
+    );
     return operation;
+  }
+
+  Future<void> _saveSnapshot(LocalExam snapshot) async {
+    final prefs = await SharedPreferences.getInstance();
+    final items = _read(prefs);
+    final previous = jsonEncode(items.map((e) => e.toJson()).toList());
+    items.removeWhere((e) => e.id == snapshot.id);
+    items.add(snapshot);
+    final encoded = jsonEncode(items.map((e) => e.toJson()).toList());
+    if (utf8.encode(encoded).length > 4 * 1024 * 1024) {
+      throw StateError(
+        'Limite local de 4 MB atingido. Exporte suas provas antes de continuar.',
+      );
+    }
+    if (!await prefs.setString('${key}_backup', previous) ||
+        !await prefs.setString(key, encoded)) {
+      throw StateError('Não foi possível salvar no aparelho. Tente novamente.');
+    }
   }
 }

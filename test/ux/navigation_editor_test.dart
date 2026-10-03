@@ -63,12 +63,12 @@ void main() {
       httpClient: MockClient((request) async {
         requests.add(request);
         if (request.url.path.endsWith('/logout')) {
-          return http.Response('{}', 200);
+          return http.Response('{}', 200, request: request);
         }
         if (request.url.path.endsWith('/user')) {
-          return http.Response(jsonEncode(user), 200);
+          return http.Response(jsonEncode(user), 200, request: request);
         }
-        return http.Response('[]', 200);
+        return http.Response('[]', 200, request: request);
       }),
       authOptions: const FlutterAuthClientOptions(autoRefreshToken: false),
     );
@@ -113,9 +113,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Você está explorando sem conta'), findsOneWidget);
       expect(find.byType(AuthPage), findsNothing);
+      expect(tester.takeException(), isNull);
       await tester.tap(find.text('Entrar ou criar conta'));
       await tester.pumpAndSettle();
       expect(find.byType(AuthPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.runAsync(() async {
         await login();
       });
@@ -125,14 +127,6 @@ void main() {
       await tester.tap(find.byTooltip('Abrir perfil'));
       await tester.pumpAndSettle();
       final profileException = tester.takeException();
-      if (profileException != null) {
-        debugPrint('===== PROFILE EXCEPTION START =====');
-        debugPrint(profileException.toString());
-        if (profileException is FlutterError) {
-          debugPrint(profileException.toStringDeep());
-        }
-        debugPrint('===== PROFILE EXCEPTION END =====');
-      }
       expect(profileException, isNull);
       await tester.pumpWidget(const SizedBox());
     });
@@ -177,7 +171,11 @@ void main() {
       expect((await LocalExamStore().load()).single.title, 'Prova privada');
       expect(requests.where((r) => r.method == 'POST'), isEmpty);
       final publishButton = find.text('Publicar para todos — requer conta');
-      await tester.ensureVisible(publishButton);
+      await tester.scrollUntilVisible(
+        publishButton,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(publishButton);
       await tester.pumpAndSettle();
@@ -339,12 +337,19 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('Criar manualmente'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Título'),
-        'Minha criação',
+      final createManually = find.text('Criar manualmente');
+      await tester.scrollUntilVisible(
+        createManually,
+        300,
+        scrollable: find.byType(Scrollable).first,
       );
+      await tester.pumpAndSettle();
+      await tester.tap(createManually);
+      await tester.pumpAndSettle();
+      final titleField = find.widgetWithText(TextField, 'Título');
+      await tester.ensureVisible(titleField);
+      await tester.pumpAndSettle();
+      await tester.enterText(titleField, 'Minha criação');
       await tester.scrollUntilVisible(
         find.text('Adicionar questão'),
         300,
