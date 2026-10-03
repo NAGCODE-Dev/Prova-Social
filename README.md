@@ -171,9 +171,13 @@ A pipeline inclui:
 - build Web;
 - browser QA;
 - validação dos arquivos gerados;
-- deploy para Cloudflare Pages;
+- deploy para Cloudflare Pages quando os secrets de produção estiverem configurados;
 - build Android;
 - publicação dos APKs em GitHub Releases.
+
+Se `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_API_TOKEN` ou
+`CLOUDFLARE_ACCOUNT_ID` não estiver configurado, o deploy Web é explicitamente
+ignorado; os gates de QA e o build Web de validação continuam sendo executados.
 
 Pushes para "main" executam o fluxo Web.
 

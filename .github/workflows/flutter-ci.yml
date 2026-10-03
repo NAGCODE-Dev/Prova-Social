@@ -191,10 +191,41 @@ jobs:
             qa/browser/playwright-report/**
           if-no-files-found: ignore
 
+  web-deploy-readiness:
+    name: Verificar configuração de deploy Web
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Verificar secrets necessários para publicar
+        id: check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=()
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if ((${#missing[@]} > 0)); then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deploy Web ignorado; configure os secrets obrigatórios no repositório."
+            printf 'Secrets ausentes: %s\n' "${missing[*]}"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Secrets disponíveis; o deploy Web será executado."
+          fi
+
   web-ci:
     name: Web + Cloudflare Pages
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [qa-full, npm-security-audit, osv-security-audit, osv-android-gradle-audit]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.web-deploy-readiness.outputs.enabled == 'true'
+    needs: [qa-full, npm-security-audit, osv-security-audit, osv-android-gradle-audit, web-deploy-readiness]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -210,21 +241,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Validar secrets
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -e
-          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
-            if [ -z "${!name:-}" ]; then
-              echo "Secret ausente: $name"
-              exit 1
-            fi
-          done
 
       - name: Preparar Flutter Web
         run: |
