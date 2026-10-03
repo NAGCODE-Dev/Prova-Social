@@ -92,7 +92,7 @@ Leia:
 - `docs/ROADMAP_EXECUCAO.md`
 - `DESIGN_SYSTEM.md`
 - `pubspec.yaml`
-- `codemagic.yaml`
+- `.github/workflows/flutter-ci.yml`
 
 Inspecione:
 
@@ -170,7 +170,7 @@ flutter test
 
 Se Flutter não estiver funcional no Termux, NÃO instale toolchains enormes nem destrua o ambiente.
 
-Faça as verificações possíveis e prepare o restante para Codemagic.
+Faça as verificações possíveis e execute o restante no GitHub Actions.
 
 Priorize testes para draft local, retomada, saída durante prova, sincronização, offline, retry, idempotência, resultado, procedência e parser.
 

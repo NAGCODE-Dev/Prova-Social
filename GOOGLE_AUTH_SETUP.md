@@ -22,9 +22,9 @@ Supabase valida o retorno e o Flutter recebe apenas a sessão.
    - Redirect URL Web: `https://prova-social.pages.dev/app/`
    - Redirect URL Android: `provasocial://login-callback`
 
-## 3. Codemagic
+## 3. GitHub Actions
 
-Crie variáveis protegidas no workflow:
+Configure repository secrets para os builds:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`

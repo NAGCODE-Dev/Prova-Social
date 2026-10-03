@@ -540,9 +540,18 @@ O Flutter Web publicado deve usar ícones, manifest e favicon da marca Prova Soc
 
 ## 19. CI/CD e versões
 
-### Codemagic
+### GitHub Actions
 
-O pipeline deve ser simples, determinístico e evitar trabalho duplicado.
+O GitHub Actions é a única CI/CD do projeto; não manter pipelines paralelos no
+Codemagic.
+
+O workflow `.github/workflows/supabase-keepalive.yml` executa três leituras
+diárias na tabela pública `profiles` para gerar atividade real e reduzir o
+risco de pausa por inatividade em projetos Supabase no plano Free, conforme a
+[política de pausa do Supabase](https://supabase.com/docs/guides/platform/free-project-pausing).
+Usa somente `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY`; nunca insere dados nem
+usa chave service role. Esse mecanismo não recupera projetos que já foram
+pausados e não substitui um plano pago nem garante disponibilidade.
 
 Ordem recomendada:
 
@@ -561,11 +570,12 @@ Ordem recomendada:
 Regras:
 
 - Não armazenar keystore, senhas ou tokens no Git.
-- Referência de assinatura deve coincidir com a cadastrada no Codemagic.
-- Grupos de ambiente precisam estar explicitamente importados pelo workflow.
+- Segredos de assinatura ficam nos GitHub Actions secrets e nunca no repositório.
+- Em tags `v*`, executar os gates P0, gerar APK universal e APKs por ABI, compilar Flutter Web e publicar todos os artefatos na mesma GitHub Release.
+- Build e artefato Web não dependem de credenciais Cloudflare; somente o deploy do site pode ser ignorado quando elas não estiverem configuradas.
 - Falha opcional de publicação do site não deve apagar artefatos já gerados; separar responsabilidades quando possível.
 - Evitar dois builds Android completos quando `--split-per-abi` ou cópia de artefatos puder resolver.
-- Não gerar plataforma a cada build se os diretórios versionados estiverem corretos.
+- Gerar plataformas apenas no runner do Actions quando necessário; não depender de plataformas ignoradas/não versionadas no checkout.
 - Dependências devem ser compatíveis entre si e preferencialmente usar constraints justificadas, não pins arbitrários.
 
 ### Versionamento
@@ -645,7 +655,7 @@ Antes de declarar conclusão:
 
 ### P4 — Distribuição
 
-1. Simplificar Codemagic.
+1. Manter CI/CD e publicação centralizadas no GitHub Actions.
 2. Releases automáticas por tag.
 3. Atualização do site e Flutter Web.
 4. Checagem de atualização no aplicativo.

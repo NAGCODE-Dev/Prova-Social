@@ -434,7 +434,7 @@ O projeto possui automação relacionada a:
 - testes de draft;
 - testes offline;
 - testes de proveniência;
-- Codemagic;
+- CI/CD;
 - builds Android.
 
 Testes existentes verificam, entre outras coisas:

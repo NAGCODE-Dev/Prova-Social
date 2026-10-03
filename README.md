@@ -171,8 +171,8 @@ A pipeline inclui:
 - build Web;
 - browser QA;
 - validação dos arquivos gerados;
+- APK universal, APKs por arquitetura e pacote Flutter Web anexados à Release da tag;
 - deploy para Cloudflare Pages quando os secrets de produção estiverem configurados;
-- build Android;
 - publicação dos APKs em GitHub Releases.
 
 Se `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_API_TOKEN` ou
@@ -181,7 +181,11 @@ ignorado; os gates de QA e o build Web de validação continuam sendo executados
 
 Pushes para "main" executam o fluxo Web.
 
-Tags no formato "v*" iniciam o fluxo de release Android.
+Tags no formato "v*" iniciam no GitHub Actions o QA completo, os builds Android
+assinados e o build Flutter Web. Os APKs e um ZIP da versão Web são anexados à
+Release; nenhum build de distribuição depende do Codemagic ou de um computador
+local. O deploy Cloudflare permanece opcional e roda no push de `main` quando
+suas credenciais estiverem configuradas.
 
 Versionamento
 

@@ -24,4 +24,4 @@ Resolução fixada:
 
 Não execute `flutter pub upgrade --major-versions` no pipeline. Alterações de
 dependências devem atualizar esta matriz e passar por `flutter pub get`, análise
-e testes no Codemagic.
+e testes no GitHub Actions.

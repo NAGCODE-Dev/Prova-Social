@@ -1,6 +1,6 @@
 # Prova Social — backend e arquivos no Supabase
 
-Esta versão não utiliza Cloudflare R2 nem exige variável adicional no Codemagic.
+Esta versão não utiliza Cloudflare R2 nem exige variável adicional de build.
 
 ## Aplicar pelo Acode
 
@@ -22,6 +22,6 @@ git pull --rebase origin main
 git push origin main
 ```
 
-Não crie `R2_API_URL` no Codemagic. O aplicativo usa o projeto Supabase já
-configurado e o bucket privado `exam-content`. O pacote inclui JSON em GZip,
+Não crie `R2_API_URL`. O aplicativo usa o projeto Supabase já configurado e o
+bucket privado `exam-content`. O pacote inclui JSON em GZip,
 imagens separadas, deduplicação por SHA-256 e carregamento sob demanda.

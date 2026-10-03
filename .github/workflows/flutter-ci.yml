@@ -129,7 +129,7 @@ jobs:
   qa-full:
     name: QA Completo
     timeout-minutes: 20
-    if: github.event_name != 'schedule' && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    if: github.event_name != 'schedule' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -150,6 +150,7 @@ jobs:
         run: |
           flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
+          python3 tool/prepare_web.py
           flutter pub get
 
       - name: Exportar lockfile Dart para revisão
@@ -191,8 +192,8 @@ jobs:
             qa/browser/playwright-report/**
           if-no-files-found: ignore
 
-  web-deploy-readiness:
-    name: Verificar configuração de deploy Web
+  cloudflare-deploy-readiness:
+    name: Verificar configuração de deploy Cloudflare
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
@@ -201,13 +202,11 @@ jobs:
       - name: Verificar secrets necessários para publicar
         id: check
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           missing=()
-          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
             if [ -z "${!name:-}" ]; then
               missing+=("$name")
             fi
@@ -215,7 +214,7 @@ jobs:
 
           if ((${#missing[@]} > 0)); then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Deploy Web ignorado; configure os secrets obrigatórios no repositório."
+            echo "::notice::Deploy Cloudflare ignorado; configure os secrets necessários."
             printf 'Secrets ausentes: %s\n' "${missing[*]}"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -223,9 +222,9 @@ jobs:
           fi
 
   web-ci:
-    name: Web + Cloudflare Pages
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.web-deploy-readiness.outputs.enabled == 'true'
-    needs: [qa-full, npm-security-audit, osv-security-audit, osv-android-gradle-audit, web-deploy-readiness]
+    name: Build Flutter Web + Cloudflare Pages
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [qa-full, npm-security-audit, osv-security-audit, osv-android-gradle-audit, cloudflare-deploy-readiness]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -246,19 +245,7 @@ jobs:
         run: |
           flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("web/manifest.json")
-          p.write_text(p.read_text().replace("prova_social", "Prova Social"))
-
-          p = Path("web/index.html")
-          s = p.read_text()
-          s = s.replace("<title>prova_social</title>", "<title>Prova Social</title>")
-          s = s.replace("A new Flutter project.", "Resolva provas e descubra o que precisa estudar.")
-          p.write_text(s)
-          PY
+          python3 tool/prepare_web.py
 
       - name: Instalar e validar
         run: |
@@ -274,6 +261,12 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Secret ausente: $name" >&2
+              exit 1
+            fi
+          done
           flutter build web --release --base-href /app/ \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
@@ -295,6 +288,7 @@ jobs:
             > site/app/version.json
 
       - name: Deploy Cloudflare Pages
+        if: needs.cloudflare-deploy-readiness.outputs.enabled == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -316,7 +310,7 @@ jobs:
   android-release:
     name: Android Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [npm-security-audit, osv-security-audit, osv-android-gradle-audit]
+    needs: [qa-full, npm-security-audit, osv-security-audit, osv-android-gradle-audit]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -340,10 +334,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          KEYSTORE_BASE64: ${{ secrets.PROVA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -e
           for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
@@ -364,17 +358,19 @@ jobs:
 
       - name: Preparar Android
         env:
-          KEYSTORE_BASE64: ${{ secrets.PROVA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -e
 
-          flutter create . --platforms=android --project-name=prova_social --org=dev.nagcode --no-pub
+          flutter create . --platforms=android,web --project-name=prova_social --org=dev.nagcode --no-pub
           rm -f test/widget_test.dart
 
           echo "$KEYSTORE_BASE64" | base64 --decode > android/prova-social-release.jks
+          keytool -list -keystore android/prova-social-release.jks \
+            -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null
 
           cat > android/key.properties <<EOF
           storePassword=$KEYSTORE_PASSWORD
@@ -495,6 +491,8 @@ jobs:
           path.write_text(s)
           PY
 
+          python3 tool/prepare_web.py
+
       - name: Habilitar lockfile Android
         run: python3 tool/enable_gradle_dependency_locking.py android/app
 
@@ -515,9 +513,6 @@ jobs:
           flutter pub get --enforce-lockfile
           dart run flutter_launcher_icons
           dart run tool/generate_web_icons.dart
-          dart format --output=none --set-exit-if-changed lib test tool packages
-          flutter analyze
-          flutter test
 
       - name: Compilar APKs
         env:
@@ -539,12 +534,31 @@ jobs:
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
 
+      - name: Compilar Flutter Web para release
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          flutter build web --release --base-href /app/ \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
+          test -f build/web/index.html
+          test -f build/web/flutter_bootstrap.js
+          test -f build/web/assets/AssetManifest.bin \
+            || test -f build/web/assets/AssetManifest.json
+          mkdir -p build/release
+          (cd build/web && zip -qr "../release/prova-social-web-${GITHUB_REF_NAME}.zip" .)
+
       - name: Salvar APKs
         uses: actions/upload-artifact@v4
         with:
           name: android-release-${{ github.ref_name }}
           if-no-files-found: error
-          path: build/app/outputs/flutter-apk/*.apk
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/release/*.zip
 
       - name: Publicar GitHub Release
         env:
@@ -556,6 +570,7 @@ jobs:
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk
+            build/release/prova-social-web-${GITHUB_REF_NAME}.zip
           )
 
           gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
