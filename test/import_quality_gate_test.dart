@@ -71,38 +71,39 @@ void main() {
     );
   });
 
-  test('creates a content-free diagnostic fingerprint for unknown structure', () {
-    const privateText = '''
+  test(
+    'creates a content-free diagnostic fingerprint for unknown structure',
+    () {
+      const privateText = '''
 Material reservado para revisão interna.
 Este texto confidencial não deve ser enviado.
 Outra linha de conteúdo privado para diagnóstico.
 ''';
-    const differentTextWithSameShape = '''
+      const differentTextWithSameShape = '''
 Documento protegido para avaliação manual.
 Este conteúdo restrito permanece no dispositivo.
 Mais uma linha particular para o diagnóstico.
 ''';
 
-    ImportQualityAssessment assess(String text) => gate.assess(
-      extraction(text: text),
-      const [],
-    );
+      ImportQualityAssessment assess(String text) =>
+          gate.assess(extraction(text: text), const []);
 
-    final first = assess(privateText).diagnostics.single;
-    final second = assess(differentTextWithSameShape).diagnostics.single;
-    final payload = first.toJson();
+      final first = assess(privateText).diagnostics.single;
+      final second = assess(differentTextWithSameShape).diagnostics.single;
+      final payload = first.toJson();
 
-    expect(first.failure, ImportFailureCode.unknownStructure);
-    expect(first.sourceType, 'private');
-    expect(first.pattern, 'UNKNOWN_STRUCTURE_V1');
-    expect(first.patternFingerprint, matches(RegExp(r'^[a-f0-9]{64}$')));
-    expect(first.patternFingerprint, second.patternFingerprint);
-    expect(first.needsReview, isTrue);
-    expect(payload, isNot(contains(privateText)));
-    expect(payload.values, isNot(contains(privateText)));
-    expect(payload.values, isNot(contains('reservado')));
-    expect(payload.values, isNot(contains('confidencial')));
-  });
+      expect(first.failure, ImportFailureCode.unknownStructure);
+      expect(first.sourceType, 'private');
+      expect(first.pattern, 'UNKNOWN_STRUCTURE_V1');
+      expect(first.patternFingerprint, matches(RegExp(r'^[a-f0-9]{64}$')));
+      expect(first.patternFingerprint, second.patternFingerprint);
+      expect(first.needsReview, isTrue);
+      expect(payload, isNot(contains(privateText)));
+      expect(payload.values, isNot(contains(privateText)));
+      expect(payload.values, isNot(contains('reservado')));
+      expect(payload.values, isNot(contains('confidencial')));
+    },
+  );
 
   test('routes low-confidence questions and OCR warnings to review', () {
     final result = gate.assess(
