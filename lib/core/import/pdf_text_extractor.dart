@@ -94,8 +94,26 @@ class PdfTextExtractor {
   });
 
   static const minimumNativeTextLength = OcrRouter.minimumNativeTextLength;
+  static Future<void>? _pdfrxInitialization;
   final OcrRouter router;
   final OcrLayoutOrderer layoutOrderer;
+
+  static Future<void> initialize() => _initializePdfrx();
+
+  static Future<void> _initializePdfrx() async {
+    final existing = _pdfrxInitialization;
+    if (existing != null) return existing;
+    final initialization = pdfrxFlutterInitialize();
+    _pdfrxInitialization = initialization;
+    try {
+      await initialization;
+    } catch (_) {
+      if (identical(_pdfrxInitialization, initialization)) {
+        _pdfrxInitialization = null;
+      }
+      rethrow;
+    }
+  }
 
   Future<PdfExtractionResult> extract(
     Uint8List bytes, {

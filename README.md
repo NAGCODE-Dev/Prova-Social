@@ -133,11 +133,28 @@ no workflow.
 
 Executar
 
-flutter run
+```sh
+cp .env.supabase.json.example .env.supabase.json
+# Edite o arquivo local com SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY do projeto.
+./tool/flutter_with_supabase.sh run
+```
 
-Para executar no navegador:
+O arquivo `.env.supabase.json` é ignorado pelo Git. O wrapper aceita comandos
+Flutter e injeta a configuração local em cada execução/build:
 
-flutter run -d chrome
+```sh
+./tool/flutter_with_supabase.sh run -d chrome
+./tool/flutter_with_supabase.sh build apk --debug
+```
+
+Este checkout não versiona a plataforma Web. Para executá-lo no Chrome pela
+primeira vez, gere os arquivos de plataforma e aplique a preparação de marca:
+
+```sh
+flutter create . --platforms=web --project-name=prova_social --org=dev.nagcode --no-pub
+python3 tool/prepare_web.py
+./tool/flutter_with_supabase.sh run -d chrome
+```
 
 Testes
 
@@ -150,14 +167,29 @@ dart format --output=none --set-exit-if-changed lib test tool packages
 
 Configuração
 
-Informações sensíveis não devem ser armazenadas no repositório.
+O app recebe `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` como configuração
+pública de cliente em tempo de build, usando `String.fromEnvironment` e
+`--dart-define-from-file`. A publishable key pode ser incluída no APK e no Web;
+Auth, RLS e grants do banco continuam responsáveis pela autorização.
 
-A aplicação utiliza variáveis como:
+Para desenvolvimento local, copie `.env.supabase.json.example` para
+`.env.supabase.json` e preencha os valores em Supabase → Connect. O arquivo
+local é ignorado pelo Git e o wrapper valida os campos sem exibir seus valores.
+Use o wrapper para `run` e builds locais; `flutter run` diretamente não carrega
+a configuração local.
 
-SUPABASE_URL
-SUPABASE_PUBLISHABLE_KEY
+No GitHub Actions, configure os repository secrets `SUPABASE_URL` e
+`SUPABASE_PUBLISHABLE_KEY`. O workflow gera um JSON temporário fora do checkout
+e o injeta em builds Web e Android (universal e por ABI). O APK de release não
+depende de arquivos presentes no computador do desenvolvedor. Builds Web de
+QA usam placeholders e não autenticam no projeto real.
 
-Os valores utilizados nos builds de produção são fornecidos pelo GitHub Actions através de secrets.
+São valores públicos de cliente somente `SUPABASE_URL` e
+`SUPABASE_PUBLISHABLE_KEY` (preferencialmente prefixo `sb_publishable_`). Nunca
+coloque `SUPABASE_SECRET_KEY`, `service_role`, senha do banco, segredo do Google
+OAuth ou token administrativo no app, em arquivo versionado ou em logs. Uma
+chave `anon` JWT legada é aceita para compatibilidade, mas deve ser migrada para
+publishable key.
 
 CI/CD
 

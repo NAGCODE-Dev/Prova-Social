@@ -31,6 +31,12 @@ Configure repository secrets para os builds:
 
 Não use `service_role`, secret key nem o Client Secret do Google no Flutter.
 
+Para execução local, copie `.env.supabase.json.example` para
+`.env.supabase.json`, preencha somente `SUPABASE_URL` e
+`SUPABASE_PUBLISHABLE_KEY` e execute `./tool/flutter_with_supabase.sh run`. O
+arquivo local é ignorado pelo Git. O CI grava as mesmas duas chaves públicas em
+um arquivo temporário e as embute nos builds Android e Web.
+
 ## 4. Banco
 
 Execute primeiro `supabase/migrations/202609210001_core.sql`. Depois aplique as

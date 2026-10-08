@@ -15,5 +15,6 @@ run "Flutter version" flutter --version
 run "Dart version" dart --version
 run "Dart format" dart format --output=none --set-exit-if-changed lib test tool packages
 run "Flutter analyze" flutter analyze
+run "Supabase build configuration" python3 tool/test_supabase_build_config.py
 
 exit "$failed"

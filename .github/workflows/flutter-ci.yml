@@ -278,9 +278,11 @@ jobs:
               exit 1
             fi
           done
+          python3 tool/supabase_build_config.py \
+            --write-from-environment "$RUNNER_TEMP/prova-social-supabase.json"
           flutter build web --release --base-href /app/ \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define-from-file="$RUNNER_TEMP/prova-social-supabase.json" \
+            --dart-define=APP_ENV=production \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
           test -f build/web/index.html
           test -f build/web/flutter_bootstrap.js
@@ -531,20 +533,26 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
+          python3 tool/supabase_build_config.py \
+            --write-from-environment "$RUNNER_TEMP/prova-social-supabase.json"
+
           flutter build apk --release \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define-from-file="$RUNNER_TEMP/prova-social-supabase.json" \
+            --dart-define=APP_ENV=production \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
 
           cp build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/prova-social-android.apk
 
           flutter build apk --release --split-per-abi \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define-from-file="$RUNNER_TEMP/prova-social-supabase.json" \
+            --dart-define=APP_ENV=production \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
 
       - name: Compilar Flutter Web para release
@@ -553,9 +561,11 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
+          python3 tool/supabase_build_config.py \
+            --write-from-environment "$RUNNER_TEMP/prova-social-supabase.json"
           flutter build web --release --base-href /app/ \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define-from-file="$RUNNER_TEMP/prova-social-supabase.json" \
+            --dart-define=APP_ENV=production \
             --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
           test -f build/web/index.html
           test -f build/web/flutter_bootstrap.js

@@ -6,8 +6,9 @@ mkdir -p build/qa
 flutter build web \
   --release \
   --base-href /app/ \
+  --dart-define=APP_ENV=qa \
   --dart-define=SUPABASE_URL="${SUPABASE_URL:-https://example.supabase.co}" \
-  --dart-define=SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY:-qa-placeholder}" \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY:-sb_publishable_qa-placeholder}" \
   --dart-define=WEB_AUTH_CALLBACK="${WEB_AUTH_CALLBACK:-http://127.0.0.1:4173/app/}"
 
 test -f build/web/index.html
