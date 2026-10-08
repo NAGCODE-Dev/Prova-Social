@@ -1,16 +1,10 @@
 group 'dev.nagcode.paddleocr'
 version '1.0-SNAPSHOT'
 
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
+plugins {
+    id 'com.android.library' version '9.1.0'
+    id 'org.jetbrains.kotlin.android' version '2.4.0'
 }
-
-// Plugins come from the generated Flutter Android host; this is not standalone.
-apply plugin: 'com.android.library'
-apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace 'dev.nagcode.paddleocr'
