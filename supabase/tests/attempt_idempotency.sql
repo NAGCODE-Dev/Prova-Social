@@ -231,68 +231,39 @@ begin
 end
 $$;
 
--- Visitor retry creates one anonymous row and returns the original result.
+-- Anonymous clients cannot call either correction overload or retrieve keys.
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 set role anon;
 do $$
 declare
-  first_result jsonb;
-  repeated_result jsonb;
+  state text;
 begin
-  first_result := public.submit_exam_attempt(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    jsonb_build_object('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 1),
-    array['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
-    35, '22222222-2222-4222-8222-222222222222'
-  );
-  repeated_result := public.submit_exam_attempt(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    jsonb_build_object('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 1),
-    array['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
-    35, '22222222-2222-4222-8222-222222222222'
-  );
-  if first_result ->> 'attempt_id' <> repeated_result ->> 'attempt_id' then
-    raise exception 'visitor retry returned another attempt';
-  end if;
-  if not (repeated_result ->> 'duplicate')::boolean then
-    raise exception 'visitor retry not marked duplicate';
-  end if;
+  begin
+    perform public.submit_exam_attempt(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      jsonb_build_object('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 1),
+      '{}'::uuid[], 35, '22222222-2222-4222-8222-222222222222'
+    );
+    raise exception 'anonymous idempotent RPC returned the answer key';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.submit_exam_attempt(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      jsonb_build_object('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 1),
+      '{}'::uuid[], 35
+    );
+    raise exception 'anonymous legacy RPC returned the answer key';
+  exception when sqlstate '42501' then
+    null;
+  end;
 end
 $$;
-
--- Equivalent authenticated retry atomically claims the visitor row.
-reset role;
-set role authenticated;
-select set_config(
-  'request.jwt.claim.sub',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  false
-);
-do $$
-declare
-  claimed jsonb;
-begin
-  claimed := public.submit_exam_attempt(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    jsonb_build_object('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 1),
-    array['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
-    35, '22222222-2222-4222-8222-222222222222'
-  );
-  if not (claimed ->> 'duplicate')::boolean then
-    raise exception 'visitor claim was not an idempotent retry';
-  end if;
-  if (select count(*) from public.attempts
-      where client_attempt_id = '22222222-2222-4222-8222-222222222222'
-        and user_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') <> 1 then
-    raise exception 'visitor attempt was not linked to authenticated user';
-  end if;
-end
-$$;
-
 reset role;
 
--- PUBLIC has no EXECUTE; only anon and authenticated do.
+-- PUBLIC and anon have no EXECUTE; authenticated users retain both contracts.
 do $$
 begin
   if exists (
@@ -304,16 +275,24 @@ begin
   ) then
     raise exception 'PUBLIC can execute submit_exam_attempt';
   end if;
-  if not has_function_privilege(
+  if has_function_privilege(
     'anon',
     'public.submit_exam_attempt(uuid,jsonb,uuid[],integer,uuid)',
+    'EXECUTE'
+  ) or has_function_privilege(
+    'anon',
+    'public.submit_exam_attempt(uuid,jsonb,uuid[],integer)',
     'EXECUTE'
   ) or not has_function_privilege(
     'authenticated',
     'public.submit_exam_attempt(uuid,jsonb,uuid[],integer,uuid)',
     'EXECUTE'
+  ) or not has_function_privilege(
+    'authenticated',
+    'public.submit_exam_attempt(uuid,jsonb,uuid[],integer)',
+    'EXECUTE'
   ) then
-    raise exception 'expected role grant is missing';
+    raise exception 'attempt RPC grants do not match the authenticated-only contract';
   end if;
 end
 $$;
@@ -327,7 +306,7 @@ alter table public.attempts drop column request_payload;
 alter table public.attempts drop column client_attempt_id;
 do $$
 begin
-  if (select count(*) from public.attempts) <> 2 then
+  if (select count(*) from public.attempts) <> 1 then
     raise exception 'rollback operations removed attempt rows';
   end if;
 end

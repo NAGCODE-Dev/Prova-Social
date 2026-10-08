@@ -90,11 +90,11 @@ class _HomePageState extends State<HomePage> {
         loading = false;
         loadError = null;
       });
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           loading = false;
-          loadError = '$error';
+          loadError = 'Verifique sua conexão e tente carregar novamente.';
         });
       }
     }
@@ -151,6 +151,7 @@ class _HomePageState extends State<HomePage> {
               questions: pending.questions,
               localId: pending.id,
               pendingPublication: true,
+              reviewIndex: pending.reviewIndex,
             ),
           ),
         );
@@ -234,7 +235,9 @@ class _HomePageState extends State<HomePage> {
           startedExams: startedExams,
           onContinue: (exam) async {
             await Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => QuizPage(exam: exam)),
+              MaterialPageRoute<void>(
+                builder: (_) => QuizPage(exam: exam, onSignIn: _openLogin),
+              ),
             );
             await _loadAttempts();
           },
@@ -245,6 +248,7 @@ class _HomePageState extends State<HomePage> {
                 builder: (_) => PendingResultPage(
                   clientAttemptId: item.submission.clientAttemptId,
                   syncService: attemptSync,
+                  onSignIn: _openLogin,
                 ),
               ),
             );
@@ -270,10 +274,13 @@ class _HomePageState extends State<HomePage> {
           children: [
             if (desktop)
               Container(
+                key: const ValueKey('desktop-sidebar'),
                 width: 240,
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(right: BorderSide(color: AppColors.line)),
+                decoration: BoxDecoration(
+                  color: _HomeColors.surface(context),
+                  border: Border(
+                    right: BorderSide(color: _HomeColors.line(context)),
+                  ),
                 ),
                 child: SafeArea(
                   child: Column(
@@ -357,12 +364,14 @@ class _HomePageState extends State<HomePage> {
       wasSaved
           ? await repository.removeSavedExam(id)
           : await repository.saveExam(id);
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() => wasSaved ? saved.add(id) : saved.remove(id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Não foi possível atualizar a biblioteca: $error'),
+          content: const Text(
+            'Não foi possível atualizar a biblioteca. Verifique sua conexão e tente novamente.',
+          ),
         ),
       );
     }
@@ -375,6 +384,7 @@ class _HomePageState extends State<HomePage> {
           exam: exam,
           saved: saved.contains(exam.id),
           onSave: () => _toggleSave(exam.id),
+          onSignIn: _openLogin,
         ),
       ),
     );
@@ -408,10 +418,10 @@ class _HomePageState extends State<HomePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
+            Icon(
               Icons.person_outline_rounded,
               size: 36,
-              color: AppColors.brand,
+              color: _HomeColors.brand(context),
             ),
             const SizedBox(height: 16),
             Text(
@@ -423,7 +433,7 @@ class _HomePageState extends State<HomePage> {
             Text(
               'Você pode explorar e fazer provas sem login. Entre apenas para $reason.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted),
+              style: TextStyle(color: _HomeColors.muted(context)),
             ),
             const SizedBox(height: 20),
             FilledButton(
@@ -451,8 +461,8 @@ class _DesktopTopBar extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     height: 72,
     padding: const EdgeInsets.symmetric(horizontal: 28),
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: AppColors.line)),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: _HomeColors.line(context))),
     ),
     child: Row(
       children: [
@@ -484,17 +494,17 @@ class _HeaderActions extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           icon: CircleAvatar(
             radius: 18,
-            backgroundColor: AppColors.brandSoft,
+            backgroundColor: _HomeColors.brandSoft(context),
             child: initials == null
-                ? const Icon(
+                ? Icon(
                     Icons.person_outline_rounded,
                     size: 19,
-                    color: AppColors.brandHover,
+                    color: _HomeColors.brandHover(context),
                   )
                 : Text(
                     initials.toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.brandHover,
+                    style: TextStyle(
+                      color: _HomeColors.brandHover(context),
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                     ),
@@ -548,24 +558,28 @@ class _RailItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-    child: Material(
-      type: MaterialType.transparency,
-      child: ListTile(
-        selected: selected,
-        selectedTileColor: AppColors.brandSoft,
-        selectedColor: AppColors.brandHover,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        leading: Icon(selected ? data.$2 : data.$1),
-        title: Text(
-          data.$3,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          selected: selected,
+          selectedTileColor: _HomeColors.brandSoft(context),
+          selectedColor: _HomeColors.brandHover(context),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          leading: Icon(selected ? data.$2 : data.$1),
+          title: Text(
+            data.$3,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          onTap: onTap,
         ),
-        onTap: onTap,
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _HomeFeed extends StatelessWidget {
@@ -603,9 +617,9 @@ class _HomeFeed extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Materiais publicados pela comunidade, com origem visível.',
-          style: TextStyle(color: AppColors.muted),
+          style: TextStyle(color: _HomeColors.muted(context)),
         ),
         const SizedBox(height: 18),
         _SearchBox(onTap: () => openGlobalSearch(context, onOpen)),
@@ -679,7 +693,7 @@ class _ExamGrid extends StatelessWidget {
       onSave: () => onSave(exams[index].id),
       onOpen: () => onOpen(exams[index]),
     ),
-    separatorBuilder: (_, __) => const SizedBox(height: 8),
+    separatorBuilder: (_, _) => const SizedBox(height: 8),
   );
 }
 
@@ -713,12 +727,12 @@ class ExamCard extends StatelessWidget {
               width: 44,
               height: 56,
               decoration: BoxDecoration(
-                color: AppColors.brandSoft,
+                color: _HomeColors.brandSoft(context),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.menu_book_rounded,
-                color: AppColors.brandHover,
+                color: _HomeColors.brandHover(context),
               ),
             ),
             const SizedBox(width: 12),
@@ -745,8 +759,8 @@ class ExamCard extends StatelessWidget {
                     '${exam.category} · ${exam.questions.length} questões · ${exam.durationMinutes} min',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: _HomeColors.muted(context),
                       fontSize: 12,
                     ),
                   ),
@@ -765,7 +779,9 @@ class ExamCard extends StatelessWidget {
               tooltip: saved ? 'Remover dos salvos' : 'Salvar',
               icon: Icon(
                 saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                color: saved ? AppColors.brand : AppColors.muted,
+                color: saved
+                    ? _HomeColors.brand(context)
+                    : _HomeColors.muted(context),
               ),
             ),
           ],
@@ -869,6 +885,7 @@ class _LibraryPage extends StatelessWidget {
                       questions: item.questions,
                       localId: item.id,
                       pendingPublication: item.pendingPublication,
+                      reviewIndex: item.reviewIndex,
                     ),
                   ),
                 );
@@ -892,9 +909,9 @@ class _LibraryPage extends StatelessWidget {
           ),
           if (!signedIn) ...[
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Entre para acessar favoritos públicos da sua conta. As provas locais continuam privadas.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: _HomeColors.muted(context)),
             ),
             const SizedBox(height: 14),
             OutlinedButton.icon(
@@ -949,9 +966,9 @@ class _LibraryPage extends StatelessWidget {
           const _SectionTitle('Provas salvas'),
           const SizedBox(height: 12),
           if (savedExams.isEmpty)
-            const Text(
+            Text(
               'Salve uma prova para encontrá-la aqui.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: _HomeColors.muted(context)),
             )
           else
             _ExamGrid(
@@ -979,10 +996,10 @@ class _ProfilePage extends StatelessWidget {
           children: [
             Text('Perfil', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 28),
-            const Icon(
+            Icon(
               Icons.person_outline_rounded,
               size: 52,
-              color: AppColors.brand,
+              color: _HomeColors.brand(context),
             ),
             const SizedBox(height: 18),
             Text(
@@ -990,9 +1007,9 @@ class _ProfilePage extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Fazer provas continua liberado. Entre para publicar, salvar e sincronizar resultados.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: _HomeColors.muted(context)),
             ),
             const SizedBox(height: 22),
             FilledButton.icon(
@@ -1025,11 +1042,11 @@ class _ProfilePage extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 32,
-                backgroundColor: AppColors.brandSoft,
+                backgroundColor: _HomeColors.brandSoft(context),
                 child: Text(
                   initials,
-                  style: const TextStyle(
-                    color: AppColors.brandHover,
+                  style: TextStyle(
+                    color: _HomeColors.brandHover(context),
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1051,7 +1068,7 @@ class _ProfilePage extends StatelessWidget {
                       user.email ?? '',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.muted),
+                      style: TextStyle(color: _HomeColors.muted(context)),
                     ),
                   ],
                 ),
@@ -1097,10 +1114,12 @@ class _ExamDetails extends StatelessWidget {
     required this.exam,
     required this.saved,
     required this.onSave,
+    required this.onSignIn,
   });
   final Exam exam;
   final bool saved;
   final VoidCallback onSave;
+  final Future<void> Function() onSignIn;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const BrandLockup()),
@@ -1113,8 +1132,8 @@ class _ExamDetails extends StatelessWidget {
           const SizedBox(height: 22),
           Text(
             exam.category.toUpperCase(),
-            style: const TextStyle(
-              color: AppColors.brandHover,
+            style: TextStyle(
+              color: _HomeColors.brandHover(context),
               fontWeight: FontWeight.w800,
               letterSpacing: 1,
             ),
@@ -1122,7 +1141,10 @@ class _ExamDetails extends StatelessWidget {
           const SizedBox(height: 8),
           Text(exam.title, style: Theme.of(context).textTheme.displaySmall),
           const SizedBox(height: 10),
-          Text(exam.author, style: const TextStyle(color: AppColors.muted)),
+          Text(
+            exam.author,
+            style: TextStyle(color: _HomeColors.muted(context)),
+          ),
           const SizedBox(height: 26),
           Wrap(
             spacing: 24,
@@ -1142,7 +1164,9 @@ class _ExamDetails extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => QuizPage(exam: exam)),
+                MaterialPageRoute<void>(
+                  builder: (_) => QuizPage(exam: exam, onSignIn: onSignIn),
+                ),
               ),
               icon: const Icon(Icons.play_arrow_rounded),
               label: const Text('Começar prova'),
@@ -1171,12 +1195,15 @@ class _ExamDetails extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             exam.description,
-            style: const TextStyle(color: AppColors.muted),
+            style: TextStyle(color: _HomeColors.muted(context)),
           ),
           const SizedBox(height: 26),
           const _SectionTitle('Origem'),
           const SizedBox(height: 10),
-          Text(exam.author, style: const TextStyle(color: AppColors.muted)),
+          Text(
+            exam.author,
+            style: TextStyle(color: _HomeColors.muted(context)),
+          ),
           if (exam.safeSourceUrl case final sourceUrl?) ...[
             const SizedBox(height: 8),
             TextButton.icon(
@@ -1200,9 +1227,9 @@ class _Meta extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, size: 18, color: AppColors.muted),
+      Icon(icon, size: 18, color: _HomeColors.muted(context)),
       const SizedBox(width: 7),
-      Text(text, style: const TextStyle(color: AppColors.muted)),
+      Text(text, style: TextStyle(color: _HomeColors.muted(context))),
     ],
   );
 }
@@ -1240,13 +1267,13 @@ class _UserTile extends StatelessWidget {
     final name = user?.userMetadata?['display_name']?.toString().trim();
     return Row(
       children: [
-        const CircleAvatar(
+        CircleAvatar(
           radius: 18,
-          backgroundColor: AppColors.brandSoft,
+          backgroundColor: _HomeColors.brandSoft(context),
           child: Icon(
             Icons.person_outline_rounded,
             size: 18,
-            color: AppColors.brandHover,
+            color: _HomeColors.brandHover(context),
           ),
         ),
         const SizedBox(width: 10),
@@ -1299,5 +1326,33 @@ class _UserTile extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+abstract final class _HomeColors {
+  static Color surface(BuildContext context) =>
+      Theme.of(context).colorScheme.surface;
+
+  static Color line(BuildContext context) =>
+      Theme.of(context).colorScheme.outline;
+
+  static Color muted(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+
+  static Color brand(BuildContext context) =>
+      Theme.of(context).colorScheme.primary;
+
+  static Color brandHover(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.dark
+        ? theme.colorScheme.primary
+        : AppColors.brandHover;
+  }
+
+  static Color brandSoft(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.dark
+        ? theme.colorScheme.primary.withValues(alpha: .16)
+        : AppColors.brandSoft;
   }
 }

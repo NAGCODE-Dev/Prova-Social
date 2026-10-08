@@ -1,10 +1,10 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+
 group 'dev.nagcode.paddleocr'
 version '1.0-SNAPSHOT'
-
-plugins {
-    id 'com.android.library' version '9.1.0'
-    id 'org.jetbrains.kotlin.android' version '2.4.0'
-}
 
 android {
     namespace 'dev.nagcode.paddleocr'

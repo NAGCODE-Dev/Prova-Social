@@ -10,6 +10,7 @@ class ImportQualityAssessment {
     required this.parserConfidence,
     required this.ocrConfidence,
     required this.questionsNeedingReview,
+    required this.questionsWithVariants,
     required this.unreadablePages,
     required this.numberingIssues,
     required this.diagnostics,
@@ -20,6 +21,7 @@ class ImportQualityAssessment {
   final double? parserConfidence;
   final double? ocrConfidence;
   final int questionsNeedingReview;
+  final int questionsWithVariants;
   final int unreadablePages;
   final int numberingIssues;
   final List<ImportDiagnosticEvent> diagnostics;
@@ -38,6 +40,9 @@ class ImportQualityGate {
     List<ImportedQuestion> questions,
   ) {
     final unreadablePages = extraction.unreadablePages;
+    final confidenceThreshold = reviewConfidenceThreshold.isFinite
+        ? reviewConfidenceThreshold.clamp(0, 1).toDouble()
+        : .85;
     final ocrScores = extraction.pages
         .where((page) => page.source == PdfPageTextSource.onDeviceOcr)
         .map((page) => page.confidence)
@@ -45,24 +50,33 @@ class ImportQualityGate {
         .where((score) => score.isFinite)
         .map((score) => score.clamp(0, 1).toDouble())
         .toList(growable: false);
-    final parserConfidence = questions.isEmpty
+    final questionScores = questions
+        .map((question) => question.confidence)
+        .where((score) => score.isFinite)
+        .map((score) => score.clamp(0, 1).toDouble())
+        .toList(growable: false);
+    final parserConfidence = questionScores.isEmpty
         ? null
-        : questions
-                  .map((question) => question.confidence)
-                  .reduce((a, b) => a + b) /
-              questions.length;
+        : questionScores.reduce((a, b) => a + b) / questionScores.length;
     final ocrConfidence = ocrScores.isEmpty
         ? null
         : ocrScores.reduce((a, b) => a + b) / ocrScores.length;
     final questionsNeedingReview = questions
         .where(
           (question) =>
-              question.confidence < reviewConfidenceThreshold ||
+              !question.confidence.isFinite ||
+              question.confidence < confidenceThreshold ||
               question.warning != null,
         )
         .length;
+    final questionsWithVariants = questions
+        .where((question) => question.alternateVersions.isNotEmpty)
+        .length;
     final numberingIssues = _countNumberingIssues(questions);
     final reasons = <String>[];
+    if (extraction.pageCount == 0) {
+      reasons.add('Nenhuma página foi extraída do arquivo.');
+    }
     if (unreadablePages > 0) {
       reasons.add('$unreadablePages página(s) sem texto suficiente.');
     }
@@ -84,7 +98,8 @@ class ImportQualityGate {
     }
 
     final status =
-        questions.isEmpty ||
+        extraction.pageCount == 0 ||
+            questions.isEmpty ||
             (extraction.pageCount > 0 &&
                 unreadablePages == extraction.pageCount)
         ? ImportQualityStatus.retry
@@ -103,6 +118,7 @@ class ImportQualityGate {
       parserConfidence: parserConfidence,
       ocrConfidence: ocrConfidence,
       questionsNeedingReview: questionsNeedingReview,
+      questionsWithVariants: questionsWithVariants,
       unreadablePages: unreadablePages,
       numberingIssues: numberingIssues,
       diagnostics: diagnostics,

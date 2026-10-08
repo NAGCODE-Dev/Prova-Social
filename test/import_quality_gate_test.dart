@@ -125,4 +125,27 @@ Mais uma linha particular para o diagnóstico.
     expect(result.status, ImportQualityStatus.retry);
     expect(result.parserConfidence, isNull);
   });
+
+  test('requests retry when there are questions but no extracted pages', () {
+    const emptyExtraction = PdfExtractionResult(pages: [], ocrAvailable: false);
+
+    final result = gate.assess(emptyExtraction, [question()]);
+
+    expect(result.status, ImportQualityStatus.retry);
+    expect(result.reasons, contains('Nenhuma página foi extraída do arquivo.'));
+  });
+
+  test(
+    'routes invalid parser confidence to review without poisoning average',
+    () {
+      final result = gate.assess(extraction(), [
+        question(confidence: double.nan),
+        question(confidence: .9),
+      ]);
+
+      expect(result.status, ImportQualityStatus.review);
+      expect(result.parserConfidence, .9);
+      expect(result.questionsNeedingReview, 1);
+    },
+  );
 }

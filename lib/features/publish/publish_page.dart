@@ -283,7 +283,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'O PDF será usado para extrair questões e figuras. O original não será distribuído aos estudantes.',
+                  'O PDF será usado para extrair texto. Confira enunciados e alternativas; imagens do arquivo ainda não são importadas.',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -627,6 +627,9 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
         final warningText = extraction.pagesWithWarnings == 0
             ? ''
             : ' ${extraction.pagesWithWarnings} página(s) precisam de revisão adicional.';
+        final variantsText = quality.questionsWithVariants == 0
+            ? ''
+            : ' ${quality.questionsWithVariants} questões têm versões alternativas preservadas; você pode escolher o idioma uma vez no editor.';
         final diagnosticText = quality.diagnostics.isEmpty
             ? ''
             : ' Diagnósticos estruturais desta análise não incluem nem enviam o texto do arquivo.';
@@ -638,7 +641,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
               ? '${result.questions.length} questões encontradas'
               : '${result.questions.length} questões para revisar',
           text:
-              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText ${quality.reasons.join(' ')}$diagnosticText Revise todos os enunciados, alternativas e gabaritos antes de publicar.',
+              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText$variantsText ${quality.reasons.join(' ')}$diagnosticText Revise todos os enunciados, alternativas e gabaritos antes de publicar.',
           action: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => ImportReviewPage(
@@ -727,6 +730,7 @@ class ImportReviewPage extends StatefulWidget {
     this.year,
     this.localId,
     this.pendingPublication = false,
+    this.reviewIndex = 0,
     super.key,
   });
   final String title, category, source;
@@ -734,6 +738,7 @@ class ImportReviewPage extends StatefulWidget {
   final int? year;
   final String? localId;
   final bool pendingPublication;
+  final int reviewIndex;
   final List<ImportedQuestion> questions;
   @override
   State<ImportReviewPage> createState() => _ImportReviewPageState();
@@ -749,12 +754,15 @@ class _ImportReviewPageState extends State<ImportReviewPage>
   late bool pendingPublication;
   String status = 'Ainda não salvo';
   int revision = 0;
+  int currentQuestionIndex = 0;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     pendingPublication = widget.pendingPublication;
+    currentQuestionIndex = widget.reviewIndex;
     localId =
         widget.localId ?? 'local-${AttemptSyncService.newClientAttemptId()}';
     title = TextEditingController(text: widget.title);
@@ -774,11 +782,35 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             format: q.format,
             confidence: q.confidence,
             warning: q.warning,
+            reviewState: q.reviewState,
+            versionLabel: q.versionLabel,
+            alternateVersions: q.alternateVersions
+                .map(
+                  (version) => ImportedQuestionVersion(
+                    label: version.label,
+                    statement: version.statement,
+                    options: List.of(version.options),
+                    correctIndex: version.correctIndex,
+                    format: version.format,
+                    confidence: version.confidence,
+                    warning: version.warning,
+                  ),
+                )
+                .toList(),
           ),
         )
         .toList();
+    currentQuestionIndex = questions.isEmpty
+        ? 0
+        : currentQuestionIndex.clamp(0, questions.length - 1);
+    if (questions.isNotEmpty &&
+        questions[currentQuestionIndex].reviewState ==
+            QuestionReviewState.unreviewed) {
+      questions[currentQuestionIndex].reviewState =
+          QuestionReviewState.inReview;
+    }
     for (final controller in [title, category, source, duration, year]) {
-      controller.addListener(_changed);
+      controller.addListener(() => _changed(debounce: true));
     }
     // Imported content becomes recoverable immediately, without an upload.
     if (questions.isNotEmpty || title.text.isNotEmpty) unawaited(_save());
@@ -799,14 +831,25 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     year: int.tryParse(year.text),
     questions: questions,
     pendingPublication: pendingPublication,
+    reviewIndex: currentQuestionIndex,
   );
-  void _changed() {
+  void _changed({bool debounce = false}) {
     revision++;
     setState(() => status = 'Salvando no aparelho…');
-    unawaited(_save());
+    _saveDebounce?.cancel();
+    if (debounce) {
+      _saveDebounce = Timer(const Duration(milliseconds: 150), () {
+        unawaited(_save());
+      });
+    } else {
+      _saveDebounce = null;
+      unawaited(_save());
+    }
   }
 
   Future<bool> _save({bool? pending}) async {
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
     if (pending != null) pendingPublication = pending;
     final savedRevision = revision;
     try {
@@ -815,7 +858,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         setState(() => status = 'Salvo no aparelho');
       }
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('[LOCAL_SAVE] ERRO: ${error.runtimeType}');
+      debugPrint('[LOCAL_SAVE] STACK: $stackTrace');
       if (mounted) {
         setState(
           () =>
@@ -835,7 +880,57 @@ class _ImportReviewPageState extends State<ImportReviewPage>
   }
 
   Future<void> _exit() async {
-    if (busy || !await _save() || !mounted) return;
+    if (busy || !mounted) return;
+    if (!await _save() && mounted) {
+      var hasSavedVersion = false;
+      try {
+        hasSavedVersion = (await store.load()).any(
+          (exam) => exam.id == localId,
+        );
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[LOCAL_SAVE_EXIT] versão anterior indisponível: ${error.runtimeType}',
+        );
+        debugPrint('[LOCAL_SAVE_EXIT] stack: $stackTrace');
+      }
+      if (!mounted) return;
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Não foi possível salvar'),
+          content: Text(
+            hasSavedVersion
+                ? 'A última versão salva continua no aparelho. Você pode exportar as alterações atuais ou sair mantendo essa versão.'
+                : 'Ainda não há uma versão salva desta prova. Exporte uma cópia antes de sair se quiser preservar as alterações atuais.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'stay'),
+              child: const Text('Continuar editando'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'export'),
+              child: const Text('Exportar cópia'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'exit'),
+              child: Text(
+                hasSavedVersion
+                    ? 'Sair com a última versão salva'
+                    : 'Sair sem salvar',
+              ),
+            ),
+          ],
+        ),
+      );
+      if (choice == 'export') await _export();
+      if (choice == 'exit' && mounted) {
+        setState(() => canPop = true);
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+    if (!mounted) return;
     setState(() => canPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) Navigator.pop(context);
@@ -844,6 +939,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
 
   @override
   void dispose() {
+    _saveDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     for (final controller in [title, category, source, duration, year]) {
       controller.dispose();
@@ -865,7 +961,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
           ),
         );
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('[LOCAL_EXPORT] ERRO: ${error.runtimeType}');
+      debugPrint('[LOCAL_EXPORT] STACK: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -968,7 +1066,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
           content: Text('Prova publicada. A cópia local foi preservada.'),
         ),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('[PUBLICATION] ERRO: ${error.runtimeType}');
+      debugPrint('[PUBLICATION] STACK: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1013,10 +1113,224 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         ),
     ],
   );
+
+  List<String> get _importedVersionLabels {
+    final labels = <String>{};
+    for (final question in questions) {
+      if (question.alternateVersions.isEmpty) continue;
+      labels.add(question.versionLabel);
+      labels.addAll(question.alternateVersions.map((version) => version.label));
+    }
+    labels.removeWhere(
+      (label) =>
+          label == 'Versão principal' || label.startsWith('Versão alternativa'),
+    );
+    return labels.toList();
+  }
+
+  Widget _versionChoice() {
+    final labels = _importedVersionLabels;
+    final affected = questions.where(
+      (question) =>
+          question.alternateVersions.isNotEmpty &&
+          (labels.contains(question.versionLabel) ||
+              question.alternateVersions.any(
+                (version) => labels.contains(version.label),
+              )),
+    );
+    if (labels.length < 2 || affected.isEmpty) return const SizedBox.shrink();
+    final current = affected.first.versionLabel;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${affected.length} questões têm versões em mais de um idioma.'),
+          DropdownButtonFormField<String>(
+            key: ValueKey('global-language-$current'),
+            initialValue: labels.contains(current) ? current : labels.first,
+            decoration: const InputDecoration(
+              labelText: 'Idioma das versões alternativas',
+            ),
+            items: [
+              for (final label in labels)
+                DropdownMenuItem(value: label, child: Text(label)),
+            ],
+            onChanged: busy
+                ? null
+                : (label) {
+                    if (label == null) return;
+                    for (final question in questions) {
+                      if (question.versionLabel == label) continue;
+                      final version = question.alternateVersions.indexWhere(
+                        (item) => item.label == label,
+                      );
+                      if (version >= 0) {
+                        question.selectAlternateVersion(version);
+                      }
+                    }
+                    _changed();
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reviewProgress() {
+    final total = questions.length;
+    final reviewed = questions
+        .where(
+          (question) => question.reviewState == QuestionReviewState.reviewed,
+        )
+        .length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Questão ${total == 0 ? 0 : currentQuestionIndex + 1} de $total',
+                ),
+              ),
+              Text('$reviewed revisadas'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: total == 0 ? 0 : reviewed / total),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  total == 0
+                      ? 'Sem questões'
+                      : _reviewStateLabel(
+                          questions[currentQuestionIndex].reviewState,
+                        ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: total == 0 ? null : _showQuestionPicker,
+                icon: const Icon(Icons.grid_view_rounded),
+                label: const Text('Ir para questão'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _reviewStateLabel(QuestionReviewState state) => switch (state) {
+    QuestionReviewState.unreviewed => 'Ainda não revisada',
+    QuestionReviewState.inReview => 'Em revisão',
+    QuestionReviewState.reviewed => 'Revisada',
+    QuestionReviewState.needsAttention => 'Precisa de atenção',
+  };
+
+  Future<void> _showQuestionPicker() async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .7,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Escolha uma questão',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                  ),
+                  itemCount: questions.length,
+                  itemBuilder: (context, index) {
+                    final state = questions[index].reviewState;
+                    final marker = switch (state) {
+                      QuestionReviewState.reviewed => '✓',
+                      QuestionReviewState.needsAttention => '!',
+                      QuestionReviewState.inReview => '◉',
+                      QuestionReviewState.unreviewed => '○',
+                    };
+                    return OutlinedButton(
+                      onPressed: () => Navigator.pop(context, index),
+                      child: Text('${index + 1} $marker'),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      currentQuestionIndex = selected;
+      if (questions[selected].reviewState == QuestionReviewState.unreviewed) {
+        questions[selected].reviewState = QuestionReviewState.inReview;
+      }
+    });
+    _changed();
+  }
+
+  void _moveQuestion(int delta) {
+    if (questions.isEmpty) return;
+    final next = (currentQuestionIndex + delta).clamp(0, questions.length - 1);
+    if (next == currentQuestionIndex) return;
+    setState(() {
+      currentQuestionIndex = next;
+      if (questions[next].reviewState == QuestionReviewState.unreviewed) {
+        questions[next].reviewState = QuestionReviewState.inReview;
+      }
+    });
+    _changed();
+  }
+
+  Widget _questionNavigation() => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: currentQuestionIndex > 0
+                ? () => _moveQuestion(-1)
+                : null,
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Anterior'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: currentQuestionIndex + 1 < questions.length
+                ? () => _moveQuestion(1)
+                : null,
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Próxima'),
+          ),
+        ),
+      ],
+    ),
+  );
+
   Widget _question(int index) {
-    final entry = MapEntry(index, questions[index]);
+    final question = questions[index];
     return Card(
-      key: ObjectKey(entry.value),
+      key: ObjectKey(question),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -1024,20 +1338,66 @@ class _ImportReviewPageState extends State<ImportReviewPage>
           children: [
             Row(
               children: [
-                Expanded(child: Text('Questão ${entry.key + 1}')),
+                Expanded(child: Text('Questão ${index + 1}')),
                 IconButton(
-                  tooltip: 'Remover questão ${entry.key + 1}',
+                  tooltip: 'Remover questão ${index + 1}',
                   icon: const Icon(Icons.delete_outline),
                   onPressed: busy
                       ? null
                       : () {
-                          questions.removeAt(entry.key);
+                          questions.removeAt(index);
+                          if (questions.isEmpty) {
+                            currentQuestionIndex = 0;
+                          } else if (index < currentQuestionIndex) {
+                            currentQuestionIndex--;
+                          } else if (currentQuestionIndex >= questions.length) {
+                            currentQuestionIndex = questions.length - 1;
+                          }
+                          if (questions.isNotEmpty) {
+                            questions[currentQuestionIndex].reviewState =
+                                QuestionReviewState.inReview;
+                          }
                           _changed();
                         },
                 ),
               ],
             ),
-            if (entry.value.confidence < .85 || entry.value.warning != null)
+            if (question.alternateVersions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: DropdownButtonFormField<int>(
+                  key: ValueKey(
+                    'question-version-$index-${question.versionLabel}',
+                  ),
+                  initialValue: 0,
+                  decoration: const InputDecoration(
+                    labelText: 'Versão do enunciado',
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: 0,
+                      child: Text(question.versionLabel),
+                    ),
+                    for (
+                      var version = 0;
+                      version < question.alternateVersions.length;
+                      version++
+                    )
+                      DropdownMenuItem(
+                        value: version + 1,
+                        child: Text(question.alternateVersions[version].label),
+                      ),
+                  ],
+                  onChanged: busy
+                      ? null
+                      : (value) {
+                          if (value == null || value == 0) return;
+                          question.selectAlternateVersion(value - 1);
+                          _changed();
+                        },
+                ),
+              ),
+            if (question.confidence < .85 || question.warning != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(10),
@@ -1049,36 +1409,50 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Revisar extração · confiança ${(entry.value.confidence * 100).round()}%',
+                      'Revisar extração · confiança ${(question.confidence * 100).round()}%',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    if (entry.value.warning case final warning?) Text(warning),
-                    TextButton(
-                      onPressed: busy
-                          ? null
-                          : () {
-                              entry.value.confidence = 1;
-                              entry.value.warning = null;
-                              _changed();
-                            },
-                      child: const Text('Marcar esta questão como revisada'),
-                    ),
+                    if (question.warning case final warning?) Text(warning),
                   ],
                 ),
               ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed:
+                    busy || question.reviewState == QuestionReviewState.reviewed
+                    ? null
+                    : () {
+                        question.confidence = 1;
+                        question.warning = null;
+                        question.reviewState = QuestionReviewState.reviewed;
+                        _changed();
+                      },
+                icon: Icon(
+                  question.reviewState == QuestionReviewState.reviewed
+                      ? Icons.check_circle
+                      : Icons.check_circle_outline,
+                ),
+                label: Text(
+                  question.reviewState == QuestionReviewState.reviewed
+                      ? 'Questão revisada'
+                      : 'Marcar questão como revisada',
+                ),
+              ),
+            ),
             TextFormField(
-              key: ObjectKey(entry.value),
-              initialValue: entry.value.statement,
+              key: ObjectKey(question),
+              initialValue: question.statement,
               enabled: !busy,
               minLines: 2,
               maxLines: null,
               decoration: const InputDecoration(labelText: 'Enunciado'),
               onChanged: (value) {
-                entry.value.statement = value;
-                _changed();
+                question.statement = value;
+                _changed(debounce: true);
               },
             ),
-            for (var option = 0; option < entry.value.options.length; option++)
+            for (var option = 0; option < question.options.length; option++)
               Row(
                 children: [
                   IconButton(
@@ -1087,11 +1461,11 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                     onPressed: busy
                         ? null
                         : () {
-                            entry.value.correctIndex = option;
+                            question.correctIndex = option;
                             _changed();
                           },
                     icon: Icon(
-                      entry.value.correctIndex == option
+                      question.correctIndex == option
                           ? Icons.radio_button_checked
                           : Icons.radio_button_unchecked,
                     ),
@@ -1099,21 +1473,21 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                   Expanded(
                     child: TextFormField(
                       key: ValueKey(
-                        '${identityHashCode(entry.value)}-$option-${entry.value.options.length}',
+                        '${identityHashCode(question)}-$option-${question.options.length}',
                       ),
-                      initialValue: entry.value.options[option],
+                      initialValue: question.options[option],
                       enabled: !busy,
                       decoration: InputDecoration(
                         labelText:
                             'Alternativa ${String.fromCharCode(65 + option)}',
                       ),
                       onChanged: (value) {
-                        entry.value.options[option] = value;
-                        _changed();
+                        question.options[option] = value;
+                        _changed(debounce: true);
                       },
                     ),
                   ),
-                  if (entry.value.options.length > 2)
+                  if (question.options.length > 2)
                     IconButton(
                       tooltip:
                           'Remover alternativa ${String.fromCharCode(65 + option)}',
@@ -1121,24 +1495,24 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                       onPressed: busy
                           ? null
                           : () {
-                              final correct = entry.value.correctIndex;
-                              entry.value.options.removeAt(option);
+                              final correct = question.correctIndex;
+                              question.options.removeAt(option);
                               if (correct == option) {
-                                entry.value.correctIndex = null;
+                                question.correctIndex = null;
                               } else if (correct != null && correct > option) {
-                                entry.value.correctIndex = correct - 1;
+                                question.correctIndex = correct - 1;
                               }
                               _changed();
                             },
                     ),
                 ],
               ),
-            if (entry.value.options.length < 8)
+            if (question.options.length < 8)
               TextButton(
                 onPressed: busy
                     ? null
                     : () {
-                        entry.value.options.add('');
+                        question.options.add('');
                         _changed();
                       },
                 child: const Text('Adicionar alternativa'),
@@ -1159,6 +1533,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                 questions.add(
                   ImportedQuestion(statement: '', options: ['', '']),
                 );
+                currentQuestionIndex = questions.length - 1;
+                questions[currentQuestionIndex].reviewState =
+                    QuestionReviewState.inReview;
                 _changed();
               },
         icon: const Icon(Icons.add),
@@ -1207,14 +1584,16 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 840),
-          child: ListView.builder(
+          child: ListView(
             padding: const EdgeInsets.all(16),
-            itemCount: questions.length + 2,
-            itemBuilder: (context, index) {
-              if (index == 0) return _header();
-              if (index == questions.length + 1) return _footer();
-              return _question(index - 1);
-            },
+            children: [
+              _header(),
+              _versionChoice(),
+              _reviewProgress(),
+              if (questions.isNotEmpty) _question(currentQuestionIndex),
+              _questionNavigation(),
+              _footer(),
+            ],
           ),
         ),
       ),

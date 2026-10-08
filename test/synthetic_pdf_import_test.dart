@@ -1,11 +1,18 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prova_social/core/import/import_quality_gate.dart';
 import 'package:prova_social/core/import/pdf_text_extractor.dart';
 import 'package:prova_social/core/import/question_parser.dart';
 
 void main() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (call) async => Directory.systemTemp.path,
+      );
+
   test(
     'imports all 80 original synthetic questions from a two-column PDF',
     () async {

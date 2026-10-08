@@ -246,6 +246,44 @@ void main() {
     expect(outcome.attempt.nextAttemptAt, isNotNull);
   });
 
+  test('entrega visitante aguarda login e sincroniza com o mesmo ID', () async {
+    final storage = MemoryQueueStorage();
+    final submitter = FakeSubmitter(
+      error: const AttemptSubmissionException(
+        message: 'Entre na sua conta para sincronizar a entrega.',
+        transient: false,
+        requiresAuthentication: true,
+      ),
+    );
+    final service = AttemptSyncService(
+      store: AttemptQueueStore(storage: storage),
+      submitter: submitter,
+    );
+    await service.saveForSync(submission());
+
+    final waiting = await service.sync(
+      submission().clientAttemptId,
+      ignoreSchedule: true,
+    );
+    expect(waiting.attempt.state, AttemptSyncState.waitingAuthentication);
+    expect(waiting.attempt.attemptCount, 0);
+    expect(await service.store.pending(), hasLength(1));
+    expect(await service.store.completed(), isEmpty);
+
+    submitter.error = null;
+    final synced = await service.sync(
+      submission().clientAttemptId,
+      ignoreSchedule: true,
+    );
+    expect(synced.result!.correct, 1);
+    expect(submitter.ids, [
+      submission().clientAttemptId,
+      submission().clientAttemptId,
+    ]);
+    expect(await service.store.pending(), isEmpty);
+    expect((await service.store.completed()).length, 1);
+  });
+
   test('reinício restaura entrega e permite reenvio posterior', () async {
     final storage = MemoryQueueStorage();
     final offline = AttemptSyncService(

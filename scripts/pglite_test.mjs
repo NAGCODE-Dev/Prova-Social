@@ -61,11 +61,11 @@ try {
   await db.exec(sql.slice(0, split));
   await db.exec(sql.slice(split));
   const rows = (await db.query('select count(*)::int as total from public.attempts')).rows;
-  assert.equal(rows[0].total, 2, 'Rollback preserva tentativas');
+  assert.equal(rows[0].total, 1, 'Rollback preserva tentativas');
   await db.exec(await readFile(resolve(root, 'supabase/tests/deployed_attempt_smoke.sql'), 'utf8'));
-  assert.equal((await db.query('select count(*)::int as total from public.attempts')).rows[0].total, 2);
+  assert.equal((await db.query('select count(*)::int as total from public.attempts')).rows[0].total, 1);
   console.log('PASS: smoke test transacional, RPC legada e bloqueio de escrita direta.');
-  console.log('PASS: retries sequenciais, visitante, vínculo autenticado, RLS, grants e rollback.');
+  console.log('PASS: retries sequenciais, bloqueio anônimo, vínculo autenticado, RLS, grants e rollback.');
   console.log('NÃO TESTADO: concorrência entre conexões, pgcrypto, Auth/JWT e Supabase remoto.');
 } finally {
   await db.close();

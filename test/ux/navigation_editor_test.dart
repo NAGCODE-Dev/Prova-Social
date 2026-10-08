@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:prova_social/core/backend/local_exam_store.dart';
+import 'package:prova_social/core/backend/local_exam_payload_store.dart';
 import 'package:prova_social/core/theme/app_theme.dart';
 import 'package:prova_social/core/backend/exam_publication_service.dart';
 import 'package:prova_social/core/backend/attempt_repository.dart';
@@ -18,6 +19,42 @@ import 'package:prova_social/features/auth/auth_page.dart';
 import 'package:prova_social/features/publish/publish_page.dart';
 
 final requests = <http.Request>[];
+bool failCatalogRequest = false;
+
+class FailingPayloadStore implements ExamPayloadStorage {
+  String? current;
+  String? backup;
+
+  @override
+  bool get fileBacked => true;
+
+  @override
+  Future<String?> read() async => current;
+  @override
+  Future<String?> readBackup() async => backup;
+  @override
+  Future<bool> migrate(String payload) async => false;
+  @override
+  Future<bool> write(String payload, {String? backupPayload}) async =>
+      throw StateError('offline');
+}
+
+class PreferencesPayloadStore implements ExamPayloadStorage {
+  @override
+  bool get fileBacked => false;
+
+  @override
+  Future<String?> read() async =>
+      (await SharedPreferences.getInstance()).getString(LocalExamStore.key);
+  @override
+  Future<String?> readBackup() async => (await SharedPreferences.getInstance())
+      .getString('${LocalExamStore.key}_backup');
+  @override
+  Future<bool> migrate(String payload) async => write(payload);
+  @override
+  Future<bool> write(String payload, {String? backupPayload}) async => false;
+}
+
 final user = {
   'id': '00000000-0000-4000-8000-000000000001',
   'aud': 'authenticated',
@@ -40,18 +77,26 @@ Future<void> login() async {
   );
 }
 
-ImportReviewPage editor() => ImportReviewPage(
+ImportReviewPage editor({
+  String? localId,
+  List<ImportedQuestion>? questions,
+  int reviewIndex = 0,
+}) => ImportReviewPage(
   title: 'Prova privada',
   category: 'Matemática',
   source: 'Criação própria',
   durationMinutes: 30,
-  questions: [
-    ImportedQuestion(
-      statement: 'Quanto é dois mais dois?',
-      options: ['Quatro', 'Cinco'],
-      correctIndex: 0,
-    ),
-  ],
+  localId: localId,
+  reviewIndex: reviewIndex,
+  questions:
+      questions ??
+      [
+        ImportedQuestion(
+          statement: 'Quanto é dois mais dois?',
+          options: ['Quatro', 'Cinco'],
+          correctIndex: 0,
+        ),
+      ],
 );
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,9 +104,15 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await Supabase.initialize(
       url: 'https://example.test',
-      anonKey: 'public-key',
+      publishableKey: 'public-key',
       httpClient: MockClient((request) async {
         requests.add(request);
+        if (failCatalogRequest && request.url.path.endsWith('/exams')) {
+          throw http.ClientException(
+            'Failed to fetch, uri=${request.url}',
+            request.url,
+          );
+        }
         if (request.url.path.endsWith('/logout')) {
           return http.Response('{}', 200, request: request);
         }
@@ -76,9 +127,116 @@ void main() {
   setUp(() async {
     await Supabase.instance.client.auth.signOut();
     SharedPreferences.setMockInitialValues({});
+    LocalExamStore.storageOverride = PreferencesPayloadStore();
     requests.clear();
+    failCatalogRequest = false;
   });
   tearDownAll(() => Supabase.instance.dispose());
+
+  testWidgets('editor offers exit using last saved version after save fails', (
+    tester,
+  ) async {
+    final storage = FailingPayloadStore();
+    storage.current = jsonEncode([
+      LocalExam(
+        id: 'local-exit-test',
+        title: 'Prova privada',
+        category: 'Matemática',
+        source: 'Criação própria',
+        durationMinutes: 30,
+        questions: editor().questions,
+      ).toJson(),
+    ]);
+    LocalExamStore.storageOverride = storage;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => editor(localId: 'local-exit-test'),
+                ),
+              ),
+              child: const Text('Abrir editor'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Abrir editor'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Não foi possível salvar'), findsOneWidget);
+    await tester.tap(find.text('Sair com a última versão salva'));
+    await tester.pumpAndSettle();
+    expect(find.text('Editar e revisar prova'), findsNothing);
+  });
+  testWidgets(
+    '200-question review builds one question and restores its cursor',
+    (tester) async {
+      final questions = List.generate(
+        200,
+        (index) => ImportedQuestion(
+          statement: 'Enunciado da questão ${index + 1}?',
+          options: const ['Primeira', 'Segunda'],
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: editor(questions: questions),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Questão 1 de 200'), findsOneWidget);
+      expect(find.byType(Card), findsOneWidget);
+      expect(find.text('Questão 200'), findsNothing);
+      final editorScroll = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(
+        find.text('Marcar questão como revisada'),
+        300,
+        scrollable: editorScroll,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Marcar questão como revisada'));
+      await tester.pumpAndSettle();
+
+      await tester.drag(editorScroll, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ir para questão'));
+      await tester.pumpAndSettle();
+      final target = find.text('200 ○');
+      await tester.scrollUntilVisible(
+        target,
+        400,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.text('Questão 200 de 200'), findsOneWidget);
+      expect(find.byType(Card), findsOneWidget);
+      final restored = (await LocalExamStore().load()).single;
+      expect(restored.reviewIndex, 199);
+      expect(
+        restored.questions.first.reviewState,
+        QuestionReviewState.reviewed,
+      );
+      expect(restored.questions.last.reviewState, QuestionReviewState.inReview);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets('visitor can open a truthful profile without signing in', (
     tester,
   ) async {
@@ -94,6 +252,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Você está explorando sem conta'), findsOneWidget);
     expect(find.byType(AuthPage), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('catalog network failure shows a friendly retry message', (
+    tester,
+  ) async {
+    failCatalogRequest = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        home: const HomePage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Verifique sua conexão e tente carregar novamente.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('https://example.test/rest/v1/exams'),
+      findsNothing,
+    );
     await tester.pumpWidget(const SizedBox());
   });
   for (final width in [320.0, 1280.0]) {
@@ -131,6 +311,29 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('desktop navigation respects dark theme surfaces', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.dark, home: const HomePage()),
+    );
+    await tester.pumpAndSettle();
+
+    final sidebar = tester.widget<Container>(
+      find.byKey(const ValueKey('desktop-sidebar')),
+    );
+    final decoration = sidebar.decoration! as BoxDecoration;
+    expect(decoration.color, AppTheme.dark.colorScheme.surface);
+    expect(decoration.border, isA<Border>());
+    expect(
+      (decoration.border! as Border).right.color,
+      AppTheme.dark.colorScheme.outline,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('desktop menu closes on Escape, outside click and selection', (
     tester,
   ) async {

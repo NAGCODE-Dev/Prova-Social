@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prova_social/core/theme/app_theme.dart';
 import 'package:prova_social/core/backend/attempt_draft_store.dart';
 import 'package:prova_social/core/backend/attempt_submission.dart';
 import 'package:prova_social/core/backend/attempt_sync_service.dart';
@@ -64,6 +66,40 @@ class CorrectingSubmitter implements AttemptSubmitter {
   );
 }
 
+class LoginRequiredSubmitter implements AttemptSubmitter {
+  bool signedIn = false;
+  final submittedIds = <String>[];
+
+  @override
+  Future<ExamResult> submit(AttemptSubmission submission) async {
+    submittedIds.add(submission.clientAttemptId);
+    if (!signedIn) {
+      throw const AttemptSubmissionException(
+        message: 'Entre na sua conta para sincronizar a entrega.',
+        transient: false,
+        requiresAuthentication: true,
+      );
+    }
+    return ExamResult(
+      exam: submission.exam.copyWith(
+        questions: const [
+          Question(
+            id: 'q1',
+            topic: 'Geral',
+            statement: 'Pergunta?',
+            options: ['Um', 'Dois'],
+            correctIndex: 1,
+          ),
+        ],
+      ),
+      answers: submission.answers,
+      markedForReview: submission.markedForReview,
+      durationSeconds: submission.durationSeconds,
+      finishedAt: submission.finishedAt,
+    );
+  }
+}
+
 const exam = Exam(
   id: 'exam',
   category: 'Geral',
@@ -83,6 +119,71 @@ const exam = Exam(
 );
 
 void main() {
+  testWidgets('alternativa selecionada mantém contraste no tema escuro', (
+    tester,
+  ) async {
+    final drafts = AttemptDraftStore(storage: MemoryDraftStorage());
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: QuizPage(
+          exam: exam.copyWith(
+            questions: [
+              ...exam.questions,
+              const Question(
+                id: 'q2',
+                topic: 'Geral',
+                statement: 'Segunda pergunta?',
+                options: ['Sim', 'Não'],
+              ),
+            ],
+          ),
+          draftStore: drafts,
+          syncService: AttemptSyncService(
+            store: AttemptQueueStore(storage: _MemoryQueueStorage()),
+            submitter: TransientSubmitter(),
+          ),
+        ),
+      ),
+    );
+    await _pumpWithoutWaitingForRecurringTimers(tester);
+    await tester.tap(find.text('Dois'));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final option = tester.widget<AnimatedContainer>(
+      find
+          .ancestor(
+            of: find.text('Dois'),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    expect(
+      (option.decoration! as BoxDecoration).color,
+      AppTheme.dark.colorScheme.primary.withValues(alpha: .16),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(find.text('Dois'));
+    expect(paragraph.text.style?.color, AppTheme.dark.colorScheme.onSurface);
+
+    await tester.tap(find.text('2'));
+    await tester.pump(const Duration(milliseconds: 200));
+    final answeredQuestion = tester.widget<AnimatedContainer>(
+      find
+          .ancestor(
+            of: find.text('1'),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    expect(
+      (answeredQuestion.decoration! as BoxDecoration).color,
+      AppTheme.dark.colorScheme.primary.withValues(alpha: .16),
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    drafts.dispose();
+  });
+
   testWidgets('retomada usa conteúdo original mesmo com catálogo alterado', (
     tester,
   ) async {
@@ -266,6 +367,53 @@ void main() {
     expect(queuedStatus, findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
     expect(find.textContaining('Gabarito'), findsNothing);
+  });
+
+  testWidgets('login retoma sincronização da entrega pendente', (tester) async {
+    final storage = _MemoryQueueStorage();
+    final submitter = LoginRequiredSubmitter();
+    final service = AttemptSyncService(
+      store: AttemptQueueStore(storage: storage),
+      submitter: submitter,
+    );
+    const clientAttemptId = '33333333-3333-4333-8333-333333333333';
+    await service.saveForSync(
+      AttemptSubmission(
+        clientAttemptId: clientAttemptId,
+        exam: exam,
+        answers: {0: 1},
+        markedForReview: {},
+        durationSeconds: 5,
+        finishedAt: DateTime.utc(2026, 9, 21),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PendingResultPage(
+          clientAttemptId: clientAttemptId,
+          syncService: service,
+          onSignIn: () async {
+            submitter.signedIn = true;
+          },
+        ),
+      ),
+    );
+    await _pumpWithoutWaitingForRecurringTimers(tester);
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (find.text('Entrar e sincronizar').evaluate().isNotEmpty) break;
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('Entrar e sincronizar'), findsOneWidget);
+
+    await tester.tap(find.text('Entrar e sincronizar'));
+    for (var attempt = 0; attempt < 20; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find.text('Resultado').evaluate().isNotEmpty) break;
+    }
+
+    expect(find.text('Resultado'), findsOneWidget);
+    expect(submitter.submittedIds, [clientAttemptId, clientAttemptId]);
+    expect(await service.store.pending(), isEmpty);
   });
 }
 

@@ -14,10 +14,12 @@ class PendingResultPage extends StatefulWidget {
   const PendingResultPage({
     required this.clientAttemptId,
     required this.syncService,
+    this.onSignIn,
     super.key,
   });
   final String clientAttemptId;
   final AttemptSyncService syncService;
+  final Future<void> Function()? onSignIn;
 
   @override
   State<PendingResultPage> createState() => _PendingResultPageState();
@@ -83,6 +85,13 @@ class _PendingResultPageState extends State<PendingResultPage>
     }
   }
 
+  Future<void> _signInAndSync() async {
+    final signIn = widget.onSignIn;
+    if (signIn == null) return;
+    await signIn();
+    if (mounted) await _sync(ignoreSchedule: true);
+  }
+
   void _schedule(DateTime? when) {
     retryTimer?.cancel();
     if (when == null) return;
@@ -103,6 +112,11 @@ class _PendingResultPageState extends State<PendingResultPage>
         'Entrega requer atenção',
         attempt?.lastError ?? 'O servidor recusou esta entrega.',
         Icons.error_outline_rounded,
+      ),
+      AttemptSyncState.waitingAuthentication => (
+        'Entre para sincronizar',
+        attempt?.lastError ?? 'Sua entrega está salva neste aparelho. Entre para receber a correção.',
+        Icons.lock_outline_rounded,
       ),
       AttemptSyncState.synced => (
         'Entrega sincronizada',
@@ -146,12 +160,20 @@ class _PendingResultPageState extends State<PendingResultPage>
                   Text(message, textAlign: TextAlign.center),
                   if (!syncing) ...[
                     const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: () =>
-                          _sync(ignoreSchedule: true, retryAttention: true),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Tentar agora'),
-                    ),
+                    if (state == AttemptSyncState.waitingAuthentication &&
+                        widget.onSignIn != null)
+                      FilledButton.icon(
+                        onPressed: _signInAndSync,
+                        icon: const Icon(Icons.login_rounded),
+                        label: const Text('Entrar e sincronizar'),
+                      )
+                    else
+                      FilledButton.icon(
+                        onPressed: () =>
+                            _sync(ignoreSchedule: true, retryAttention: true),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Tentar agora'),
+                      ),
                   ],
                 ],
               ),

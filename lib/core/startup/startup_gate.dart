@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../backend/supabase_config.dart';
 import '../widgets/brand.dart';
 
 class StartupGate extends StatefulWidget {
@@ -169,6 +170,19 @@ class _StartupScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    error is SupabaseConfigurationException
+                        ? (error as SupabaseConfigurationException).message
+                        : 'Verifique sua conexão e tente novamente. Suas provas locais não foram alteradas.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFFCDD6D0),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
                 if (error != null) ...[
                   const SizedBox(height: 20),
                   FilledButton(

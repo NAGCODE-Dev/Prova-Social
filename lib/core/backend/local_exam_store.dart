@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:crypto/crypto.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models/exam.dart';
+import 'local_exam_payload_store.dart';
 import '../import/question_parser.dart';
 
 /// Local-only content. Authentication never changes its visibility.
@@ -19,12 +22,14 @@ class LocalExam {
     required this.questions,
     this.year,
     this.pendingPublication = false,
+    this.reviewIndex = 0,
   });
   final String id, title, category, source;
   final int durationMinutes;
   final int? year;
   final List<ImportedQuestion> questions;
   final bool pendingPublication;
+  final int reviewIndex;
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
@@ -33,6 +38,7 @@ class LocalExam {
     'durationMinutes': durationMinutes,
     'year': year,
     'pendingPublication': pendingPublication,
+    'reviewIndex': reviewIndex,
     'questions': questions
         .map(
           (q) => {
@@ -43,6 +49,11 @@ class LocalExam {
             'format': q.format.name,
             'confidence': q.confidence,
             'warning': q.warning,
+            'reviewState': q.reviewState.name,
+            'versionLabel': q.versionLabel,
+            'alternateVersions': q.alternateVersions
+                .map((version) => version.toJson())
+                .toList(),
           },
         )
         .toList(),
@@ -63,6 +74,18 @@ class LocalExam {
                 .clamp(0, 1)
                 .toDouble(),
             warning: q['warning'] as String?,
+            reviewState: QuestionReviewState.values.firstWhere(
+              (state) => state.name == q['reviewState'],
+              orElse: () => QuestionReviewState.unreviewed,
+            ),
+            versionLabel: q['versionLabel'] as String? ?? 'Versão principal',
+            alternateVersions: (q['alternateVersions'] as List? ?? const [])
+                .map(
+                  (version) => ImportedQuestionVersion.fromJson(
+                    Map<String, dynamic>.from(version as Map),
+                  ),
+                )
+                .toList(),
           ),
         )
         .toList();
@@ -70,8 +93,17 @@ class LocalExam {
         questions.any(
           (q) =>
               q.options.length > 10 ||
+              q.alternateVersions.length > 4 ||
               (q.correctIndex != null &&
-                  (q.correctIndex! < 0 || q.correctIndex! >= q.options.length)),
+                  (q.correctIndex! < 0 ||
+                      q.correctIndex! >= q.options.length)) ||
+              q.alternateVersions.any(
+                (version) =>
+                    version.options.length > 10 ||
+                    (version.correctIndex != null &&
+                        (version.correctIndex! < 0 ||
+                            version.correctIndex! >= version.options.length)),
+              ),
         )) {
       throw const FormatException('Estrutura de questões inválida.');
     }
@@ -83,6 +115,10 @@ class LocalExam {
       durationMinutes: data['durationMinutes'] as int,
       year: data['year'] as int?,
       pendingPublication: data['pendingPublication'] == true,
+      reviewIndex: ((data['reviewIndex'] as num?)?.toInt() ?? 0).clamp(
+        0,
+        questions.isEmpty ? 0 : questions.length - 1,
+      ),
       questions: questions,
     );
   }
@@ -119,20 +155,64 @@ class LocalExam {
 class LocalExamStore {
   static const key = 'private_exams_v1';
   static Future<void>? _tail;
+  static ExamPayloadStorage? storageOverride;
+  final ExamPayloadStorage _storage;
+
+  LocalExamStore({ExamPayloadStorage? storage})
+    : _storage = storage ?? storageOverride ?? LocalExamPayloadStore();
+
   Future<List<LocalExam>> load() async {
     final tail = _tail;
     if (tail != null) await tail;
-    return _read(await SharedPreferences.getInstance());
+    final diskPayload = await _storage.read();
+    final diskBackup = await _storage.readBackup();
+    if (diskPayload != null) {
+      return _decodeWithBackup(diskPayload, backup: diskBackup);
+    }
+    if (diskBackup != null) return _decodeWithBackup(diskBackup);
+
+    final prefs = await SharedPreferences.getInstance();
+    final legacyPayload = prefs.getString(key);
+    if (legacyPayload == null) return [];
+    final exams = _decodeWithBackup(
+      legacyPayload,
+      backup: prefs.getString('${key}_backup'),
+    );
+    final migratedPayload = jsonEncode(
+      exams.map((exam) => exam.toJson()).toList(),
+    );
+    try {
+      if (await _storage.migrate(migratedPayload)) {
+        await prefs.remove(key);
+        await prefs.remove('${key}_backup');
+      }
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[LOCAL_EXAM_MIGRATION] falhou; legado preservado: ${error.runtimeType}',
+      );
+      debugPrint('[LOCAL_EXAM_MIGRATION] stack: $stackTrace');
+    }
+    return exams;
   }
 
-  List<LocalExam> _read(SharedPreferences prefs) {
-    final raw = prefs.getString(key);
-    if (raw == null) return [];
+  List<LocalExam> _decodeWithBackup(String raw, {String? backup}) {
     try {
       return _decode(raw);
-    } catch (_) {
-      final backup = prefs.getString('${key}_backup');
-      if (backup != null) return _decode(backup);
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[LOCAL_EXAM_READ] versão principal inválida: ${error.runtimeType}',
+      );
+      debugPrint('[LOCAL_EXAM_READ] stack: $stackTrace');
+      if (backup != null) {
+        try {
+          return _decode(backup);
+        } catch (backupError, backupStack) {
+          debugPrint(
+            '[LOCAL_EXAM_READ] backup inválido: ${backupError.runtimeType}',
+          );
+          debugPrint('[LOCAL_EXAM_READ] stack backup: $backupStack');
+        }
+      }
       throw const FormatException(
         'Não foi possível ler as provas locais. Os dados foram preservados.',
       );
@@ -153,7 +233,10 @@ class LocalExamStore {
         : previous.then((_) => _saveSnapshot(snapshot));
     final tail = operation.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('[LOCAL_SAVE_QUEUE] operação falhou: ${error.runtimeType}');
+        debugPrint('[LOCAL_SAVE_QUEUE] stack: $stackTrace');
+      },
     );
     _tail = tail;
     unawaited(
@@ -165,20 +248,55 @@ class LocalExamStore {
   }
 
   Future<void> _saveSnapshot(LocalExam snapshot) async {
-    final prefs = await SharedPreferences.getInstance();
-    final items = _read(prefs);
-    final previous = jsonEncode(items.map((e) => e.toJson()).toList());
+    final diskPayload = await _storage.read();
+    final diskBackup = await _storage.readBackup();
+    final prefs =
+        _storage.fileBacked && (diskPayload != null || diskBackup != null)
+        ? null
+        : await SharedPreferences.getInstance();
+    final currentPayload =
+        diskPayload ??
+        prefs?.getString(key) ??
+        diskBackup ??
+        prefs?.getString('${key}_backup');
+    final currentBackup = diskBackup ?? prefs?.getString('${key}_backup');
+    final items = currentPayload == null
+        ? <LocalExam>[]
+        : _decodeWithBackup(currentPayload, backup: currentBackup);
+    final validPrevious = jsonEncode(items.map((e) => e.toJson()).toList());
     items.removeWhere((e) => e.id == snapshot.id);
     items.add(snapshot);
     final encoded = jsonEncode(items.map((e) => e.toJson()).toList());
-    if (utf8.encode(encoded).length > 4 * 1024 * 1024) {
-      throw StateError(
-        'Limite local de 4 MB atingido. Exporte suas provas antes de continuar.',
+    final encodedBytes = utf8.encode(encoded).length;
+    debugPrint(
+      '[LOCAL_SAVE] questões=${snapshot.questions.length} bytes=$encodedBytes',
+    );
+    final saveOk = await _storage.write(encoded, backupPayload: validPrevious);
+    if (!saveOk) {
+      // Browser storage has no file-system implementation; retain the legacy
+      // representation there, while keeping Android/iOS payloads in files.
+      final preferences = prefs ?? await SharedPreferences.getInstance();
+      final backupOk = await preferences.setString(
+        '${key}_backup',
+        validPrevious,
       );
-    }
-    if (!await prefs.setString('${key}_backup', previous) ||
-        !await prefs.setString(key, encoded)) {
-      throw StateError('Não foi possível salvar no aparelho. Tente novamente.');
+      final preferencesOk = await preferences.setString(key, encoded);
+      if (!backupOk || !preferencesOk) {
+        throw StateError(
+          'Não foi possível salvar no aparelho. Tente novamente.',
+        );
+      }
+    } else {
+      try {
+        final preferences = prefs ?? await SharedPreferences.getInstance();
+        await preferences.remove(key);
+        await preferences.remove('${key}_backup');
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[LOCAL_EXAM_MIGRATION] arquivo salvo; limpeza de legado falhou: ${error.runtimeType}',
+        );
+        debugPrint('[LOCAL_EXAM_MIGRATION] stack: $stackTrace');
+      }
     }
   }
 }

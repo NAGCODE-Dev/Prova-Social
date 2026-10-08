@@ -59,7 +59,7 @@ class ExamRepository {
       await request
           .order('created_at', ascending: false)
           .order('id', ascending: false)
-          .order('position', referencedTable: 'questions')
+          .order('position', ascending: true, referencedTable: 'questions')
           .limit(pageSize + 1)
           .timeout(const Duration(seconds: 15)),
     );
@@ -159,7 +159,7 @@ class ExamRepository {
         .eq('is_public', true)
         .order('created_at', ascending: false)
         .order('id', ascending: false)
-        .order('position', referencedTable: 'questions')
+        .order('position', ascending: true, referencedTable: 'questions')
         .timeout(const Duration(seconds: 15));
     return List<Map<String, dynamic>>.from(details)
         .map((row) => mapPublishedExam(row, _embeddedQuestions(row)))
@@ -211,7 +211,8 @@ class ExamRepository {
     final rows = await _client
         .from('favorites')
         .select('exam_id')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .timeout(const Duration(seconds: 15));
     return List<Map<String, dynamic>>.from(rows)
         .map((row) => row['exam_id'] as String)
         .toSet();
@@ -222,10 +223,10 @@ class ExamRepository {
     if (user == null) {
       throw const AuthException('Faça login para salvar provas.');
     }
-    await _client.from('favorites').upsert({
-      'user_id': user.id,
-      'exam_id': examId,
-    });
+    await _client
+        .from('favorites')
+        .upsert({'user_id': user.id, 'exam_id': examId})
+        .timeout(const Duration(seconds: 15));
   }
 
   Future<void> removeSavedExam(String examId) async {
@@ -235,6 +236,7 @@ class ExamRepository {
         .from('favorites')
         .delete()
         .eq('user_id', user.id)
-        .eq('exam_id', examId);
+        .eq('exam_id', examId)
+        .timeout(const Duration(seconds: 15));
   }
 }

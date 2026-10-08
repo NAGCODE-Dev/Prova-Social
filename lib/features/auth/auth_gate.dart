@@ -21,11 +21,17 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _load() async {
-    final preferences = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(
-        () => completed = preferences.getBool('onboarding_complete') ?? false,
-      );
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(
+          () => completed = preferences.getBool('onboarding_complete') ?? false,
+        );
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[ONBOARDING_STATE] falhou: ${error.runtimeType}');
+      debugPrint('[ONBOARDING_STATE] stack: $stackTrace');
+      if (mounted) setState(() => completed = true);
     }
   }
 

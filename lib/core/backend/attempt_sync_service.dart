@@ -14,6 +14,7 @@ enum AttemptSyncState {
   waitingConnection,
   synced,
   requiresAttention,
+  waitingAuthentication,
 }
 
 class PendingAttempt {
@@ -83,7 +84,7 @@ class AttemptQueueStore {
   Future<T> _locked<T>(Future<T> Function() operation) {
     final tail = _storageTails[_storage] ?? Future<void>.value();
     final result = tail.then((_) => operation());
-    _storageTails[_storage] = result.then<void>((_) {}, onError: (_, __) {});
+    _storageTails[_storage] = result.then<void>((_) {}, onError: (_, _) {});
     return result;
   }
 
@@ -309,12 +310,12 @@ class AttemptSyncService {
         retryAttention: retryAttention,
       ),
     );
-    coordinator.tail = operation.then<void>((_) {}, onError: (_, __) {});
+    coordinator.tail = operation.then<void>((_) {}, onError: (_, _) {});
     coordinator.inFlight[clientAttemptId] = operation;
     unawaited(
       operation.then<void>(
         (_) => coordinator.inFlight.remove(clientAttemptId),
-        onError: (Object _, StackTrace __) {
+        onError: (Object _, StackTrace _) {
           coordinator.inFlight.remove(clientAttemptId);
         },
       ),
@@ -372,6 +373,15 @@ class AttemptSyncService {
         result: result,
       );
     } on AttemptSubmissionException catch (error) {
+      if (error.requiresAuthentication) {
+        pending = pending.copyWith(
+          state: AttemptSyncState.waitingAuthentication,
+          lastError: error.message,
+          clearNextAttempt: true,
+        );
+        await store.update(pending);
+        return AttemptSyncOutcome(attempt: pending);
+      }
       final attempts = pending.attemptCount + 1;
       if (!error.transient) {
         pending = pending.copyWith(

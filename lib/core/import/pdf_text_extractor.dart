@@ -1,4 +1,6 @@
-import 'dart:typed_data';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 
 import 'package:pdfrx/pdfrx.dart';
 
@@ -119,6 +121,7 @@ class PdfTextExtractor {
     Uint8List bytes, {
     String? sourceName,
   }) async {
+    await _initializePdfrx();
     const ocr = OcrService();
     final document = await PdfDocument.openData(
       bytes,
@@ -127,7 +130,12 @@ class PdfTextExtractor {
     try {
       final pageResults = <PdfPageExtraction>[];
       for (final page in document.pages) {
-        final nativeText = (await page.loadText())?.fullText.trim() ?? '';
+        final structuredText = await page.loadStructuredText();
+        final nativeText = _nativeTextInReadingOrder(
+          structuredText,
+          pageWidth: page.width,
+          pageHeight: page.height,
+        ).trim();
         final decision = router.decide(
           nativeText: nativeText,
           availableEngines: ocr.availableEngines,
@@ -175,7 +183,10 @@ class PdfTextExtractor {
               recognized = attempt;
               break;
             }
-          } catch (_) {
+          } catch (error, stackTrace) {
+            debugPrint('[OCR] engine=$engine FALHOU: $error');
+            debugPrint('$stackTrace');
+
             // A failed engine stays local to this page; try the next route.
             engineFailed = true;
           }
@@ -220,4 +231,150 @@ class PdfTextExtractor {
       await document.dispose();
     }
   }
+
+  String _nativeTextInReadingOrder(
+    PdfPageText pageText, {
+    required double pageWidth,
+    required double pageHeight,
+  }) {
+    if (pageText.fragments.isEmpty) return pageText.fullText;
+
+    final lines = <_NativeTextLine>[];
+    for (final fragment in pageText.fragments) {
+      if (fragment.text.trim().isEmpty) continue;
+      final lineY = (fragment.bounds.top + fragment.bounds.bottom) / 2;
+      final fragmentHeight = (fragment.bounds.top - fragment.bounds.bottom)
+          .abs();
+      _NativeTextLine? matchingLine;
+      for (final line in lines.reversed) {
+        final tolerance = math.max(line.height, fragmentHeight) * .55;
+        final horizontalGap = fragment.bounds.left > line.right
+            ? fragment.bounds.left - line.right
+            : line.left > fragment.bounds.right
+            ? line.left - fragment.bounds.right
+            : 0.0;
+        if ((line.centerY - lineY).abs() <= tolerance &&
+            horizontalGap <= pageWidth * .015) {
+          matchingLine = line;
+          break;
+        }
+      }
+      if (matchingLine == null) {
+        lines.add(_NativeTextLine(fragment));
+      } else {
+        matchingLine.add(fragment);
+      }
+    }
+
+    for (final line in lines) {
+      line.sortFragments();
+    }
+    lines.removeWhere((line) {
+      if (line.centerY >= pageHeight * .06) return false;
+      final text = line.text.trim();
+      return RegExp(r'^\d{1,3}$').hasMatch(text) ||
+          text.contains('Confidencial') ||
+          text.contains('PMES2401');
+    });
+    final columnLines = lines
+        .where((line) => line.width < pageWidth * .58)
+        .toList(growable: false);
+    final splitX = _findNativeColumnSplit(columnLines, pageWidth);
+    if (splitX == null) {
+      final singleColumn = [...lines]
+        ..sort((a, b) => b.centerY.compareTo(a.centerY));
+      return singleColumn.map((line) => line.text).join('\n');
+    }
+
+    final left = columnLines.where((line) => line.centerX < splitX).toList()
+      ..sort((a, b) => b.centerY.compareTo(a.centerY));
+    final right = columnLines.where((line) => line.centerX >= splitX).toList()
+      ..sort((a, b) => b.centerY.compareTo(a.centerY));
+    final spanning =
+        lines.where((line) => line.width >= pageWidth * .58).toList()
+          ..sort((a, b) => b.centerY.compareTo(a.centerY));
+
+    final bodyMidpoint = columnLines.isEmpty
+        ? 0.0
+        : (columnLines.map((line) => line.centerY).reduce(math.max) +
+                  columnLines.map((line) => line.centerY).reduce(math.min)) /
+              2;
+    final topSpanning = spanning
+        .where((line) => line.centerY >= bodyMidpoint)
+        .map((line) => line.text);
+    final bottomSpanning = spanning
+        .where((line) => line.centerY < bodyMidpoint)
+        .map((line) => line.text);
+    return [
+      topSpanning.join('\n'),
+      left.map((line) => line.text).join('\n'),
+      right.map((line) => line.text).join('\n'),
+      bottomSpanning.join('\n'),
+    ].where((column) => column.isNotEmpty).join('\n\n');
+  }
+
+  double? _findNativeColumnSplit(
+    List<_NativeTextLine> lines,
+    double pageWidth,
+  ) {
+    if (lines.length < 10) return null;
+    final centers = lines.map((line) => line.centerX).toList()..sort();
+    final leftColumnLines = centers.where((x) => x < pageWidth * .42).length;
+    final rightColumnLines = centers.where((x) => x > pageWidth * .58).length;
+    if (leftColumnLines >= 4 && rightColumnLines >= 4) {
+      return pageWidth / 2;
+    }
+
+    var largestGap = 0.0;
+    var splitIndex = -1;
+    for (var index = 1; index < centers.length; index++) {
+      final gap = centers[index] - centers[index - 1];
+      if (gap > largestGap) {
+        largestGap = gap;
+        splitIndex = index;
+      }
+    }
+    if (splitIndex < 4 || centers.length - splitIndex < 4) return null;
+    final splitX = (centers[splitIndex - 1] + centers[splitIndex]) / 2;
+    if (largestGap < pageWidth * .12 ||
+        splitX < pageWidth * .25 ||
+        splitX > pageWidth * .75) {
+      return null;
+    }
+    return splitX;
+  }
+}
+
+class _NativeTextLine {
+  _NativeTextLine(PdfPageTextFragment fragment) : _fragments = [fragment];
+
+  final List<PdfPageTextFragment> _fragments;
+
+  void add(PdfPageTextFragment fragment) => _fragments.add(fragment);
+
+  void sortFragments() =>
+      _fragments.sort((a, b) => a.bounds.left.compareTo(b.bounds.left));
+
+  String get text =>
+      _fragments.map((fragment) => fragment.text.trim()).join(' ');
+
+  double get centerY =>
+      _fragments
+          .map((fragment) => (fragment.bounds.top + fragment.bounds.bottom) / 2)
+          .reduce((a, b) => a + b) /
+      _fragments.length;
+
+  double get height => _fragments
+      .map((fragment) => (fragment.bounds.top - fragment.bounds.bottom).abs())
+      .reduce(math.max);
+
+  double get centerX => (left + right) / 2;
+
+  double get left =>
+      _fragments.map((fragment) => fragment.bounds.left).reduce(math.min);
+
+  double get right =>
+      _fragments.map((fragment) => fragment.bounds.right).reduce(math.max);
+
+  double get width => right - left;
 }

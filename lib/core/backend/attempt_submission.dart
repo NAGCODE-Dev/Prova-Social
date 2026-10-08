@@ -22,9 +22,11 @@ class AttemptSubmissionException implements Exception {
     required this.message,
     required this.transient,
     this.cause,
+    this.requiresAuthentication = false,
   });
   final String message;
   final bool transient;
+  final bool requiresAuthentication;
   final Object? cause;
   @override
   String toString() => message;

@@ -66,7 +66,10 @@ void main() {
       );
       addTearDown(client.dispose);
       await expectLater(
-        AttemptRepository(client: client).submit(testSubmission()),
+        AttemptRepository(
+          client: client,
+          isAuthenticated: () => true,
+        ).submit(testSubmission()),
         throwsA(
           isA<AttemptSubmissionException>().having(
             (error) => error.transient,
@@ -77,30 +80,62 @@ void main() {
       );
     });
   }
-  test('aceita correção completa correspondente à entrega', () async {
+  test('visitante mantém a entrega local e não chama a RPC', () async {
+    final requests = <http.Request>[];
     final client = SupabaseClient(
       'https://example.test',
       'public-key',
-      httpClient: MockClient(
-        (request) async => http.Response(
-          jsonEncode({
-            'total': 1,
-            'correct': 1,
-            'review': [validReview],
-          }),
-          200,
-          headers: {'content-type': 'application/json'},
-          request: request,
-        ),
-      ),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{}', 200, request: request);
+      }),
     );
     addTearDown(client.dispose);
-    final result = await AttemptRepository(client: client)
-        .submit(testSubmission());
-    expect(result.correct, 1);
-    expect(result.answers, {0: 1});
-    expect(result.markedForReview, isEmpty);
+
+    await expectLater(
+      AttemptRepository(client: client).submit(testSubmission()),
+      throwsA(
+        isA<AttemptSubmissionException>()
+            .having(
+              (error) => error.requiresAuthentication,
+              'login exigido',
+              true,
+            )
+            .having((error) => error.transient, 'não é falha de rede', false),
+      ),
+    );
+    expect(requests, isEmpty);
   });
+
+  test(
+    'conta autenticada aceita correção completa correspondente à entrega',
+    () async {
+      final client = SupabaseClient(
+        'https://example.test',
+        'public-key',
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode({
+              'total': 1,
+              'correct': 1,
+              'review': [validReview],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          ),
+        ),
+      );
+      addTearDown(client.dispose);
+      final result = await AttemptRepository(
+        client: client,
+        isAuthenticated: () => true,
+      ).submit(testSubmission());
+      expect(result.correct, 1);
+      expect(result.answers, {0: 1});
+      expect(result.markedForReview, isEmpty);
+    },
+  );
 
   for (final code in ['PGRST202', '22023', '42501']) {
     test('classifica $code preservando a chamada idempotente', () async {
@@ -137,7 +172,7 @@ void main() {
         ],
       );
       await expectLater(
-        AttemptRepository(client: client).submit(
+        AttemptRepository(client: client, isAuthenticated: () => true).submit(
           AttemptSubmission(
             clientAttemptId: '11111111-1111-4111-8111-111111111111',
             exam: exam,

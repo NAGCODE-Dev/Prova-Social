@@ -1,4 +1,4 @@
--- Transactional smoke test for an authorized deployed project.
+-- Transactional smoke test for an authorized staging project.
 -- Uses one existing profile without changing it. All fixture rows are rolled
 -- back. No auth user is created and no persistent test content is published.
 begin;
@@ -35,9 +35,38 @@ set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 select set_config('request.jwt.claims', '{}', true);
 do $$
+begin
+  begin
+    perform public.submit_exam_attempt(
+      current_setting('prova_test.exam')::uuid,
+      jsonb_build_object(current_setting('prova_test.question'), 1),
+      '{}'::uuid[], 10, current_setting('prova_test.client')::uuid
+    );
+    raise exception 'anonymous idempotent RPC returned the answer key';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.submit_exam_attempt(
+      current_setting('prova_test.exam')::uuid,
+      jsonb_build_object(current_setting('prova_test.question'), 1),
+      '{}'::uuid[], 10
+    );
+    raise exception 'anonymous legacy RPC returned the answer key';
+  exception when sqlstate '42501' then
+    null;
+  end;
+end
+$$;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', current_setting('prova_test.owner'), true);
+do $$
 declare
   first_result jsonb;
   repeated jsonb;
+  legacy jsonb;
 begin
   first_result := public.submit_exam_attempt(
     current_setting('prova_test.exam')::uuid,
@@ -53,7 +82,7 @@ begin
      not (repeated ->> 'duplicate')::boolean or
      first_result ->> 'attempt_id' is distinct from repeated ->> 'attempt_id' or
      (first_result ->> 'correct')::integer <> 1 then
-    raise exception 'visitor retry regression';
+    raise exception 'authenticated retry regression';
   end if;
   begin
     perform public.submit_exam_attempt(
@@ -62,30 +91,9 @@ begin
       '{}'::uuid[], 10, current_setting('prova_test.client')::uuid
     );
     raise exception 'conflicting payload accepted';
-  exception when sqlstate '22023' then null;
+  exception when sqlstate '22023' then
+    null;
   end;
-end
-$$;
-
-reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.sub', current_setting('prova_test.owner'), true);
-do $$
-declare
-  claimed jsonb;
-  legacy jsonb;
-begin
-  claimed := public.submit_exam_attempt(
-    current_setting('prova_test.exam')::uuid,
-    jsonb_build_object(current_setting('prova_test.question'), 1),
-    '{}'::uuid[], 10, current_setting('prova_test.client')::uuid
-  );
-  if not (claimed ->> 'duplicate')::boolean or
-     (select count(*) from public.attempts
-      where client_attempt_id = current_setting('prova_test.client')::uuid
-        and user_id = auth.uid()) <> 1 then
-    raise exception 'visitor claim regression';
-  end if;
   legacy := public.submit_exam_attempt(
     current_setting('prova_test.exam')::uuid,
     jsonb_build_object(current_setting('prova_test.question'), 1),
@@ -106,7 +114,7 @@ begin
 end
 $$;
 
--- Another identity sees neither attempts nor their answers and cannot claim.
+-- Another identity sees neither attempt nor answer and cannot replay the ID.
 select set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
 do $$
 begin
@@ -128,4 +136,4 @@ begin
 end
 $$;
 rollback;
-select 'PASS: visitor, retry, claim, legacy RPC, RLS; fixtures rolled back' as result;
+select 'PASS: anonymous denial, authenticated retry, payload conflict, legacy RPC, RLS; fixtures rolled back' as result;

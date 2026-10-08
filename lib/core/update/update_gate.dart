@@ -59,7 +59,9 @@ class _UpdateGateState extends State<UpdateGate> {
           ],
         ),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('[UPDATE_CHECK] ignorada: ${error.runtimeType}');
+      debugPrint('[UPDATE_CHECK] stack: $stackTrace');
       // Atualizações nunca devem impedir a abertura do aplicativo.
     }
   }

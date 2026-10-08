@@ -3,9 +3,33 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prova_social/core/startup/startup_gate.dart';
+import 'package:prova_social/core/backend/supabase_config.dart';
 import 'package:prova_social/core/widgets/brand.dart';
 
 void main() {
+  testWidgets('Supabase configuration failure explains how to recover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StartupGate(
+          initialize: () => Future<void>.error(
+            const SupabaseConfigurationException(
+              'Informe SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY.',
+            ),
+          ),
+          child: const Text('Pronto'),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.text('Informe SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY.'),
+      findsOneWidget,
+    );
+    expect(find.text('Tentar novamente'), findsOneWidget);
+  });
+
   for (final reduced in [false, true]) {
     testWidgets(
       'static book, ring respects reduced motion=$reduced; no startup delay',

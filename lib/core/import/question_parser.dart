@@ -1,8 +1,7 @@
 /// Universal-ish exam/question parser.
 ///
-/// The parser intentionally prefers false negatives over destructive false
-/// positives: content that does not confidently look like a question is not
-/// silently converted into one, and unusual option counts are preserved.
+/// Structural uncertainty is kept on the resulting question for human review;
+/// detected candidates are not silently discarded because their format differs.
 class ImportedQuestion {
   ImportedQuestion({
     required this.statement,
@@ -12,7 +11,15 @@ class ImportedQuestion {
     this.format = QuestionFormat.multipleChoice,
     this.confidence = 1,
     this.warning,
-  });
+    QuestionReviewState? reviewState,
+    this.versionLabel = 'Versão principal',
+    List<ImportedQuestionVersion>? alternateVersions,
+  }) : reviewState =
+           reviewState ??
+           (confidence < .85 || warning != null
+               ? QuestionReviewState.needsAttention
+               : QuestionReviewState.unreviewed),
+       alternateVersions = alternateVersions ?? <ImportedQuestionVersion>[];
 
   String statement;
   List<String> options;
@@ -21,6 +28,34 @@ class ImportedQuestion {
   QuestionFormat format;
   double confidence;
   String? warning;
+  QuestionReviewState reviewState;
+  String versionLabel;
+  final List<ImportedQuestionVersion> alternateVersions;
+
+  void selectAlternateVersion(int index) {
+    if (index < 0 || index >= alternateVersions.length) return;
+    final previous = ImportedQuestionVersion(
+      label: versionLabel,
+      statement: statement,
+      options: List.of(options),
+      correctIndex: correctIndex,
+      format: format,
+      confidence: confidence,
+      warning: warning,
+    );
+    final selected = alternateVersions[index];
+    statement = selected.statement;
+    options = List.of(selected.options);
+    correctIndex = selected.correctIndex;
+    format = selected.format;
+    confidence = selected.confidence;
+    warning = selected.warning;
+    versionLabel = selected.label;
+    reviewState = confidence < .85 || warning != null
+        ? QuestionReviewState.needsAttention
+        : QuestionReviewState.inReview;
+    alternateVersions[index] = previous;
+  }
 
   Map<String, Object?> toJson(int position) => {
     'position': position,
@@ -30,7 +65,55 @@ class ImportedQuestion {
   };
 }
 
-enum QuestionFormat { multipleChoice, trueFalse, assertion }
+enum QuestionReviewState { unreviewed, inReview, reviewed, needsAttention }
+
+class ImportedQuestionVersion {
+  const ImportedQuestionVersion({
+    required this.label,
+    required this.statement,
+    required this.options,
+    required this.correctIndex,
+    required this.format,
+    required this.confidence,
+    required this.warning,
+  });
+
+  final String label;
+  final String statement;
+  final List<String> options;
+  final int? correctIndex;
+  final QuestionFormat format;
+  final double confidence;
+  final String? warning;
+
+  factory ImportedQuestionVersion.fromJson(Map<String, dynamic> json) =>
+      ImportedQuestionVersion(
+        label: json['label'] as String? ?? 'Versão alternativa',
+        statement: json['statement'] as String? ?? '',
+        options: List<String>.from(json['options'] as List? ?? const []),
+        correctIndex: json['correctIndex'] as int?,
+        format: QuestionFormat.values.firstWhere(
+          (format) => format.name == json['format'],
+          orElse: () => QuestionFormat.unknown,
+        ),
+        confidence: ((json['confidence'] as num?)?.toDouble() ?? 0.5)
+            .clamp(0, 1)
+            .toDouble(),
+        warning: json['warning'] as String?,
+      );
+
+  Map<String, Object?> toJson() => {
+    'label': label,
+    'statement': statement,
+    'options': options,
+    'correctIndex': correctIndex,
+    'format': format.name,
+    'confidence': confidence,
+    'warning': warning,
+  };
+}
+
+enum QuestionFormat { multipleChoice, trueFalse, assertion, openEnded, unknown }
 
 class QuestionParser {
   const QuestionParser();
@@ -41,21 +124,44 @@ class QuestionParser {
 
     final lines = text.split('\n');
     final candidates = <_QuestionStart>[];
+    final seenVariantsByNumber = <int, Set<String>>{};
+    final candidateVariantLabels = <int, String>{};
+    var currentVariantLabel = 'Versão principal';
     var previousNumber = -1;
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
+      final sectionVariant = _languageVariantHeading(line);
+      if (sectionVariant != null) {
+        currentVariantLabel = sectionVariant;
+      } else if (_isMajorSectionHeading(line)) {
+        currentVariantLabel = 'Versão principal';
+      }
       final hasFollowingOptions = _hasFollowingOptions(lines, i + 1);
+      final trueFalseContext = _looksLikeTrueFalse(lines.take(i).join('\n'));
+      final hasLeadingGap = i == 0 || lines[i - 1].trim().isEmpty;
       final candidate = _detectQuestionStart(
         line,
         previousNumber,
+        lines: lines,
+        lineIndex: i,
         hasFollowingOptions: hasFollowingOptions,
+        trueFalseContext: trueFalseContext,
+        hasLeadingGap: hasLeadingGap,
+        seenVariantsByNumber: seenVariantsByNumber,
+        currentVariantLabel: currentVariantLabel,
       );
       if (candidate == null) continue;
 
       // A numeric marker is much more trustworthy when the sequence is
       // coherent or the block eventually contains options.
-      if (candidate.number != null) previousNumber = candidate.number!;
+      if (candidate.number != null) {
+        previousNumber = candidate.number!;
+        seenVariantsByNumber
+            .putIfAbsent(candidate.number!, () => <String>{})
+            .add(currentVariantLabel);
+        candidateVariantLabels[i] = currentVariantLabel;
+      }
       candidates.add(candidate.copyWith(lineIndex: i));
     }
 
@@ -79,6 +185,8 @@ class QuestionParser {
         inheritedTrueFalse: inheritedTrueFalse,
       );
       if (parsed != null) {
+        parsed.versionLabel =
+            candidateVariantLabels[candidate.lineIndex] ?? 'Versão principal';
         questions.add(parsed);
         inheritedTrueFalse = parsed.format == QuestionFormat.trueFalse;
       } else if (candidate.explicit) {
@@ -86,7 +194,99 @@ class QuestionParser {
       }
     }
 
-    return questions;
+    return _coalesceParallelNumberedVersions(questions);
+  }
+
+  String? _languageVariantHeading(String line) {
+    final heading = line.trim();
+    if (RegExp(
+      r'^l[ií]ngua\s+espanhola\b',
+      caseSensitive: false,
+    ).hasMatch(heading)) {
+      return 'Espanhol';
+    }
+    if (RegExp(
+      r'^l[ií]ngua\s+inglesa\b',
+      caseSensitive: false,
+    ).hasMatch(heading)) {
+      return 'Inglês';
+    }
+    if (RegExp(
+      r'^l[ií]ngua\s+portuguesa\b',
+      caseSensitive: false,
+    ).hasMatch(heading)) {
+      return 'Português';
+    }
+    return null;
+  }
+
+  bool _isMajorSectionHeading(String line) {
+    final heading = line.trim();
+    if (heading.length < 8 || heading != heading.toUpperCase()) return false;
+    return RegExp(r'[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3}').hasMatch(heading);
+  }
+
+  List<ImportedQuestion> _coalesceParallelNumberedVersions(
+    List<ImportedQuestion> questions,
+  ) {
+    final counts = <int, int>{};
+    for (final question in questions) {
+      final number = question.number;
+      if (number != null) {
+        counts.update(number, (count) => count + 1, ifAbsent: () => 1);
+      }
+    }
+    final repeated =
+        counts.entries
+            .where((entry) => entry.value > 1)
+            .map((entry) => entry.key)
+            .toList()
+          ..sort();
+    // Repeated numbering alone is ambiguous. Coalesce only a run of at least
+    // three consecutive repeated IDs, the common signature of parallel
+    // language/booklet tracks. Isolated duplicates remain visible to QA.
+    final parallelNumbers = <int>{};
+    var run = <int>[];
+    for (final number in repeated) {
+      if (run.isEmpty || number == run.last + 1) {
+        run.add(number);
+      } else {
+        if (run.length >= 3) parallelNumbers.addAll(run);
+        run = [number];
+      }
+    }
+    if (run.length >= 3) parallelNumbers.addAll(run);
+    if (parallelNumbers.isEmpty) return questions;
+
+    final primaryByNumber = <int, ImportedQuestion>{};
+    final result = <ImportedQuestion>[];
+    for (final question in questions) {
+      final number = question.number;
+      if (number == null || !parallelNumbers.contains(number)) {
+        result.add(question);
+        continue;
+      }
+      final primary = primaryByNumber[number];
+      if (primary == null) {
+        primaryByNumber[number] = question;
+        result.add(question);
+        continue;
+      }
+      primary.alternateVersions.add(
+        ImportedQuestionVersion(
+          label: question.versionLabel == primary.versionLabel
+              ? 'Versão alternativa ${primary.alternateVersions.length + 1}'
+              : question.versionLabel,
+          statement: question.statement,
+          options: List.unmodifiable(question.options),
+          correctIndex: question.correctIndex,
+          format: question.format,
+          confidence: question.confidence,
+          warning: question.warning,
+        ),
+      );
+    }
+    return result;
   }
 
   /// Parses independently extracted PDF columns/pages and merges them in the
@@ -104,10 +304,30 @@ class QuestionParser {
 
   bool _hasFollowingOptions(List<String> lines, int start) {
     if (start >= lines.length) return false;
-    final end = (start + 12).clamp(0, lines.length);
-    final followingText = lines.sublist(start, end).join('\n');
-    final scan = _findOptionMarkers(followingText);
-    return scan.markers.length >= 2 || scan.rawMarkerCount >= 2;
+    final followingLines = <String>[];
+    final end = (start + 80).clamp(0, lines.length);
+    for (var index = start; index < end; index++) {
+      if (index > start && RegExp(r'^\s*\d{1,3}\s*$').hasMatch(lines[index])) {
+        break;
+      }
+      followingLines.add(lines[index]);
+      final scan = _findOptionMarkers(followingLines.join('\n'));
+      if (scan.markers.length >= 2 || scan.rawMarkerCount >= 2) return true;
+    }
+    return false;
+  }
+
+  bool _hasQuestionBodyAfter(List<String> lines, int lineIndex) {
+    for (var index = lineIndex + 1; index < lines.length; index++) {
+      final candidate = lines[index].trim();
+      if (candidate.isEmpty) continue;
+      if (RegExp(r'^\d{1,3}$').hasMatch(candidate) ||
+          _findOptionMarkers(candidate).rawMarkerCount > 0) {
+        return false;
+      }
+      return candidate.length >= 4;
+    }
+    return false;
   }
 
   String _normalize(String source) {
@@ -133,7 +353,13 @@ class QuestionParser {
   _QuestionStart? _detectQuestionStart(
     String line,
     int previousNumber, {
+    required List<String> lines,
+    required int lineIndex,
     required bool hasFollowingOptions,
+    required bool trueFalseContext,
+    required bool hasLeadingGap,
+    required Map<int, Set<String>> seenVariantsByNumber,
+    required String currentVariantLabel,
   }) {
     final explicit = RegExp(
       r'^\s*(?:quest(?:ão|ao)|q(?:uestão|uestao)?\.?)[ \t]*(?:n[º°.]?[ \t]*)?(\d{1,4})\s*(?:[.:)\-]+)?\s*(.*)$',
@@ -150,7 +376,7 @@ class QuestionParser {
     }
 
     final ordinal = RegExp(
-      r'^\s*(\d{1,4})\s*[ªº°]\s*(?:quest(?:ão|ao))?\s*[:.\-]?\s*(.*)$',
+      r'^\s*(\d{1,4})\s*[ªº°]\s*quest(?:ão|ao)\s*[:.\-]?\s*(.*)$',
       caseSensitive: false,
     ).firstMatch(line);
     if (ordinal != null) {
@@ -177,8 +403,31 @@ class QuestionParser {
       );
     }
 
+    // Section labels such as “39 a 44” and “Questions 39 to 44” are ranges,
+    // not question starts. They otherwise look sequential and can swallow the
+    // passage that precedes a language-specific question track.
+    if (RegExp(
+      r'^\s*\d{1,4}\s+(?:a|até|to|through|hasta)\s+\d{1,4}[.:)]?\s*$',
+      caseSensitive: false,
+    ).hasMatch(line)) {
+      return null;
+    }
+
     final bareNumber = RegExp(r'^\s*(\d{1,4})[.)]?\s*$').firstMatch(line);
-    if (bareNumber != null && hasFollowingOptions) {
+    final bareQuestionNumber = int.tryParse(bareNumber?.group(1) ?? '');
+    final followsQuestionNumber =
+        bareQuestionNumber != null && bareQuestionNumber == previousNumber + 1;
+    final hasQuestionBody = _hasQuestionBodyAfter(lines, lineIndex);
+    if (bareNumber != null &&
+        ((followsQuestionNumber && (hasQuestionBody || hasFollowingOptions)) ||
+            (hasFollowingOptions &&
+                (previousNumber < 0 ||
+                    hasLeadingGap ||
+                    (currentVariantLabel != 'Versão principal' &&
+                        seenVariantsByNumber[bareQuestionNumber]?.any(
+                              (label) => label != currentVariantLabel,
+                            ) ==
+                            true))))) {
       return _QuestionStart(
         lineIndex: -1,
         number: int.tryParse(bareNumber.group(1)!),
@@ -201,15 +450,21 @@ class QuestionParser {
     final sequential =
         previousNumber >= 0 &&
         (number == previousNumber + 1 || (previousNumber == 0 && number == 1));
-    final marker = line.trimLeft().substring(number.toString().length).trim();
     final hasQuestionPunctuation =
         rest.contains('?') ||
         RegExp(
-          r'^(?:qual|quais|como|por que|porque|assinale|considere|analise|leia|sobre)\b',
+          r'^(?:qual|quais|como|por que|porque|assinale|considere|analise|leia|sobre|julgue)\b',
           caseSensitive: false,
         ).hasMatch(rest);
 
-    if (!sequential && !hasQuestionPunctuation && marker.isEmpty) return null;
+    final hasBlockEvidence =
+        hasFollowingOptions && (previousNumber < 0 || hasLeadingGap);
+    if (!sequential &&
+        !hasQuestionPunctuation &&
+        !hasBlockEvidence &&
+        !trueFalseContext) {
+      return null;
+    }
 
     return _QuestionStart(
       lineIndex: -1,
@@ -228,14 +483,16 @@ class QuestionParser {
     final content = start.content.isEmpty
         ? _removeMarker(block, start)
         : _joinContent(block, start.content);
-    if (content.trim().length < 4) return null;
+    if (content.trim().length < 4) return _uncertainQuestion(content, start);
 
     final optionScan = _findOptionMarkers(content);
     if (optionScan.markers.length >= 2) {
       final parsed = _parseOptions(content, optionScan.markers);
-      if (parsed == null) return null;
+      if (parsed == null) return _uncertainQuestion(content, start);
       final statement = _cleanStatement(parsed.statement);
-      if (!_plausibleStatement(statement)) return null;
+      if (!_plausibleStatement(statement)) {
+        return _uncertainQuestion(content, start);
+      }
       final warnings = <String>[];
       if (parsed.options.length < 4) {
         warnings.add(
@@ -267,7 +524,7 @@ class QuestionParser {
 
     if (_looksLikeTrueFalse(content) || inheritedTrueFalse) {
       final statement = _cleanTrueFalseStatement(content);
-      if (statement.length < 8) return null;
+      if (statement.length < 8) return _uncertainQuestion(statement, start);
       return ImportedQuestion(
         statement: statement,
         options: const ['CERTO', 'ERRADO'],
@@ -289,7 +546,30 @@ class QuestionParser {
       );
     }
 
-    return null;
+    if (_looksLikeOpenEnded(content)) {
+      return ImportedQuestion(
+        statement: _cleanStatement(content),
+        options: const [],
+        number: start.number,
+        format: QuestionFormat.openEnded,
+        confidence: .7,
+        warning: 'Questão discursiva sem alternativas; revisar resposta esperada e critérios.',
+      );
+    }
+
+    return _uncertainQuestion(content, start);
+  }
+
+  ImportedQuestion _uncertainQuestion(String content, _QuestionStart start) {
+    final statement = _cleanStatement(content.trim());
+    return ImportedQuestion(
+      statement: statement,
+      options: const [],
+      number: start.number,
+      format: QuestionFormat.unknown,
+      confidence: (start.confidence * .55).clamp(0, 1).toDouble(),
+      warning: 'Estrutura não reconhecida completamente; revisar questão e alternativas.',
+    );
   }
 
   String _joinContent(String block, String firstLineContent) {
@@ -311,26 +591,79 @@ class QuestionParser {
     var offset = 0;
 
     for (final line in lines) {
-      // Supports A), A., A:, A-, (A), [A], lowercase and Unicode variants.
-      final match = RegExp(
-        r'^\s*(?:\(([A-Z])\)|\[([A-Z])\](?=\s)|([A-Z]))\s*(?:[.):\-–])?\s+(.*)$',
+      // Unwrapped labels require punctuation so ordinary prose like "A questão"
+      // is not mistaken for an alternative. Parenthesized/bracketed and
+      // marker-only labels remain supported for image-based alternatives.
+      final wrapped = RegExp(
+        r'^\s*(?:\(([A-Z])\)|\[([A-Z])\])\s*(?:[.):\-–])?\s*(.*?)\s*$',
         caseSensitive: false,
       ).firstMatch(line);
-      if (match != null) {
-        final letter = (match.group(1) ?? match.group(2) ?? match.group(3)!)
-            .toUpperCase();
+      final unwrapped = RegExp(
+        r'^\s*([A-Z])\s*[.):\-–]\s*(.*?)\s*$',
+        caseSensitive: false,
+      ).firstMatch(line);
+      final markerOnly = RegExp(
+        r'^\s*([A-Z])\s*$',
+        caseSensitive: false,
+      ).firstMatch(line);
+      final unwrappedText = RegExp(
+        r'^\s*([A-Z])\s+(.+?)\s*$',
+        caseSensitive: false,
+      ).firstMatch(line);
+      final letter =
+          wrapped?.group(1) ??
+          wrapped?.group(2) ??
+          unwrapped?.group(1) ??
+          markerOnly?.group(1) ??
+          unwrappedText?.group(1);
+      final optionText =
+          wrapped?.group(3) ??
+          unwrapped?.group(2) ??
+          unwrappedText?.group(2) ??
+          '';
+      final markerMatch = wrapped ?? unwrapped ?? markerOnly ?? unwrappedText;
+      if (letter != null && markerMatch != null) {
+        final normalizedLetter = letter.toUpperCase();
+        final contentStart = optionText.isEmpty
+            ? line.length
+            : line.indexOf(optionText);
         result.add(
           _OptionMarker(
             start: offset,
-            contentStart:
-                offset + match.start + match.group(0)!.indexOf(match.group(4)!),
-            letter: letter,
-            text: match.group(4)!.trim(),
+            contentStart: offset + contentStart,
+            letter: normalizedLetter,
+            text: optionText.trim(),
+            requiresSequence: unwrappedText != null,
           ),
         );
       }
       offset += line.length + 1;
     }
+
+    final sequenceFiltered = <_OptionMarker>[];
+    var unwrappedRun = <_OptionMarker>[];
+    void flushUnwrappedRun() {
+      if (unwrappedRun.length >= 3) sequenceFiltered.addAll(unwrappedRun);
+      unwrappedRun = [];
+    }
+
+    for (final marker in result) {
+      if (!marker.requiresSequence) {
+        flushUnwrappedRun();
+        sequenceFiltered.add(marker);
+        continue;
+      }
+      if (unwrappedRun.isNotEmpty &&
+          marker.letter.codeUnitAt(0) !=
+              unwrappedRun.last.letter.codeUnitAt(0) + 1) {
+        flushUnwrappedRun();
+      }
+      unwrappedRun.add(marker);
+    }
+    flushUnwrappedRun();
+    result
+      ..clear()
+      ..addAll(sequenceFiltered);
 
     // Also accept inline markers produced by some PDF text extractors, but
     // only when the sequence is coherent (A -> B -> C ...).
@@ -451,6 +784,11 @@ class QuestionParser {
         lower.contains('situação hipotetica:');
   }
 
+  bool _looksLikeOpenEnded(String content) => RegExp(
+    r'\b(redija|discorra|elabore|descreva|explique|responda|justifique)\b',
+    caseSensitive: false,
+  ).hasMatch(content);
+
   String _cleanStatement(String value) {
     return value
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -489,12 +827,14 @@ class _OptionMarker {
     required this.contentStart,
     required this.letter,
     required this.text,
+    this.requiresSequence = false,
   });
 
   final int start;
   final int contentStart;
   final String letter;
   final String text;
+  final bool requiresSequence;
 }
 
 class _ParsedOptions {

@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:prova_social/core/backend/exam_repository.dart';
 import 'package:prova_social/domain/models/exam.dart';
+import 'package:prova_social/features/search/exam_source_directory.dart';
 import 'package:prova_social/features/search/search_page.dart';
 
 Map<String, dynamic> row(String title) => {
@@ -90,6 +91,93 @@ void main() {
       await client.dispose();
     });
   }
+
+  test('official source searches stay scoped to known HTTPS domains', () {
+    expect(examSourceDirectory, hasLength(6));
+    expect(
+      examSourceDirectory.map((source) => source.name),
+      contains('VUNESP'),
+    );
+    for (final source in examSourceDirectory) {
+      final uri = source.searchUri('Concurso de Técnico 2026');
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'www.google.com');
+      expect(uri.queryParameters['q'], contains('site:${source.domain}'));
+      expect(uri.queryParameters['q'], contains('Concurso de Técnico 2026'));
+    }
+  });
+
+  testWidgets(
+    'empty catalog offers a scoped external search, not fake content',
+    (tester) async {
+      Uri? openedUri;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SearchPage(
+            search: (_) async => [],
+            onOpen: (_) {},
+            openExternalSearch: (uri) async {
+              openedUri = uri;
+              return true;
+            },
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byType(TextField),
+        'Concurso de Técnico 2026',
+      );
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+
+      expect(
+        find.text('Não encontramos essa prova no catálogo Prova Social.'),
+        findsOneWidget,
+      );
+      expect(find.text('Cebraspe'), findsOneWidget);
+      expect(
+        find.textContaining('não significa que o app verificou'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Cebraspe'));
+      await tester.pump();
+
+      expect(openedUri?.scheme, 'https');
+      expect(openedUri?.host, 'www.google.com');
+      expect(openedUri?.queryParameters['q'], contains('site:cebraspe.org.br'));
+      expect(
+        openedUri?.queryParameters['q'],
+        contains('Concurso de Técnico 2026'),
+      );
+    },
+  );
+
+  testWidgets('external search failure resets progress and can be retried', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SearchPage(
+          search: (_) async => [],
+          onOpen: (_) {},
+          openExternalSearch: (_) async => throw StateError('unavailable'),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'prova recente');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.tap(find.text('Cebraspe'));
+    await tester.pump();
+    expect(
+      find.text('Não foi possível abrir a busca externa. Tente novamente.'),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
   testWidgets(
     'debounce, loading, stale results, empty, error, retry and open',
     (tester) async {
@@ -126,7 +214,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       requests['vazio']!.complete([]);
       await tester.pump();
-      expect(find.text('Nenhum resultado encontrado.'), findsOneWidget);
+      expect(
+        find.text('Não encontramos essa prova no catálogo Prova Social.'),
+        findsOneWidget,
+      );
       await tester.enterText(find.byType(TextField), 'erro');
       await tester.pump(const Duration(milliseconds: 350));
       requests['erro']!.completeError(Exception('offline'));

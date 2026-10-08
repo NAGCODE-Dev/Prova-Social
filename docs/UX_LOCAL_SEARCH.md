@@ -7,6 +7,16 @@ metadados das provas. Cada consulta de campo retorna até 50 registros; não há
 paginação neste lote. O debounce é de 350 ms e respostas de buscas anteriores
 são descartadas. Os resultados abrem diretamente a prova.
 
+Quando uma busca termina sem resultados, a interface apresenta um diretório
+curado de domínios oficiais (INEP, Cebraspe, FGV Conhecimento, FCC, VUNESP e
+Instituto AOCP). A pessoa escolhe uma fonte; só então o app abre uma busca externa do
+Google restrita ao domínio selecionado e incluindo os termos informados. O app
+não faz scraping, não afirma que encontrou uma prova, não baixa nem hospeda
+arquivos externos. O usuário deve conferir domínio, procedência e condições de
+uso, baixar da fonte original e selecionar o arquivo no fluxo de importação.
+Isso não concede licença de republicação nem transforma a prova em conteúdo do
+catálogo Prova Social.
+
 Provas criadas manualmente ou importadas de PDF/JSON usam o mesmo editor. Cada
 alteração agenda imediatamente uma gravação local serializada. Voltar espera a
 gravação; falhas são exibidas com nova tentativa e exportação JSON por cópia para

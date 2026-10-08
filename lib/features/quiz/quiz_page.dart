@@ -15,11 +15,13 @@ class QuizPage extends StatefulWidget {
     required this.exam,
     this.draftStore,
     this.syncService,
+    this.onSignIn,
     super.key,
   });
   final Exam exam;
   final AttemptDraftStore? draftStore;
   final AttemptSyncService? syncService;
+  final Future<void> Function()? onSignIn;
 
   @override
   State<QuizPage> createState() => _QuizPageState();
@@ -92,6 +94,7 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
                   : PendingResultPage(
                       clientAttemptId: deliveredId,
                       syncService: syncService,
+                      onSignIn: widget.onSignIn,
                     ),
             ),
           );
@@ -115,7 +118,7 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
         const Duration(seconds: 1),
         (_) => elapsed.value++,
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         restoring = false;
@@ -551,11 +554,12 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
             builder: (_) => PendingResultPage(
               clientAttemptId: clientAttemptId,
               syncService: syncService,
+              onSignIn: widget.onSignIn,
             ),
           ),
         );
       }
-    } catch (error) {
+    } catch (_) {
       if (deliveryPersisted) {
         if (!mounted) return;
         await Navigator.of(context).pushReplacement(
@@ -563,6 +567,7 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
             builder: (_) => PendingResultPage(
               clientAttemptId: clientAttemptId,
               syncService: syncService,
+              onSignIn: widget.onSignIn,
             ),
           ),
         );
@@ -579,8 +584,8 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
       );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Não foi possível salvar a entrega no aparelho. Suas respostas continuam nesta prova. $error',
+          content: const Text(
+            'Não foi possível salvar a entrega no aparelho. Suas respostas continuam nesta prova.',
           ),
         ),
       );
@@ -604,7 +609,7 @@ class _ExamTimerState extends State<_ExamTimer> {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<int>(
     valueListenable: widget.elapsed,
-    builder: (_, seconds, __) => Semantics(
+    builder: (_, seconds, _) => Semantics(
       label: hidden ? 'Revelar cronômetro' : 'Ocultar cronômetro',
       child: TextButton.icon(
         onPressed: () => setState(() => hidden = !hidden),
@@ -699,7 +704,7 @@ class _QuestionContent extends StatelessWidget {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: active
-                      ? AppColors.brandSoft
+                      ? _quizSelectedSurface(context)
                       : Theme.of(context).colorScheme.surface,
                   border: Border.all(
                     color: active
@@ -899,7 +904,7 @@ class _MobileQuestionStrip extends StatelessWidget {
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
       itemCount: total,
-      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+      separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
       itemBuilder: (_, index) => SizedBox(
         width: 44,
         child: _NumberButton(
@@ -944,7 +949,7 @@ class _NumberButton extends StatelessWidget {
           color: current
               ? AppColors.brand
               : answered
-              ? AppColors.brandSoft
+              ? _quizSelectedSurface(context)
               : Theme.of(context).colorScheme.surface,
           border: Border.all(
             color: marked
@@ -981,6 +986,13 @@ class _NumberButton extends StatelessWidget {
       ),
     ),
   );
+}
+
+Color _quizSelectedSurface(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return Theme.of(context).brightness == Brightness.dark
+      ? colorScheme.primary.withValues(alpha: .16)
+      : AppColors.brandSoft;
 }
 
 class _Legend extends StatelessWidget {

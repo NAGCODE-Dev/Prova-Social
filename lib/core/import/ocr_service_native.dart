@@ -58,7 +58,18 @@ class OcrService {
   }
 
   Future<OcrRecognition> _recognizeWithPaddle(Uint8List imageBytes) async {
+    debugPrint('[PADDLE] iniciando OCR: ${imageBytes.length} bytes');
+
+    final stopwatch = Stopwatch()..start();
+
     final response = await _paddleOcr.recognize(imageBytes);
+
+    stopwatch.stop();
+
+    debugPrint(
+      '[PADDLE] terminou em ${stopwatch.elapsedMilliseconds} ms '
+      'response=${response != null}',
+    );
     final rawLines = response?['lines'];
     final regions = <OcrTextRegion>[];
     if (rawLines is List) {

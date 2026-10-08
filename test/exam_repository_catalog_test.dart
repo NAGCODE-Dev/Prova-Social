@@ -66,6 +66,10 @@ void main() {
       expect(requests.single.queryParameters['status'], 'eq.published');
       expect(requests.single.queryParameters['is_public'], 'eq.true');
       expect(requests.single.queryParameters['select'], contains('questions('));
+      expect(
+        requests.single.queryParameters['questions.order'],
+        'position.asc.nullslast',
+      );
 
       final second = await repository.publishedExamPage(
         after: first.nextCursor,
@@ -76,6 +80,10 @@ void main() {
       expect(requests, hasLength(2));
       expect(requests.last.queryParameters['or'], contains('created_at.lt.'));
       expect(requests.last.queryParameters['or'], contains('id.lt.b'));
+      expect(
+        requests.last.queryParameters['questions.order'],
+        'position.asc.nullslast',
+      );
     },
   );
 

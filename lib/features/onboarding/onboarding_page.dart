@@ -39,8 +39,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
   ];
 
   Future<void> _finish({bool login = false}) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool('onboarding_complete', true);
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool('onboarding_complete', true);
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ONBOARDING_STATE] não foi possível salvar: ${error.runtimeType}',
+      );
+      debugPrint('[ONBOARDING_STATE] stack: $stackTrace');
+    }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(

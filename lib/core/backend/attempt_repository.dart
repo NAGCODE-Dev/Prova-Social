@@ -7,15 +7,25 @@ import '../../domain/models/exam.dart';
 import 'attempt_submission.dart';
 
 class AttemptRepository implements AttemptSubmitter {
-  AttemptRepository({SupabaseClient? client})
+  AttemptRepository({SupabaseClient? client, this.isAuthenticated})
     : _client = client ?? Supabase.instance.client;
   final SupabaseClient _client;
+  final bool Function()? isAuthenticated;
 
   @override
   Future<ExamResult> submit(AttemptSubmission submission) async {
     final exam = submission.exam;
     if (exam.isLocal) {
       throw StateError('Provas locais não podem ser enviadas ao servidor.');
+    }
+    final authenticated =
+        isAuthenticated?.call() ?? _client.auth.currentUser != null;
+    if (!authenticated) {
+      throw const AttemptSubmissionException(
+        message: 'Entre na sua conta para sincronizar a entrega.',
+        transient: false,
+        requiresAuthentication: true,
+      );
     }
     final payload = <String, int>{};
     for (var index = 0; index < exam.questions.length; index++) {
@@ -105,13 +115,14 @@ class AttemptRepository implements AttemptSubmitter {
       final correctedQuestions = exam.questions
           .map((question) => question.copyWith(correctIndex: keys[question.id]))
           .toList(growable: false);
+      final answers = <int, int>{};
+      for (var index = 0; index < exam.questions.length; index++) {
+        final selected = selectedById[exam.questions[index].id];
+        if (selected != null) answers[index] = selected;
+      }
       return ExamResult(
         exam: exam.copyWith(questions: correctedQuestions),
-        answers: {
-          for (var index = 0; index < exam.questions.length; index++)
-            if (selectedById[exam.questions[index].id] case final selected?)
-              index: selected,
-        },
+        answers: answers,
         markedForReview: {
           for (var index = 0; index < exam.questions.length; index++)
             if (reviewIds.contains(exam.questions[index].id)) index,
