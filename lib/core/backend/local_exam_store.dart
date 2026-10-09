@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models/exam.dart';
+import 'content_package_service.dart';
 import 'local_exam_payload_store.dart';
 import '../import/question_parser.dart';
 
@@ -21,12 +22,14 @@ class LocalExam {
     required this.durationMinutes,
     required this.questions,
     this.year,
+    this.sourceUrl,
     this.pendingPublication = false,
     this.reviewIndex = 0,
   });
   final String id, title, category, source;
   final int durationMinutes;
   final int? year;
+  final String? sourceUrl;
   final List<ImportedQuestion> questions;
   final bool pendingPublication;
   final int reviewIndex;
@@ -35,6 +38,7 @@ class LocalExam {
     'title': title,
     'category': category,
     'source': source,
+    'sourceUrl': sourceUrl,
     'durationMinutes': durationMinutes,
     'year': year,
     'pendingPublication': pendingPublication,
@@ -46,6 +50,7 @@ class LocalExam {
             'options': q.options,
             'correctIndex': q.correctIndex,
             'number': q.number,
+            'sourcePage': q.sourcePage,
             'format': q.format.name,
             'confidence': q.confidence,
             'warning': q.warning,
@@ -66,11 +71,12 @@ class LocalExam {
             options: List<String>.from(q['options'] as List),
             correctIndex: q['correctIndex'] as int?,
             number: q['number'] as int?,
+            sourcePage: q['sourcePage'] as int?,
             format: QuestionFormat.values.firstWhere(
               (format) => format.name == q['format'],
               orElse: () => QuestionFormat.multipleChoice,
             ),
-            confidence: ((q['confidence'] as num?)?.toDouble() ?? 1)
+            confidence: ((q['confidence'] as num?)?.toDouble() ?? 0)
                 .clamp(0, 1)
                 .toDouble(),
             warning: q['warning'] as String?,
@@ -112,6 +118,7 @@ class LocalExam {
       title: data['title'] as String,
       category: data['category'] as String,
       source: data['source'] as String,
+      sourceUrl: data['sourceUrl'] as String?,
       durationMinutes: data['durationMinutes'] as int,
       year: data['year'] as int?,
       pendingPublication: data['pendingPublication'] == true,
@@ -154,6 +161,8 @@ class LocalExam {
 
 class LocalExamStore {
   static const key = 'private_exams_v1';
+  static const _compressedPrefix = 'PSGZ1|';
+  static final _packages = ContentPackageService();
   static Future<void>? _tail;
   static ExamPayloadStorage? storageOverride;
   final ExamPayloadStorage _storage;
@@ -178,9 +187,7 @@ class LocalExamStore {
       legacyPayload,
       backup: prefs.getString('${key}_backup'),
     );
-    final migratedPayload = jsonEncode(
-      exams.map((exam) => exam.toJson()).toList(),
-    );
+    final migratedPayload = _encode(exams);
     try {
       if (await _storage.migrate(migratedPayload)) {
         await prefs.remove(key);
@@ -219,9 +226,39 @@ class LocalExamStore {
     }
   }
 
-  List<LocalExam> _decode(String raw) => (jsonDecode(raw) as List)
-      .map((e) => LocalExam.fromJson(Map<String, dynamic>.from(e as Map)))
-      .toList();
+  List<LocalExam> _decode(String raw) {
+    dynamic decoded;
+    if (raw.startsWith(_compressedPrefix)) {
+      final parts = raw.split('|');
+      if (parts.length != 3 || parts[1].length != 64) {
+        throw const FormatException('Pacote local inválido.');
+      }
+      final bytes = base64Decode(parts[2]);
+      if (sha256.convert(bytes).toString() != parts[1]) {
+        throw const FormatException('Integridade do pacote local inválida.');
+      }
+      decoded = _packages.open(bytes)['exams'];
+    } else {
+      // Read existing plain JSON libraries and upgrade them on the next save.
+      decoded = jsonDecode(raw);
+    }
+    if (decoded is! List) {
+      throw const FormatException('Biblioteca local inválida.');
+    }
+    return decoded
+        .map((e) => LocalExam.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  String _encode(Iterable<LocalExam> exams) {
+    final values = exams.map((exam) => exam.toJson()).toList(growable: false);
+    final json = jsonEncode(values);
+    final package = _packages.create({'schemaVersion': 1, 'exams': values});
+    final compressed =
+        '$_compressedPrefix${package.sha256}|${base64Encode(package.bytes)}';
+    return compressed.length < json.length ? compressed : json;
+  }
+
   Future<void> save(LocalExam exam) {
     // Snapshot before queueing: editing must not change an in-flight write.
     final snapshot = LocalExam.fromJson(
@@ -263,13 +300,16 @@ class LocalExamStore {
     final items = currentPayload == null
         ? <LocalExam>[]
         : _decodeWithBackup(currentPayload, backup: currentBackup);
-    final validPrevious = jsonEncode(items.map((e) => e.toJson()).toList());
+    final validPrevious = _encode(items);
     items.removeWhere((e) => e.id == snapshot.id);
     items.add(snapshot);
-    final encoded = jsonEncode(items.map((e) => e.toJson()).toList());
+    final rawBytes = utf8
+        .encode(jsonEncode(items.map((e) => e.toJson()).toList()))
+        .length;
+    final encoded = _encode(items);
     final encodedBytes = utf8.encode(encoded).length;
     debugPrint(
-      '[LOCAL_SAVE] questões=${snapshot.questions.length} bytes=$encodedBytes',
+      '[LOCAL_SAVE] questões=${snapshot.questions.length} armazenado=$encodedBytes json=$rawBytes',
     );
     final saveOk = await _storage.write(encoded, backupPayload: validPrevious);
     if (!saveOk) {

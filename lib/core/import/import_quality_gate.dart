@@ -29,11 +29,45 @@ class ImportQualityAssessment {
 }
 
 /// Decides whether the extraction can be reviewed, needs a retry, or has no
-/// structural warning. A GOOD result still requires a person to review it.
+/// structural warning. Questions below the auto-validation threshold remain
+/// explicitly reviewable in the import editor.
 class ImportQualityGate {
-  const ImportQualityGate({this.reviewConfidenceThreshold = .85});
+  const ImportQualityGate({
+    this.reviewConfidenceThreshold = autoValidatedQuestionConfidence,
+  });
 
   final double reviewConfidenceThreshold;
+
+  void markNumberingIssues(List<ImportedQuestion> questions) {
+    final flagged = <int>{};
+    int? previousNumber;
+    int? previousIndex;
+    for (var index = 0; index < questions.length; index++) {
+      final number = questions[index].number;
+      if (number == null) continue;
+      if ((previousNumber == null && number != 1) ||
+          (previousNumber != null && number != previousNumber + 1) ||
+          number <= 0) {
+        flagged.add(index);
+        if (previousNumber != null && number <= previousNumber) {
+          flagged.add(previousIndex!);
+        }
+      }
+      previousNumber = number;
+      previousIndex = index;
+    }
+    for (final index in flagged) {
+      final question = questions[index];
+      const warning =
+          'Numeração fora de sequência; confira se há questão ausente, duplicada ou fora de ordem.';
+      if (question.warning == null) {
+        question.warning = warning;
+      } else if (!question.warning!.contains(warning)) {
+        question.warning = '${question.warning} $warning';
+      }
+      question.reviewState = QuestionReviewState.needsAttention;
+    }
+  }
 
   ImportQualityAssessment assess(
     PdfExtractionResult extraction,
@@ -42,7 +76,7 @@ class ImportQualityGate {
     final unreadablePages = extraction.unreadablePages;
     final confidenceThreshold = reviewConfidenceThreshold.isFinite
         ? reviewConfidenceThreshold.clamp(0, 1).toDouble()
-        : .85;
+        : autoValidatedQuestionConfidence;
     final ocrScores = extraction.pages
         .where((page) => page.source == PdfPageTextSource.onDeviceOcr)
         .map((page) => page.confidence)
@@ -134,9 +168,12 @@ class ImportQualityGate {
       if (number == null) continue;
       if (number <= 0) {
         issues++;
+        previousNumber = number;
         continue;
       }
-      if (previousNumber != null && number != previousNumber + 1) {
+      if (previousNumber == null && number != 1) {
+        issues++;
+      } else if (previousNumber != null && number != previousNumber + 1) {
         issues++;
       }
       previousNumber = number;

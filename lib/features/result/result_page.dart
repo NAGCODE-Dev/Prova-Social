@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/source_badge.dart';
 import '../../core/backend/attempt_sync_service.dart';
 import '../../domain/models/exam.dart';
+import '../quiz/quiz_page.dart';
 
 class PendingResultPage extends StatefulWidget {
   const PendingResultPage({
@@ -191,6 +192,7 @@ class ResultPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final wrongQuestionsExam = result.wrongQuestionsExam;
     return Scaffold(
       appBar: AppBar(title: const Text('Resultado')),
       body: ListView(
@@ -274,6 +276,20 @@ class ResultPage extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (wrongQuestionsExam != null) ...[
+                    const SizedBox(height: 14),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => QuizPage(exam: wrongQuestionsExam),
+                        ),
+                      ),
+                      icon: const Icon(Icons.replay_rounded),
+                      label: Text(
+                        'Refazer ${wrongQuestionsExam.questions.length} questões erradas',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 22),
                   Wrap(
                     spacing: 16,
@@ -355,15 +371,21 @@ class ResultPage extends StatelessWidget {
                               const SizedBox(height: 8),
                               Text(
                                 'Sua resposta: ${selected == null ? 'Em branco' : question.options[selected]}',
-                                style: const TextStyle(color: AppColors.muted),
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
                               ),
                               if (!correct) ...[
                                 Text(
                                   question.correctIndex == null
                                       ? 'Gabarito indisponível'
                                       : 'Gabarito: ${question.options[question.correctIndex!]}',
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
+                                  style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -417,7 +439,10 @@ class _Stat extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: AppColors.muted),
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

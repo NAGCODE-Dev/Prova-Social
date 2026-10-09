@@ -81,6 +81,21 @@ class ExamRepository {
     );
   }
 
+  Future<Exam?> publicExamById(String id) async {
+    final row = await _client
+        .from('exams')
+        .select(_examSelect)
+        .eq('id', id)
+        .eq('status', 'published')
+        .eq('is_public', true)
+        .order('position', ascending: true, referencedTable: 'questions')
+        .maybeSingle()
+        .timeout(const Duration(seconds: 15));
+    if (row == null) return null;
+    final exam = Map<String, dynamic>.from(row);
+    return mapPublishedExam(exam, _embeddedQuestions(exam));
+  }
+
   Future<List<Exam>> savedExamModels() async {
     final user = _client.auth.currentUser;
     if (user == null) return const [];

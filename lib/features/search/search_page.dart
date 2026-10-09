@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/backend/exam_repository.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../domain/models/exam.dart';
 import 'exam_source_directory.dart';
 
@@ -124,35 +125,59 @@ class _SearchPageState extends State<SearchPage> {
               child: TextField(
                 autofocus: false,
                 onChanged: _change,
+                textInputAction: TextInputAction.search,
                 maxLength: 120,
                 decoration: const InputDecoration(
                   labelText: 'Buscar provas, concursos e matérias',
+                  hintText: 'Ex.: concurso, banca ou disciplina',
                   prefixIcon: Icon(Icons.search),
                 ),
               ),
             ),
             if (_loading)
               const LinearProgressIndicator(semanticsLabel: 'Pesquisando'),
-            if (_error != null)
-              ListTile(
-                title: Text(_error!),
-                trailing: IconButton(
-                  tooltip: 'Tentar novamente',
-                  onPressed: () => _change(_query),
-                  icon: const Icon(Icons.refresh),
-                ),
-              ),
             if (_query.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(24),
                 child: Text('Pesquise no catálogo público, mesmo sem conta.'),
               ),
             Expanded(
-              child:
-                  !_loading &&
-                      _error == null &&
-                      _query.isNotEmpty &&
-                      _results.isEmpty
+              child: _loading
+                  ? ListView(
+                      padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      children: [const ExamListSkeleton(count: 3)],
+                    )
+                  : _error != null
+                  ? ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          size: 32,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'A busca não conseguiu carregar os resultados.',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(_error!),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Tooltip(
+                            message: 'Tentar novamente',
+                            child: OutlinedButton.icon(
+                              onPressed: () => _change(_query),
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Tentar novamente'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : _query.isNotEmpty && _results.isEmpty
                   ? ListView(
                       padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                       children: [

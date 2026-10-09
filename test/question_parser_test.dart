@@ -46,6 +46,27 @@ E) Quinta alternativa da questão $number.
     expect(questions.every((question) => question.options.length == 5), isTrue);
   });
 
+  test(
+    'mantém a página de origem quando questão continua na página seguinte',
+    () {
+      final questions = parser.parsePages([
+        'Questão 1. Enunciado que começa na primeira página e',
+        '''continua na segunda página?
+A) Primeira alternativa.
+B) Segunda alternativa.
+
+Questão 2. Próxima questão inteira na segunda página?
+A) Sim.
+B) Não.''',
+      ]);
+
+      expect(questions, hasLength(2));
+      expect(questions.first.sourcePage, 1);
+      expect(questions.first.statement, contains('continua na segunda página'));
+      expect(questions.last.sourcePage, 2);
+    },
+  );
+
   test('agrupa trilhas paralelas de idioma sem descartar versões', () {
     String track(String heading, String prompt) =>
         '''

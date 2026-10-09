@@ -8,13 +8,16 @@ import '../../core/backend/local_exam_store.dart';
 import '../search/search_page.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../core/backend/exam_repository.dart';
 import '../../core/backend/attempt_sync_service.dart';
+import '../../core/navigation/share_link_service.dart';
 import '../../domain/models/exam.dart';
 import '../quiz/quiz_page.dart';
 import '../publish/publish_page.dart';
@@ -146,6 +149,7 @@ class _HomePageState extends State<HomePage> {
               title: pending.title,
               category: pending.category,
               source: pending.source,
+              sourceUrl: pending.sourceUrl,
               durationMinutes: pending.durationMinutes,
               year: pending.year,
               questions: pending.questions,
@@ -624,23 +628,35 @@ class _HomeFeed extends StatelessWidget {
         const SizedBox(height: 18),
         _SearchBox(onTap: () => openGlobalSearch(context, onOpen)),
         const SizedBox(height: 28),
-        if (loading)
-          const LinearProgressIndicator()
-        else if (error != null)
-          Card(
-            child: ListTile(
-              title: const Text('Não foi possível carregar as provas'),
-              subtitle: Text(error!),
-              trailing: IconButton(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-            ),
-          ),
         const _SectionTitle('Publicadas recentemente'),
         const SizedBox(height: 12),
-        if (!loading && exams.isEmpty)
-          const Text('Nenhuma prova publicada ainda.')
+        if (error != null && exams.isEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Não foi possível carregar as provas',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(error!),
+                  const SizedBox(height: AppSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Tentar novamente'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (loading && exams.isEmpty)
+          const ExamListSkeleton()
+        else if (exams.isEmpty)
+          _EmptyCatalog(onExplore: () => openGlobalSearch(context, onOpen))
         else
           _ExamGrid(exams: exams, saved: saved, onSave: onSave, onOpen: onOpen),
         if (loadMoreError != null)
@@ -666,6 +682,46 @@ class _HomeFeed extends StatelessWidget {
                   : const Text('Carregar mais provas'),
             ),
           ),
+      ],
+    ),
+  );
+}
+
+class _EmptyCatalog extends StatelessWidget {
+  const _EmptyCatalog({required this.onExplore});
+
+  final VoidCallback onExplore;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      border: Border.all(color: Theme.of(context).colorScheme.outline),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.menu_book_outlined,
+          color: Theme.of(context).colorScheme.primary,
+          size: 28,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Ainda não há provas publicadas',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        const Text('Explore uma fonte oficial ou importe um PDF para começar.'),
+        const SizedBox(height: AppSpacing.md),
+        OutlinedButton.icon(
+          onPressed: onExplore,
+          icon: const Icon(Icons.search_rounded),
+          label: const Text('Explorar provas'),
+        ),
       ],
     ),
   );
@@ -880,6 +936,7 @@ class _LibraryPage extends StatelessWidget {
                       title: item.title,
                       category: item.category,
                       source: item.source,
+                      sourceUrl: item.sourceUrl,
                       durationMinutes: item.durationMinutes,
                       year: item.year,
                       questions: item.questions,
@@ -1122,7 +1179,26 @@ class _ExamDetails extends StatelessWidget {
   final Future<void> Function() onSignIn;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const BrandLockup()),
+    appBar: AppBar(
+      title: const BrandLockup(),
+      actions: [
+        if (!exam.isLocal)
+          IconButton(
+            tooltip: 'Copiar link da prova',
+            onPressed: () async {
+              await Clipboard.setData(
+                ClipboardData(text: ShareLinkService.exam(exam.id).toString()),
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Link da prova copiado.')),
+                );
+              }
+            },
+            icon: const Icon(Icons.ios_share_rounded),
+          ),
+      ],
+    ),
     body: _PageScroll(
       maxWidth: 820,
       child: Column(

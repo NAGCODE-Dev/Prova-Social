@@ -21,6 +21,7 @@ class SkeletonBlock extends StatefulWidget {
 class _SkeletonBlockState extends State<SkeletonBlock>
     with SingleTickerProviderStateMixin {
   late final AnimationController controller;
+  bool _reducedMotion = false;
 
   @override
   void initState() {
@@ -32,6 +33,19 @@ class _SkeletonBlockState extends State<SkeletonBlock>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations == true;
+    if (reduced == _reducedMotion) return;
+    _reducedMotion = reduced;
+    if (reduced) {
+      controller.stop();
+    } else {
+      controller.repeat(reverse: true);
+    }
+  }
+
+  @override
   void dispose() {
     controller.dispose();
     super.dispose();
@@ -39,9 +53,8 @@ class _SkeletonBlockState extends State<SkeletonBlock>
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations == true;
     final base = Theme.of(context).colorScheme.surfaceContainerHighest;
-    if (reduceMotion) return _block(base);
+    if (_reducedMotion) return _block(base);
     return FadeTransition(
       opacity: Tween(
         begin: .55,
@@ -94,21 +107,50 @@ class ExamCardSkeleton extends StatelessWidget {
   const ExamCardSkeleton({super.key});
 
   @override
-  Widget build(BuildContext context) => const Card(
+  Widget build(BuildContext context) => Card(
     child: Padding(
-      padding: EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      child: Row(
         children: [
-          SkeletonBlock(width: 110, height: 24),
-          SizedBox(height: AppSpacing.lg),
-          SkeletonBlock(height: 20),
-          SizedBox(height: AppSpacing.sm),
-          SkeletonBlock(width: 210, height: 20),
-          Spacer(),
-          SkeletonBlock(height: 12),
-          SizedBox(height: AppSpacing.sm),
-          SkeletonBlock(width: 150, height: 12),
+          const SkeletonBlock(width: 44, height: 56, radius: AppRadius.sm),
+          const SizedBox(width: AppSpacing.md),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonBlock(width: 140, height: 14),
+                SizedBox(height: AppSpacing.sm),
+                SkeletonBlock(width: 150, height: 11),
+                SizedBox(height: AppSpacing.xs),
+                SkeletonBlock(width: 120, height: 11),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const SkeletonBlock(width: 40, height: 40, radius: 20),
+        ],
+      ),
+    ),
+  );
+}
+
+class ExamListSkeleton extends StatelessWidget {
+  const ExamListSkeleton({this.count = 3, super.key});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    label: 'Carregando provas',
+    child: ExcludeSemantics(
+      child: Column(
+        children: [
+          for (var index = 0; index < count; index++) ...[
+            if (index > 0) const SizedBox(height: AppSpacing.sm),
+            const ExamCardSkeleton(),
+          ],
         ],
       ),
     ),

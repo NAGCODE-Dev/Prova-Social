@@ -17,12 +17,14 @@ class ExamPublicationService {
     required int durationMinutes,
     required List<ImportedQuestion> questions,
     int? year,
+    String? sourceUrl,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
       throw const AuthException('Entre na conta para publicar.');
     }
 
+    final normalizedSourceUrl = normalizeSourceUrl(sourceUrl);
     if (title.trim().length < 3 ||
         title.trim().length > 180 ||
         category.trim().length < 2 ||
@@ -67,18 +69,46 @@ class ExamPublicationService {
     if (utf8.encode(jsonEncode(questionPayload)).length > 8 * 1024 * 1024) {
       throw const FormatException('O conteúdo excede o limite de 8 MB.');
     }
-    final examId = await _client.rpc<String>(
-      'publish_exam',
-      params: {
-        'p_title': title.trim(),
-        'p_category': category.trim(),
-        'p_source': source.trim(),
-        'p_source_type': 'community',
-        'p_year': year,
-        'p_duration_minutes': durationMinutes,
-        'p_questions': questionPayload,
-      },
-    );
+    final params = <String, dynamic>{
+      'p_title': title.trim(),
+      'p_category': category.trim(),
+      'p_source': source.trim(),
+      'p_source_type': 'community',
+      'p_year': year,
+      'p_duration_minutes': durationMinutes,
+      'p_questions': questionPayload,
+    };
+    final examId = normalizedSourceUrl == null
+        ? await _client.rpc<String>('publish_exam', params: params)
+        : await _client.rpc<String>(
+            'publish_exam_with_source_url',
+            params: {...params, 'p_source_url': normalizedSourceUrl},
+          );
     return examId;
+  }
+
+  static bool isValidSourceUrl(String? value) {
+    try {
+      normalizeSourceUrl(value);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  static String? normalizeSourceUrl(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) return null;
+    final uri = Uri.tryParse(normalized);
+    if (normalized.length > 500 ||
+        uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      throw const FormatException(
+        'O link da fonte precisa ser uma URL HTTPS válida.',
+      );
+    }
+    return normalized;
   }
 }

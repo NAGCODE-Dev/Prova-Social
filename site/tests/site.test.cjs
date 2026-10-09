@@ -35,6 +35,10 @@ test('release failure preserves usable downloads link', async () => {
   const {node} = setup(); await new Promise(resolve => setImmediate(resolve));
   assert.equal(node('apk').href, 'https://github.com/NAGCODE-Dev/Prova-Social/releases');
 });
+test('public proof URLs are routed to the Flutter web app', () => {
+  const redirects = fs.readFileSync(path.join(root, '_redirects'), 'utf8');
+  assert.match(redirects, /^\/provas\/\* \/app\/index\.html 200$/m);
+});
 function luminance(hex) { const rgb = hex.match(/\w\w/g).map(v => parseInt(v,16)/255).map(v => v <= .04045 ? v/12.92 : ((v+.055)/1.055)**2.4); return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722; }
 test('dark palette has AA text contrast on all surfaces and keyboard/reduced-motion styles', () => {
   const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');

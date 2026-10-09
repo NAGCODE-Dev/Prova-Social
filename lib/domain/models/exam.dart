@@ -116,6 +116,35 @@ class ExamResult {
         index,
   ];
 
+  /// Builds a local-only retry exam from answered questions the user missed.
+  /// Blank answers are kept in review but are not classified as mistakes.
+  Exam? get wrongQuestionsExam {
+    final indices = wrongQuestionIndices;
+    if (indices.isEmpty) return null;
+    return Exam(
+      id: 'local-review-${finishedAt.microsecondsSinceEpoch}',
+      isLocal: true,
+      category: exam.category,
+      title: '${exam.title} · Questões erradas',
+      description: 'Revisão local das questões respondidas incorretamente.',
+      author: exam.author,
+      durationMinutes: exam.durationMinutes,
+      attempts: 0,
+      sourceType: exam.sourceType,
+      sourceUrl: exam.sourceUrl,
+      questions: [
+        for (final index in indices)
+          Question(
+            id: 'retry-$index-${exam.questions[index].id}',
+            topic: exam.questions[index].topic,
+            statement: exam.questions[index].statement,
+            options: exam.questions[index].options,
+            correctIndex: exam.questions[index].correctIndex,
+          ),
+      ],
+    );
+  }
+
   int get unanswered => [
     for (var index = 0; index < exam.questions.length; index++)
       if (answers[index] == null) index,

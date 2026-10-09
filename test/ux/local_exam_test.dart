@@ -6,21 +6,24 @@ import 'package:prova_social/core/backend/local_exam_store.dart';
 import 'package:prova_social/core/backend/local_exam_payload_store.dart';
 import 'package:prova_social/core/import/question_parser.dart';
 
-LocalExam draft(String title, {bool pending = false}) => LocalExam(
-  id: 'local-test',
-  title: title,
-  category: 'Matéria',
-  source: 'Origem',
-  durationMinutes: 30,
-  pendingPublication: pending,
-  questions: [
-    ImportedQuestion(
-      statement: 'Questão de teste',
-      options: ['A', 'B'],
-      correctIndex: 1,
-    ),
-  ],
-);
+LocalExam draft(String title, {bool pending = false, String? sourceUrl}) =>
+    LocalExam(
+      id: 'local-test',
+      title: title,
+      category: 'Matéria',
+      source: 'Origem',
+      sourceUrl: sourceUrl,
+      durationMinutes: 30,
+      pendingPublication: pending,
+      questions: [
+        ImportedQuestion(
+          statement: 'Questão de teste',
+          options: ['A', 'B'],
+          correctIndex: 1,
+          sourcePage: 4,
+        ),
+      ],
+    );
 
 class MemoryPayloadStore implements ExamPayloadStorage {
   String? current;
@@ -68,7 +71,11 @@ void main() {
   test(
     'private exam persists, restores answers and publication intent',
     () async {
-      final imported = draft('Minha prova', pending: true);
+      final imported = draft(
+        'Minha prova',
+        pending: true,
+        sourceUrl: 'https://example.org/prova',
+      );
       imported.questions.single
         ..number = 7
         ..format = QuestionFormat.assertion
@@ -78,15 +85,39 @@ void main() {
       final restored = (await LocalExamStore().load()).single;
       expect(restored.title, 'Minha prova');
       expect(restored.pendingPublication, isTrue);
+      expect(restored.sourceUrl, 'https://example.org/prova');
       expect(restored.exam.isLocal, isTrue);
       expect(restored.questions.single.correctIndex, 1);
       expect(restored.questions.single.number, 7);
+      expect(restored.questions.single.sourcePage, 4);
       expect(restored.questions.single.format, QuestionFormat.assertion);
       expect(restored.questions.single.confidence, .72);
       expect(restored.questions.single.warning, 'Estrutura incerta.');
       expect(restored.toJson().containsKey('is_public'), isFalse);
     },
   );
+  test('new local library payloads are compressed and integrity checked', () async {
+    final imported = draft('Prova compactada');
+    imported.questions.addAll(
+      List.generate(
+        80,
+        (index) => ImportedQuestion(
+          statement:
+              'Enunciado longo e repetido para compressão número $index. ${'texto da questão ' * 24}',
+          options: ['Alternativa A', 'Alternativa B', 'Alternativa C'],
+          correctIndex: 1,
+        ),
+      ),
+    );
+    await LocalExamStore().save(imported);
+    expect(payloadStore.current, startsWith('PSGZ1|'));
+    expect((await LocalExamStore().load()).single.title, 'Prova compactada');
+
+    final original = payloadStore.current!;
+    payloadStore.current = '${original.substring(0, original.length - 2)}AA';
+    payloadStore.backup = payloadStore.current;
+    await expectLater(LocalExamStore().load(), throwsA(isA<FormatException>()));
+  });
   test(
     'review cursor, state and alternate-language versions persist',
     () async {

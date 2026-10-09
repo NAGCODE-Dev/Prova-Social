@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/backend/local_exam_store.dart';
@@ -15,6 +14,7 @@ import '../../core/backend/exam_publication_service.dart';
 import '../../core/import/pdf_text_extractor.dart';
 import '../../core/import/import_quality_gate.dart';
 import '../../core/import/question_parser.dart';
+import '../../core/import/exam_metadata_suggester.dart';
 import '../../core/theme/app_theme.dart';
 
 class PublishPage extends StatelessWidget {
@@ -130,6 +130,7 @@ class PublishPage extends StatelessWidget {
             title: exam.title,
             category: exam.category,
             source: exam.source,
+            sourceUrl: exam.sourceUrl,
             durationMinutes: exam.durationMinutes,
             year: exam.year,
             questions: exam.questions,
@@ -183,10 +184,11 @@ class _PublishChoice extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.brandSoft,
+                color: Theme.of(context).colorScheme.primary
+                    .withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-              child: Icon(icon, color: AppColors.brandHover),
+              child: Icon(icon, color: Theme.of(context).colorScheme.primary),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -208,7 +210,10 @@ class _PublishChoice extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ],
         ),
       ),
@@ -303,7 +308,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
                         border: Border.all(
                           color: file == null
                               ? Theme.of(context).colorScheme.outline
-                              : AppColors.brand,
+                              : Theme.of(context).colorScheme.primary,
                         ),
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
@@ -320,14 +325,16 @@ class _PdfImportPageState extends State<PdfImportPage> {
                                 ],
                               )
                             : file == null
-                            ? const Column(
-                                key: ValueKey('empty'),
+                            ? Column(
+                                key: const ValueKey('empty'),
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
                                     Icons.upload_file_rounded,
                                     size: 36,
-                                    color: AppColors.brand,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                   SizedBox(height: AppSpacing.md),
                                   Text(
@@ -344,10 +351,12 @@ class _PdfImportPageState extends State<PdfImportPage> {
                                 key: const ValueKey('selected'),
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.check_circle_rounded,
                                     size: 36,
-                                    color: AppColors.brand,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                   const SizedBox(height: AppSpacing.md),
                                   Text(
@@ -373,11 +382,11 @@ class _PdfImportPageState extends State<PdfImportPage> {
                       ? null
                       : () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) => PdfPreparationPage(file: file!),
+                            builder: (_) => PdfProcessingPage(file: file!),
                           ),
                         ),
                   icon: const Icon(Icons.arrow_forward_rounded),
-                  label: const Text('Continuar para identificação'),
+                  label: const Text('Escanear e identificar'),
                 ),
               ],
             ),
@@ -392,183 +401,69 @@ class _PdfImportPageState extends State<PdfImportPage> {
       : '${(bytes / 1048576).toStringAsFixed(1)} MB';
 }
 
-class PdfPreparationPage extends StatefulWidget {
-  const PdfPreparationPage({required this.file, super.key});
-  final PlatformFile file;
-
-  @override
-  State<PdfPreparationPage> createState() => _PdfPreparationPageState();
-}
-
-class _PdfPreparationPageState extends State<PdfPreparationPage> {
-  final title = TextEditingController();
-  final source = TextEditingController();
-  final category = TextEditingController();
-  final year = TextEditingController();
-  final duration = TextEditingController(text: '120');
-
-  @override
-  void dispose() {
-    title.dispose();
-    source.dispose();
-    category.dispose();
-    year.dispose();
-    duration.dispose();
-    super.dispose();
-  }
-
-  void start() {
-    if (title.text.trim().isEmpty ||
-        category.text.trim().isEmpty ||
-        source.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe o título, a categoria e a origem da prova.'),
-        ),
-      );
-      return;
-    }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PdfProcessingPage(
-          file: widget.file,
-          title: title.text.trim(),
-          category: category.text.trim(),
-          source: source.text.trim(),
-          year: int.tryParse(year.text),
-          durationMinutes: int.tryParse(duration.text) ?? 120,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Identificar prova')),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _ImportSteps(current: 1),
-                const SizedBox(height: AppSpacing.xl),
-                Text(
-                  'Informações da prova',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TextField(
-                  controller: title,
-                  decoration: const InputDecoration(
-                    labelText: 'Título da prova',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  controller: source,
-                  decoration: const InputDecoration(
-                    labelText: 'Banca ou origem',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  controller: category,
-                  decoration: const InputDecoration(
-                    labelText: 'Categoria ou assunto',
-                    hintText: 'Ex.: Vestibulares, Concursos, Matemática',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: year,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Ano'),
-                      ),
-                    ),
-                    SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: TextField(
-                        controller: duration,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Duração em minutos',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.picture_as_pdf_outlined,
-                      color: AppColors.brand,
-                    ),
-                    title: Text(widget.file.name),
-                    subtitle: const Text(
-                      'O processamento mostrará etapas reais e abrirá uma revisão antes da publicação.',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                FilledButton.icon(
-                  onPressed: start,
-                  icon: const Icon(Icons.auto_awesome_outlined),
-                  label: const Text('Iniciar digitalização'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class PdfProcessingPage extends StatefulWidget {
-  const PdfProcessingPage({
-    required this.file,
-    required this.title,
-    required this.category,
-    required this.source,
-    required this.durationMinutes,
-    this.year,
-    super.key,
-  });
+  const PdfProcessingPage({required this.file, super.key});
 
   final PlatformFile file;
-  final String title;
-  final String category;
-  final String source;
-  final int? year;
-  final int durationMinutes;
 
   @override
   State<PdfProcessingPage> createState() => _PdfProcessingPageState();
 }
 
 class _PdfProcessingPageState extends State<PdfProcessingPage> {
-  late final Future<_ImportResult> work = _process();
+  late Future<_ImportResult> work;
+  final processingStatus = ValueNotifier<String>('Lendo arquivo');
+  final title = TextEditingController();
+  final category = TextEditingController();
+  final source = TextEditingController();
+  final sourceUrl = TextEditingController();
+  final year = TextEditingController();
+  final duration = TextEditingController(text: '120');
+  bool suggestionsApplied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    work = _process();
+  }
+
+  @override
+  void dispose() {
+    title.dispose();
+    category.dispose();
+    source.dispose();
+    sourceUrl.dispose();
+    year.dispose();
+    duration.dispose();
+    processingStatus.dispose();
+    super.dispose();
+  }
 
   Future<_ImportResult> _process() async {
+    processingStatus.value = 'Lendo arquivo';
     final bytes = await widget.file.readAsBytes();
+    processingStatus.value = 'Reconhecendo texto e páginas';
     final extraction = await const PdfTextExtractor().extract(
       bytes,
       sourceName: widget.file.name,
     );
-    final questions = const QuestionParser().parse(extraction.text);
-    final quality = const ImportQualityGate().assess(extraction, questions);
+    processingStatus.value = 'Identificando questões e alternativas';
+    final questions = const QuestionParser().parsePages(
+      extraction.pages.map((page) => page.text).toList(growable: false),
+    );
+    processingStatus.value = 'Conferindo estrutura e dados da prova';
+    const qualityGate = ImportQualityGate();
+    qualityGate.markNumberingIssues(questions);
+    final quality = qualityGate.assess(extraction, questions);
+    final suggestion = suggestExamMetadata(
+      fileName: widget.file.name,
+      firstPageText: extraction.pages.firstOrNull?.text ?? '',
+    );
     return _ImportResult(
       extraction: extraction,
       questions: questions,
       quality: quality,
+      suggestion: suggestion,
     );
   }
 
@@ -579,20 +474,30 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
       future: work,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          debugPrint(
+            '[PDF_IMPORT] falha ao processar: ${snapshot.error.runtimeType}',
+          );
+          if (snapshot.stackTrace != null) {
+            debugPrint('[PDF_IMPORT] stack: ${snapshot.stackTrace}');
+          }
           return _ProcessMessage(
             icon: Icons.error_outline_rounded,
             title: 'Não foi possível ler o PDF',
-            text: '${snapshot.error}',
+            text: 'O arquivo pode estar danificado, protegido ou em um formato incompatível. Confira se ele abre normalmente e escolha outro PDF para tentar novamente.',
             action: () => Navigator.pop(context),
-            actionLabel: 'Voltar',
+            actionLabel: 'Escolher outro arquivo',
           );
         }
         if (!snapshot.hasData) {
-          return const _ProcessMessage(
-            icon: Icons.document_scanner_outlined,
-            title: 'Extraindo conteúdo',
-            text: 'Lendo texto, aplicando OCR quando necessário e procurando questões e alternativas…',
-            loading: true,
+          return ValueListenableBuilder<String>(
+            valueListenable: processingStatus,
+            builder: (context, status, _) => _ProcessMessage(
+              icon: Icons.document_scanner_outlined,
+              title: status,
+              text: 'O arquivo está sendo processado no aparelho. O tempo depende do tamanho e da qualidade do PDF.',
+              loading: true,
+              loadingLabel: status,
+            ),
           );
         }
         final result = snapshot.data!;
@@ -624,37 +529,139 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
         }
         final extraction = result.extraction;
         final quality = result.quality;
-        final warningText = extraction.pagesWithWarnings == 0
-            ? ''
-            : ' ${extraction.pagesWithWarnings} página(s) precisam de revisão adicional.';
-        final variantsText = quality.questionsWithVariants == 0
-            ? ''
-            : ' ${quality.questionsWithVariants} questões têm versões alternativas preservadas; você pode escolher o idioma uma vez no editor.';
-        final diagnosticText = quality.diagnostics.isEmpty
-            ? ''
-            : ' Diagnósticos estruturais desta análise não incluem nem enviam o texto do arquivo.';
-        return _ProcessMessage(
-          icon: quality.status == ImportQualityStatus.good
-              ? Icons.check_circle_outline_rounded
-              : Icons.fact_check_outlined,
-          title: quality.status == ImportQualityStatus.good
-              ? '${result.questions.length} questões encontradas'
-              : '${result.questions.length} questões para revisar',
-          text:
-              '${extraction.pageCount} páginas analisadas: ${extraction.pagesWithText} com texto nativo, ${extraction.paddleOcrPages} por PaddleOCR, ${extraction.mlKitPages} por ML Kit e ${extraction.unreadablePages} sem texto suficiente.$warningText$variantsText ${quality.reasons.join(' ')}$diagnosticText Revise todos os enunciados, alternativas e gabaritos antes de publicar.',
-          action: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => ImportReviewPage(
-                title: widget.title,
-                category: widget.category,
-                source: widget.source,
-                year: widget.year,
-                durationMinutes: widget.durationMinutes,
-                questions: result.questions,
+        if (!suggestionsApplied) {
+          title.text = result.suggestion.title;
+          year.text = result.suggestion.year?.toString() ?? '';
+          suggestionsApplied = true;
+        }
+        final accepted =
+            result.questions.length - quality.questionsNeedingReview;
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _ImportSteps(current: 1),
+                    const SizedBox(height: AppSpacing.xl),
+                    Text(
+                      'Digitalização concluída',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      '${extraction.pageCount} páginas · ${result.questions.length} questões encontradas · $accepted validadas automaticamente (confiança ≥ 99%) · ${quality.questionsNeedingReview} para conferir.',
+                    ),
+                    if (quality.reasons.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(quality.reasons.join(' ')),
+                    ],
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      'Confirme os dados identificados',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: title,
+                      decoration: const InputDecoration(
+                        labelText: 'Título sugerido pelo PDF',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: source,
+                      decoration: const InputDecoration(
+                        labelText: 'Banca ou origem',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: category,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoria ou assunto',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: sourceUrl,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Link da fonte (opcional)',
+                        hintText: 'https://...',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: year,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Ano'),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: TextField(
+                            controller: duration,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Duração em minutos',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    FilledButton.icon(
+                      onPressed: () {
+                        if (title.text.trim().isEmpty ||
+                            category.text.trim().isEmpty ||
+                            source.text.trim().isEmpty ||
+                            !ExamPublicationService.isValidSourceUrl(
+                              sourceUrl.text,
+                            ) ||
+                            (int.tryParse(duration.text) ?? 0) < 1) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Confirme título, banca, categoria e duração.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ImportReviewPage(
+                              title: title.text.trim(),
+                              category: category.text.trim(),
+                              source: source.text.trim(),
+                              sourceUrl: sourceUrl.text.trim(),
+                              year: int.tryParse(year.text),
+                              durationMinutes:
+                                  int.tryParse(duration.text) ?? 120,
+                              questions: result.questions,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: Text(
+                        quality.questionsNeedingReview == 0
+                            ? 'Continuar para revisão da prova'
+                            : 'Conferir ${quality.questionsNeedingReview} questões necessárias',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actionLabel: 'Revisar questões',
+          ],
         );
       },
     ),
@@ -666,10 +673,12 @@ class _ImportResult {
     required this.extraction,
     required this.questions,
     required this.quality,
+    required this.suggestion,
   });
   final PdfExtractionResult extraction;
   final List<ImportedQuestion> questions;
   final ImportQualityAssessment quality;
+  final ExamMetadataSuggestion suggestion;
 }
 
 class _ProcessMessage extends StatelessWidget {
@@ -680,6 +689,7 @@ class _ProcessMessage extends StatelessWidget {
     this.action,
     this.actionLabel,
     this.loading = false,
+    this.loadingLabel,
   });
   final IconData icon;
   final String title;
@@ -687,6 +697,7 @@ class _ProcessMessage extends StatelessWidget {
   final VoidCallback? action;
   final String? actionLabel;
   final bool loading;
+  final String? loadingLabel;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -698,9 +709,19 @@ class _ProcessMessage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (loading)
-              const CircularProgressIndicator()
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                  semanticsLabel: loadingLabel ?? title,
+                ),
+              )
             else
-              Icon(icon, size: 56, color: AppColors.brand),
+              Icon(
+                icon,
+                size: 56,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               title,
@@ -725,6 +746,7 @@ class ImportReviewPage extends StatefulWidget {
     required this.title,
     required this.category,
     required this.source,
+    this.sourceUrl,
     required this.durationMinutes,
     required this.questions,
     this.year,
@@ -734,6 +756,7 @@ class ImportReviewPage extends StatefulWidget {
     super.key,
   });
   final String title, category, source;
+  final String? sourceUrl;
   final int durationMinutes;
   final int? year;
   final String? localId;
@@ -746,7 +769,12 @@ class ImportReviewPage extends StatefulWidget {
 
 class _ImportReviewPageState extends State<ImportReviewPage>
     with WidgetsBindingObserver {
-  late final TextEditingController title, category, source, duration, year;
+  late final TextEditingController title,
+      category,
+      source,
+      sourceUrl,
+      duration,
+      year;
   late final List<ImportedQuestion> questions;
   late final String localId;
   final store = LocalExamStore();
@@ -768,6 +796,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     title = TextEditingController(text: widget.title);
     category = TextEditingController(text: widget.category);
     source = TextEditingController(text: widget.source);
+    sourceUrl = TextEditingController(text: widget.sourceUrl ?? '');
     duration = TextEditingController(
       text: widget.durationMinutes > 0 ? '${widget.durationMinutes}' : '',
     );
@@ -779,6 +808,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             options: List.of(q.options),
             correctIndex: q.correctIndex,
             number: q.number,
+            sourcePage: q.sourcePage,
             format: q.format,
             confidence: q.confidence,
             warning: q.warning,
@@ -803,13 +833,25 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     currentQuestionIndex = questions.isEmpty
         ? 0
         : currentQuestionIndex.clamp(0, questions.length - 1);
-    if (questions.isNotEmpty &&
-        questions[currentQuestionIndex].reviewState ==
-            QuestionReviewState.unreviewed) {
-      questions[currentQuestionIndex].reviewState =
-          QuestionReviewState.inReview;
+    if (questions.isNotEmpty) {
+      final firstNeedsReview = questions.indexWhere(
+        (question) => question.reviewState != QuestionReviewState.reviewed,
+      );
+      currentQuestionIndex = firstNeedsReview < 0 ? 0 : firstNeedsReview;
+      if (questions[currentQuestionIndex].reviewState ==
+          QuestionReviewState.unreviewed) {
+        questions[currentQuestionIndex].reviewState =
+            QuestionReviewState.inReview;
+      }
     }
-    for (final controller in [title, category, source, duration, year]) {
+    for (final controller in [
+      title,
+      category,
+      source,
+      sourceUrl,
+      duration,
+      year,
+    ]) {
       controller.addListener(() => _changed(debounce: true));
     }
     // Imported content becomes recoverable immediately, without an upload.
@@ -827,6 +869,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     title: title.text,
     category: category.text,
     source: source.text,
+    sourceUrl: sourceUrl.text.trim().isEmpty ? null : sourceUrl.text.trim(),
     durationMinutes: int.tryParse(duration.text) ?? 0,
     year: int.tryParse(year.text),
     questions: questions,
@@ -845,6 +888,13 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       _saveDebounce = null;
       unawaited(_save());
     }
+  }
+
+  void _questionEdited(ImportedQuestion question, {bool debounce = false}) {
+    if (question.reviewState == QuestionReviewState.reviewed) {
+      question.reviewState = QuestionReviewState.inReview;
+    }
+    _changed(debounce: debounce);
   }
 
   Future<bool> _save({bool? pending}) async {
@@ -941,7 +991,14 @@ class _ImportReviewPageState extends State<ImportReviewPage>
   void dispose() {
     _saveDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    for (final controller in [title, category, source, duration, year]) {
+    for (final controller in [
+      title,
+      category,
+      source,
+      sourceUrl,
+      duration,
+      year,
+    ]) {
       controller.dispose();
     }
     super.dispose();
@@ -949,14 +1006,29 @@ class _ImportReviewPageState extends State<ImportReviewPage>
 
   Future<void> _export() async {
     try {
-      await Clipboard.setData(
-        ClipboardData(text: jsonEncode(_snapshot().toJson())),
+      final exam = _snapshot();
+      final contents = const JsonEncoder.withIndent('  ')
+          .convert(exam.toJson());
+      final safeName = exam.title
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+$'), '');
+      final fileName = '${safeName.isEmpty ? 'prova-social' : safeName}.json';
+      final saved = await FilePicker.saveFile(
+        fileName: fileName,
+        bytes: utf8.encode('$contents\n'),
+        mimeType: 'application/json',
+        dialogTitle: 'Salvar prova em JSON',
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'JSON copiado. Guarde em um arquivo .json para importar depois.',
+              saved == null
+                  ? 'Salvamento cancelado.'
+                  : 'Arquivo JSON salvo. Você pode importá-lo quando quiser.',
             ),
           ),
         );
@@ -968,7 +1040,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Não foi possível copiar. Verifique a permissão da área de transferência.',
+              'Não foi possível salvar o arquivo. Tente novamente ou copie o JSON pelo menu de opções.',
             ),
           ),
         );
@@ -983,6 +1055,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       category.text.trim().length <= 80 &&
       source.text.trim().length >= 2 &&
       source.text.trim().length <= 160 &&
+      ExamPublicationService.isValidSourceUrl(sourceUrl.text) &&
       (int.tryParse(duration.text) ?? 0) > 0 &&
       (int.tryParse(duration.text) ?? 0) <= 1440 &&
       (year.text.isEmpty ||
@@ -998,6 +1071,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             q.options.length >= 2 &&
             q.options.length <= 8 &&
             q.options.every((o) => o.trim().isNotEmpty) &&
+            q.reviewState == QuestionReviewState.reviewed &&
             q.correctIndex != null &&
             q.correctIndex! >= 0 &&
             q.correctIndex! < q.options.length,
@@ -1008,7 +1082,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Preencha título, categoria, origem, duração, questões, alternativas e gabarito.',
+            'Preencha os dados e o gabarito; confirme as questões que pedem revisão.',
           ),
         ),
       );
@@ -1055,6 +1129,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         title: title.text,
         category: category.text,
         source: source.text,
+        sourceUrl: sourceUrl.text,
         durationMinutes: int.parse(duration.text),
         year: int.tryParse(year.text),
         questions: questions,
@@ -1070,13 +1145,14 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       debugPrint('[PUBLICATION] ERRO: ${error.runtimeType}');
       debugPrint('[PUBLICATION] STACK: $stackTrace');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Não foi possível publicar. Sua prova continua salva no aparelho.',
-            ),
-          ),
-        );
+        final message =
+            error is PostgrestException &&
+                error.code == 'PGRST202' &&
+                sourceUrl.text.trim().isNotEmpty
+            ? 'O servidor ainda não foi atualizado para salvar o link da fonte. Sua prova continua salva no aparelho; tente novamente após a atualização.'
+            : 'Não foi possível publicar. Sua prova continua salva no aparelho.';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -1184,6 +1260,11 @@ class _ImportReviewPageState extends State<ImportReviewPage>
           (question) => question.reviewState == QuestionReviewState.reviewed,
         )
         .length;
+    final needingReview = questions
+        .where(
+          (question) => question.reviewState != QuestionReviewState.reviewed,
+        )
+        .length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -1201,6 +1282,11 @@ class _ImportReviewPageState extends State<ImportReviewPage>
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: total == 0 ? 0 : reviewed / total),
+          const SizedBox(height: 8),
+          Text(
+            '$needingReview para conferir · questões com confiança de 99% ou mais já foram validadas automaticamente.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1289,8 +1375,15 @@ class _ImportReviewPageState extends State<ImportReviewPage>
 
   void _moveQuestion(int delta) {
     if (questions.isEmpty) return;
-    final next = (currentQuestionIndex + delta).clamp(0, questions.length - 1);
-    if (next == currentQuestionIndex) return;
+    var next = currentQuestionIndex + delta;
+    while (next >= 0 &&
+        next < questions.length &&
+        questions[next].reviewState == QuestionReviewState.reviewed) {
+      next += delta;
+    }
+    if (next < 0 || next >= questions.length || next == currentQuestionIndex) {
+      return;
+    }
     setState(() {
       currentQuestionIndex = next;
       if (questions[next].reviewState == QuestionReviewState.unreviewed) {
@@ -1306,7 +1399,10 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: currentQuestionIndex > 0
+            onPressed:
+                questions
+                    .take(currentQuestionIndex)
+                    .any((q) => q.reviewState != QuestionReviewState.reviewed)
                 ? () => _moveQuestion(-1)
                 : null,
             icon: const Icon(Icons.arrow_back),
@@ -1316,7 +1412,10 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         const SizedBox(width: 12),
         Expanded(
           child: FilledButton.icon(
-            onPressed: currentQuestionIndex + 1 < questions.length
+            onPressed:
+                questions
+                    .skip(currentQuestionIndex + 1)
+                    .any((q) => q.reviewState != QuestionReviewState.reviewed)
                 ? () => _moveQuestion(1)
                 : null,
             icon: const Icon(Icons.arrow_forward),
@@ -1362,6 +1461,14 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                 ),
               ],
             ),
+            if (question.sourcePage case final page?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Origem: página $page do arquivo importado',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             if (question.alternateVersions.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -1397,7 +1504,9 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                         },
                 ),
               ),
-            if (question.confidence < .85 || question.warning != null)
+            if (question.confidence < autoValidatedQuestionConfidence ||
+                question.warning != null ||
+                question.reviewState != QuestionReviewState.reviewed)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(10),
@@ -1409,7 +1518,12 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Revisar extração · confiança ${(question.confidence * 100).round()}%',
+                      question.confidence < autoValidatedQuestionConfidence ||
+                              question.warning != null
+                          ? 'Conferir extração · confiança ${(question.confidence * 100).round()}%'
+                          : question.reviewState == QuestionReviewState.inReview
+                          ? 'Alteração pendente de confirmação manual'
+                          : 'Confirmação manual necessária',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     if (question.warning case final warning?) Text(warning),
@@ -1423,8 +1537,6 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                     busy || question.reviewState == QuestionReviewState.reviewed
                     ? null
                     : () {
-                        question.confidence = 1;
-                        question.warning = null;
                         question.reviewState = QuestionReviewState.reviewed;
                         _changed();
                       },
@@ -1449,7 +1561,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
               decoration: const InputDecoration(labelText: 'Enunciado'),
               onChanged: (value) {
                 question.statement = value;
-                _changed(debounce: true);
+                _questionEdited(question, debounce: true);
               },
             ),
             for (var option = 0; option < question.options.length; option++)
@@ -1462,7 +1574,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                         ? null
                         : () {
                             question.correctIndex = option;
-                            _changed();
+                            _questionEdited(question);
                           },
                     icon: Icon(
                       question.correctIndex == option
@@ -1483,7 +1595,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                       ),
                       onChanged: (value) {
                         question.options[option] = value;
-                        _changed(debounce: true);
+                        _questionEdited(question, debounce: true);
                       },
                     ),
                   ),
@@ -1502,7 +1614,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                               } else if (correct != null && correct > option) {
                                 question.correctIndex = correct - 1;
                               }
-                              _changed();
+                              _questionEdited(question);
                             },
                     ),
                 ],
@@ -1513,7 +1625,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                     ? null
                     : () {
                         question.options.add('');
-                        _changed();
+                        _questionEdited(question);
                       },
                 child: const Text('Adicionar alternativa'),
               ),
@@ -1531,7 +1643,11 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             ? null
             : () {
                 questions.add(
-                  ImportedQuestion(statement: '', options: ['', '']),
+                  ImportedQuestion(
+                    statement: '',
+                    options: ['', ''],
+                    confidence: 0,
+                  ),
                 );
                 currentQuestionIndex = questions.length - 1;
                 questions[currentQuestionIndex].reviewState =
@@ -1560,6 +1676,25 @@ class _ImportReviewPageState extends State<ImportReviewPage>
       OutlinedButton(
         onPressed: busy ? null : _publish,
         child: Text(busy ? 'Aguarde…' : 'Publicar para todos — requer conta'),
+      ),
+      ExpansionTile(
+        initiallyExpanded: sourceUrl.text.isNotEmpty,
+        title: const Text('Adicionar link da fonte (opcional)'),
+        tilePadding: EdgeInsets.zero,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TextField(
+              controller: sourceUrl,
+              enabled: !busy,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                hintText: 'https://...',
+                helperText: 'O link será salvo junto da procedência da prova.',
+              ),
+            ),
+          ),
+        ],
       ),
     ],
   );
@@ -1608,6 +1743,7 @@ class _ImportSteps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const labels = ['Arquivo', 'Identificação', 'Processamento', 'Revisão'];
+    final colors = Theme.of(context).colorScheme;
     return Row(
       children: List.generate(labels.length, (index) {
         final active = index <= current;
@@ -1620,7 +1756,9 @@ class _ImportSteps extends StatelessWidget {
                   right: index == labels.length - 1 ? 0 : 4,
                 ),
                 decoration: BoxDecoration(
-                  color: active ? AppColors.brand : AppColors.line,
+                  color: active
+                      ? colors.primary
+                      : colors.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1631,7 +1769,7 @@ class _ImportSteps extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  color: active ? AppColors.brandHover : AppColors.muted,
+                  color: active ? colors.primary : colors.onSurfaceVariant,
                 ),
               ),
             ],
@@ -1646,17 +1784,20 @@ class _PrivacyNote extends StatelessWidget {
   const _PrivacyNote();
 
   @override
-  Widget build(BuildContext context) => const Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.muted),
-      SizedBox(width: AppSpacing.sm),
-      Expanded(
-        child: Text(
-          'Rascunhos ficam privados. Uma prova só aparece para a comunidade depois da revisão e publicação.',
-          style: TextStyle(color: AppColors.muted),
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.lock_outline_rounded, size: 20, color: muted),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            'Rascunhos ficam privados. Uma prova só aparece para a comunidade depois da revisão e publicação.',
+            style: TextStyle(color: muted),
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }

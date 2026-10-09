@@ -10,6 +10,13 @@ Consulte [diagnóstico](DIAGNOSTICO_ATUAL.md) e [relatório P0](RELATORIO_P0_202
 4. Exercitar ciclo integral, OAuth/retomada de intenção e troca de contas em aparelho/Web.
 5. Só depois distribuição e P1. Nenhuma release/tag/commit/push autorizada nesta execução.
 
+## Incrementos locais — 09/10/2026 (ainda sem release)
+
+- Procedência: editor aceita URL HTTPS opcional, inclui no rascunho local e encaminha à RPC `publish_exam_with_source_url`. A migration correspondente está pendente de aplicação/validação em produção; não publicar cliente que use o campo antes de atualizar o backend.
+- Importação: parser recebe páginas individualmente e registra, no rascunho, a página onde cada questão começa. Fixture sintética de 80 questões passou. Coordenadas de origem, imagens associadas e PDF real continuam pendentes.
+- Revisão: resultado pode gerar uma tentativa local contendo somente respostas erradas respondidas; questões em branco ficam fora.
+- Gates locais em Flutter 3.47.6/Dart 3.13.5: format, analyze e 142 testes passaram. A suíte PostgreSQL não iniciou por falta do usuário de sistema `postgres`; runtime em dispositivo e backend de produção seguem sem validação nesta rodada.
+
 ## Histórico anterior (preservado)
 
 # Roadmap de execução

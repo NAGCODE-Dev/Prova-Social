@@ -56,6 +56,9 @@ void main() {
     expect(result.scorePercent, 80);
     expect(result.toJson()['total'], 5);
     expect(result.wrongQuestionIndices, [3]);
+    expect(result.wrongQuestionsExam?.isLocal, isTrue);
+    expect(result.wrongQuestionsExam?.questions.single.statement, 'Q4');
+    expect(result.wrongQuestionsExam?.questions.single.correctIndex, 0);
     expect(result.unanswered, 0);
     expect(result.byTopic['Geral'], (correct: 4, total: 5));
   });
@@ -83,6 +86,7 @@ void main() {
     expect(result.correct, 0);
     expect(result.unanswered, 1);
     expect(result.wrongQuestionIndices, isEmpty);
+    expect(result.wrongQuestionsExam, isNull);
     expect((result.toJson()['answers'] as List).single['isCorrect'], isFalse);
     final empty = ExamResult(
       exam: exam.copyWith(questions: []),

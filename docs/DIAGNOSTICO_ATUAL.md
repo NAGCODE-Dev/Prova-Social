@@ -2,6 +2,19 @@
 
 Data: 26/09/2026. Código consolidado: `main`, `4be6972`. Trabalho preexistente preservado e enviado; migration corretiva aplicada e smoke remoto aprovado com rollback. Ver [relatório consolidado para revisão externa](REVISAO_EXTERNA_20260926.md).
 
+## Verificação local — 09/10/2026
+
+Estado observado: `main`, `3a92d9c`, sincronizado com `origin/main` após `git fetch origin` concluído.
+
+- `dart format --output=none --set-exit-if-changed .`: aprovado, 69 arquivos, sem mudanças de formatação.
+- `flutter analyze`: aprovado, sem issues.
+- `flutter test --reporter expanded`: aprovado, 142 testes.
+- Build Web release em cópia temporária, com preparação idêntica ao CI: aprovado. Não houve inspeção visual no navegador.
+- Publicação agora aceita URL de fonte HTTPS opcional, persiste no rascunho local e encaminha a uma RPC dedicada. A migration `20261009120000_publish_exam_source_url.sql` existe localmente, mas **não foi aplicada nem verificada em produção**; publicações com URL dependem dessa migration.
+- Importação usa texto separado por página para associar cada questão à página onde começa; a origem da página é preservada no rascunho e mostrada na revisão. A fixture sintética de 80 questões em duas colunas passou; validação com PDF real e coordenadas espaciais continua pendente.
+- Resultado oferece nova tentativa local somente com questões respondidas incorretamente. Fluxo manual completo em dispositivo ainda não validado.
+- `sh scripts/local_db_test.sh` não pôde iniciar: o ambiente não possui o usuário de sistema `postgres`. A migration nova e seu teste SQL não foram executados aqui.
+
 | Área | Classificação | Evidência e limite |
 | --- | --- | --- |
 | Git | Funcional | Commits ff04f25 e 4be6972 enviados a origin/main; worktree limpo antes deste lote documental. |

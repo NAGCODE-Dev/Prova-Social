@@ -8,16 +8,19 @@ class ImportedQuestion {
     required this.options,
     this.correctIndex,
     this.number,
+    this.sourcePage,
     this.format = QuestionFormat.multipleChoice,
-    this.confidence = 1,
+    this.confidence = 0,
     this.warning,
     QuestionReviewState? reviewState,
     this.versionLabel = 'Versão principal',
     List<ImportedQuestionVersion>? alternateVersions,
   }) : reviewState =
            reviewState ??
-           (confidence < .85 || warning != null
+           (warning != null || confidence < lowConfidenceQuestionThreshold
                ? QuestionReviewState.needsAttention
+               : confidence >= autoValidatedQuestionConfidence
+               ? QuestionReviewState.reviewed
                : QuestionReviewState.unreviewed),
        alternateVersions = alternateVersions ?? <ImportedQuestionVersion>[];
 
@@ -25,6 +28,7 @@ class ImportedQuestion {
   List<String> options;
   int? correctIndex;
   int? number;
+  int? sourcePage;
   QuestionFormat format;
   double confidence;
   String? warning;
@@ -51,8 +55,10 @@ class ImportedQuestion {
     confidence = selected.confidence;
     warning = selected.warning;
     versionLabel = selected.label;
-    reviewState = confidence < .85 || warning != null
+    reviewState = warning != null || confidence < lowConfidenceQuestionThreshold
         ? QuestionReviewState.needsAttention
+        : confidence >= autoValidatedQuestionConfidence
+        ? QuestionReviewState.reviewed
         : QuestionReviewState.inReview;
     alternateVersions[index] = previous;
   }
@@ -66,6 +72,9 @@ class ImportedQuestion {
 }
 
 enum QuestionReviewState { unreviewed, inReview, reviewed, needsAttention }
+
+const autoValidatedQuestionConfidence = .99;
+const lowConfidenceQuestionThreshold = .80;
 
 class ImportedQuestionVersion {
   const ImportedQuestionVersion({
@@ -126,11 +135,19 @@ class QuestionParser {
     final candidates = <_QuestionStart>[];
     final seenVariantsByNumber = <int, Set<String>>{};
     final candidateVariantLabels = <int, String>{};
+    final sourcePagesByLine = <int, int>{};
     var currentVariantLabel = 'Versão principal';
     var previousNumber = -1;
+    int? currentSourcePage;
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
+      final pageMarker = _pageMarker.firstMatch(line);
+      if (pageMarker != null) {
+        currentSourcePage = int.tryParse(pageMarker.group(1)!);
+        continue;
+      }
+      if (currentSourcePage != null) sourcePagesByLine[i] = currentSourcePage;
       final sectionVariant = _languageVariantHeading(line);
       if (sectionVariant != null) {
         currentVariantLabel = sectionVariant;
@@ -176,6 +193,7 @@ class QuestionParser {
           : lines.length;
       final block = lines
           .sublist(candidate.lineIndex, nextLine)
+          .where((line) => !_pageMarker.hasMatch(line))
           .join('\n')
           .trim();
 
@@ -187,6 +205,7 @@ class QuestionParser {
       if (parsed != null) {
         parsed.versionLabel =
             candidateVariantLabels[candidate.lineIndex] ?? 'Versão principal';
+        parsed.sourcePage = sourcePagesByLine[candidate.lineIndex];
         questions.add(parsed);
         inheritedTrueFalse = parsed.format == QuestionFormat.trueFalse;
       } else if (candidate.explicit) {
@@ -196,6 +215,20 @@ class QuestionParser {
 
     return _coalesceParallelNumberedVersions(questions);
   }
+
+  /// Parses page-ordered text while retaining the original page for each
+  /// question. A question that continues onto the next page keeps its start
+  /// page and its complete text block.
+  List<ImportedQuestion> parsePages(List<String> pages) => parse(
+    [
+      for (var index = 0; index < pages.length; index++)
+        '\u0000PROVA_SOCIAL_PAGE_${index + 1}\u0000\n${pages[index]}',
+    ].join('\n'),
+  );
+
+  static final RegExp _pageMarker = RegExp(
+    r'^\u0000PROVA_SOCIAL_PAGE_(\d+)\u0000$',
+  );
 
   String? _languageVariantHeading(String line) {
     final heading = line.trim();

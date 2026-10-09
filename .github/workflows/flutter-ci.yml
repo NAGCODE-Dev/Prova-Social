@@ -300,6 +300,41 @@ jobs:
             "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > site/app/version.json
 
+      - name: Preparar assetlinks.json do Android
+        env:
+          ANDROID_APP_LINKS_SHA256: ${{ secrets.ANDROID_APP_LINKS_SHA256 }}
+          CLOUDFLARE_DEPLOY_ENABLED: ${{ needs.cloudflare-deploy-readiness.outputs.enabled }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_APP_LINKS_SHA256:-}" ]; then
+            if [ "${CLOUDFLARE_DEPLOY_ENABLED:-false}" = "true" ]; then
+              echo "::error::Configure ANDROID_APP_LINKS_SHA256 antes de publicar o site com App Links."
+              exit 1
+            fi
+            echo "::warning::Configure ANDROID_APP_LINKS_SHA256 para ativar a abertura verificada de links no Android."
+            exit 0
+          fi
+          mkdir -p site/.well-known
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          fingerprint = re.sub(r"[^0-9A-Fa-f]", "", os.environ["ANDROID_APP_LINKS_SHA256"])
+          if not re.fullmatch(r"[0-9A-Fa-f]{64}", fingerprint):
+              raise SystemExit("ANDROID_APP_LINKS_SHA256 precisa conter a impressão digital SHA-256 do certificado Android.")
+          statements = [{
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                  "namespace": "android_app",
+                  "package_name": "dev.nagcode.prova_social",
+                  "sha256_cert_fingerprints": [fingerprint.upper()],
+              },
+          }]
+          Path("site/.well-known/assetlinks.json").write_text(json.dumps(statements) + "\n")
+          PY
+
       - name: Deploy Cloudflare Pages
         if: needs.cloudflare-deploy-readiness.outputs.enabled == 'true'
         env:
@@ -309,6 +344,55 @@ jobs:
           npx --yes wrangler@${WRANGLER_VERSION} pages deploy site \
             --project-name=prova-social \
             --branch=main
+
+      - name: Conferir associação Android publicada
+        if: needs.cloudflare-deploy-readiness.outputs.enabled == 'true'
+        env:
+          ANDROID_APP_LINKS_SHA256: ${{ secrets.ANDROID_APP_LINKS_SHA256 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_APP_LINKS_SHA256:-}" ]; then
+            echo "::warning::Sem ANDROID_APP_LINKS_SHA256; os links continuarão abrindo na Web."
+            exit 0
+          fi
+
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error \
+              --output "$RUNNER_TEMP/assetlinks.json" \
+              https://prova-social.pages.dev/.well-known/assetlinks.json; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "assetlinks.json não ficou acessível após o deploy." >&2
+              exit 1
+            fi
+            sleep 3
+          done
+
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          expected = re.sub(r"[^0-9A-Fa-f]", "", os.environ["ANDROID_APP_LINKS_SHA256"]).upper()
+          if not re.fullmatch(r"[0-9A-F]{64}", expected):
+              raise SystemExit("ANDROID_APP_LINKS_SHA256 precisa ser um SHA-256 válido.")
+          statements = json.loads(Path(os.environ["RUNNER_TEMP"], "assetlinks.json").read_text())
+          valid = any(
+              "delegate_permission/common.handle_all_urls" in item.get("relation", [])
+              and item.get("target", {}).get("namespace") == "android_app"
+              and item.get("target", {}).get("package_name") == "dev.nagcode.prova_social"
+              and expected in [
+                  re.sub(r"[^0-9A-Fa-f]", "", value).upper()
+                  for value in item.get("target", {}).get("sha256_cert_fingerprints", [])
+              ]
+              for item in statements
+          )
+          if not valid:
+              raise SystemExit("assetlinks.json publicado não corresponde ao app/certificado configurado.")
+          print("Associação Android publicada e conferida.")
+          PY
 
       - name: Salvar Web
         if: always()
@@ -351,9 +435,10 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_APP_LINKS_SHA256: ${{ secrets.ANDROID_APP_LINKS_SHA256 }}
         run: |
           set -e
-          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD ANDROID_APP_LINKS_SHA256; do
             if [ -z "${!name:-}" ]; then
               echo "Secret ausente: $name"
               exit 1
@@ -419,6 +504,15 @@ jobs:
                       <data android:scheme="provasocial" android:host="login-callback" />
                   </intent-filter>"""
               s = s.replace("</activity>", intent_filter + "\n            </activity>", 1)
+
+          if 'android:host="prova-social.pages.dev"' not in s:
+              app_link_filter = """                <intent-filter android:autoVerify="true">
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="https" android:host="prova-social.pages.dev" android:pathPrefix="/provas" />
+                  </intent-filter>"""
+              s = s.replace("</activity>", app_link_filter + "\n            </activity>", 1)
 
           p.write_text(s)
           PY
@@ -507,6 +601,43 @@ jobs:
           PY
 
           python3 tool/prepare_web.py
+
+      - name: Conferir SHA-256 do certificado de release
+        env:
+          ANDROID_APP_LINKS_SHA256: ${{ secrets.ANDROID_APP_LINKS_SHA256 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          result = subprocess.run(
+              [
+                  "keytool", "-list", "-v", "-keystore",
+                  "android/prova-social-release.jks", "-storepass:env",
+                  "KEYSTORE_PASSWORD", "-alias", os.environ["KEY_ALIAS"],
+              ],
+              check=True,
+              capture_output=True,
+              text=True,
+              env=os.environ,
+          )
+          match = re.search(r"SHA256:\s*([0-9A-Fa-f:]+)", result.stdout)
+          if match is None:
+              raise SystemExit("Não foi possível ler o SHA-256 do certificado de release.")
+          actual = re.sub(r"[^0-9A-Fa-f]", "", match.group(1)).upper()
+          expected = re.sub(
+              r"[^0-9A-Fa-f]", "", os.environ["ANDROID_APP_LINKS_SHA256"]
+          ).upper()
+          if len(expected) != 64 or expected != actual:
+              raise SystemExit(
+                  "ANDROID_APP_LINKS_SHA256 não corresponde ao certificado que assina os APKs de release."
+              )
+          print("SHA-256 do App Link corresponde ao certificado dos APKs de release.")
+          PY
 
       - name: Habilitar lockfile Android
         run: python3 tool/enable_gradle_dependency_locking.py android/app

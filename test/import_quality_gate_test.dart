@@ -32,7 +32,7 @@ PdfExtractionResult extraction({
 );
 
 ImportedQuestion question({
-  double confidence = .95,
+  double confidence = .99,
   String? warning,
   int? number,
 }) => ImportedQuestion(
@@ -46,25 +46,47 @@ ImportedQuestion question({
 void main() {
   const gate = ImportQualityGate();
 
-  test('marks clear structured extraction as good, still reviewable', () {
+  test('auto-validates clear extraction at 99% confidence', () {
     final result = gate.assess(extraction(), [question()]);
     expect(result.status, ImportQualityStatus.good);
-    expect(result.parserConfidence, .95);
+    expect(result.parserConfidence, .99);
     expect(result.questionsNeedingReview, 0);
     expect(result.numberingIssues, 0);
     expect(result.diagnostics, isEmpty);
   });
 
+  test('requires human review below 99% confidence', () {
+    final result = gate.assess(extraction(), [question(confidence: .80)]);
+    expect(result.questionsNeedingReview, 1);
+    expect(question(confidence: .99).reviewState, QuestionReviewState.reviewed);
+    expect(
+      question(confidence: .80).reviewState,
+      QuestionReviewState.unreviewed,
+    );
+    expect(
+      question(confidence: .79).reviewState,
+      QuestionReviewState.needsAttention,
+    );
+  });
+
   test('routes gaps and out-of-order numbering to human review', () {
-    final result = gate.assess(extraction(), [
+    final questions = [
       question(number: 1),
       question(number: 3),
       question(number: 2),
-    ]);
+    ];
+    gate.markNumberingIssues(questions);
+    final result = gate.assess(extraction(), questions);
 
     expect(result.status, ImportQualityStatus.review);
     expect(result.numberingIssues, 2);
-    expect(result.reasons.single, contains('Sequência numérica inconsistente'));
+    expect(result.questionsNeedingReview, 2);
+    expect(
+      result.reasons,
+      contains(
+        'Sequência numérica inconsistente em 2 ponto(s); verificar questões ausentes, duplicadas ou fora de ordem.',
+      ),
+    );
     expect(
       result.diagnostics.map((event) => event.failure),
       contains(ImportFailureCode.inconsistentNumbering),
@@ -140,11 +162,11 @@ Mais uma linha particular para o diagnóstico.
     () {
       final result = gate.assess(extraction(), [
         question(confidence: double.nan),
-        question(confidence: .9),
+        question(confidence: .99),
       ]);
 
       expect(result.status, ImportQualityStatus.review);
-      expect(result.parserConfidence, .9);
+      expect(result.parserConfidence, .99);
       expect(result.questionsNeedingReview, 1);
     },
   );

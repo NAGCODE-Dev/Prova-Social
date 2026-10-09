@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/backend/attempt_draft_store.dart';
 import '../../core/backend/attempt_submission.dart';
 import '../../core/backend/attempt_sync_service.dart';
+import '../../core/navigation/share_link_service.dart';
 import '../../domain/models/exam.dart';
 import '../result/result_page.dart';
 
@@ -16,12 +18,14 @@ class QuizPage extends StatefulWidget {
     this.draftStore,
     this.syncService,
     this.onSignIn,
+    this.initialQuestionId,
     super.key,
   });
   final Exam exam;
   final AttemptDraftStore? draftStore;
   final AttemptSyncService? syncService;
   final Future<void> Function()? onSignIn;
+  final String? initialQuestionId;
 
   @override
   State<QuizPage> createState() => _QuizPageState();
@@ -104,6 +108,12 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
       await syncService.store.saveStartedExam(exam);
       if (!mounted) return;
       setState(() {
+        if (draft == null && widget.initialQuestionId != null) {
+          final linkedIndex = exam.questions.indexWhere(
+            (question) => question.id == widget.initialQuestionId,
+          );
+          if (linkedIndex >= 0) current = linkedIndex;
+        }
         if (draft != null) {
           answers.addAll(draft.answers);
           review.addAll(draft.review);
@@ -195,10 +205,10 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'MODO FOCO',
               style: TextStyle(
-                color: AppColors.brandHover,
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1,
@@ -212,6 +222,27 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
           ],
         ),
         actions: [
+          if (!exam.isLocal)
+            IconButton(
+              tooltip: 'Copiar link desta questão',
+              onPressed: () async {
+                final question = exam.questions[current];
+                await Clipboard.setData(
+                  ClipboardData(
+                    text: ShareLinkService.question(
+                      exam.id,
+                      question.id,
+                    ).toString(),
+                  ),
+                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Link da questão copiado.')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.ios_share_rounded),
+            ),
           _ExamTimer(elapsed: elapsed),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -222,8 +253,10 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
                 ? 0
                 : (current + 1) / exam.questions.length,
             minHeight: 4,
-            backgroundColor: AppColors.line,
-            color: AppColors.brand,
+            backgroundColor: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ),
@@ -649,7 +682,10 @@ class _QuestionStatus extends StatelessWidget {
       ),
       Text(
         '$answered respondidas · $marked revisar',
-        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
       ),
     ],
   );
@@ -672,8 +708,8 @@ class _QuestionContent extends StatelessWidget {
     children: [
       Text(
         question.topic.toUpperCase(),
-        style: const TextStyle(
-          color: AppColors.brandHover,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
           fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: .7,
@@ -708,7 +744,7 @@ class _QuestionContent extends StatelessWidget {
                       : Theme.of(context).colorScheme.surface,
                   border: Border.all(
                     color: active
-                        ? AppColors.brand
+                        ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).colorScheme.outline,
                     width: active ? 2 : 1,
                   ),
@@ -723,7 +759,7 @@ class _QuestionContent extends StatelessWidget {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: active
-                            ? AppColors.brand
+                            ? Theme.of(context).colorScheme.primary
                             : Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest,
@@ -733,7 +769,7 @@ class _QuestionContent extends StatelessWidget {
                         letter,
                         style: TextStyle(
                           color: active
-                              ? Colors.white
+                              ? Theme.of(context).colorScheme.onPrimary
                               : Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                         ),
@@ -747,9 +783,9 @@ class _QuestionContent extends StatelessWidget {
                       ),
                     ),
                     if (active)
-                      const Icon(
+                      Icon(
                         Icons.check_circle_rounded,
-                        color: AppColors.brand,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                   ],
                 ),
@@ -855,9 +891,12 @@ class _QuestionNavigator extends StatelessWidget {
       children: [
         Text('Questões', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.sm),
-        const Text(
+        Text(
           'Selecione um número para navegar.',
-          style: TextStyle(color: AppColors.muted, fontSize: 12),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
         GridView.builder(
@@ -947,7 +986,7 @@ class _NumberButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: current
-              ? AppColors.brand
+              ? Theme.of(context).colorScheme.primary
               : answered
               ? _quizSelectedSurface(context)
               : Theme.of(context).colorScheme.surface,
@@ -955,7 +994,7 @@ class _NumberButton extends StatelessWidget {
             color: marked
                 ? AppColors.warning
                 : current
-                ? AppColors.brand
+                ? Theme.of(context).colorScheme.primary
                 : Theme.of(context).colorScheme.outline,
             width: marked ? 2 : 1,
           ),
@@ -967,18 +1006,18 @@ class _NumberButton extends StatelessWidget {
             Text(
               '${index + 1}',
               style: TextStyle(
-                color: current ? Colors.white : null,
+                color: current ? Theme.of(context).colorScheme.onPrimary : null,
                 fontWeight: FontWeight.w700,
               ),
             ),
             if (answered && !current)
-              const Positioned(
+              Positioned(
                 right: 3,
                 bottom: 3,
                 child: Icon(
                   Icons.check_rounded,
                   size: 10,
-                  color: AppColors.brandHover,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
           ],
@@ -1019,9 +1058,18 @@ class _LegendItem extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
     child: Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.muted),
+        Icon(
+          icon,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: AppSpacing.sm),
-        Text(label, style: const TextStyle(color: AppColors.muted)),
+        Text(
+          label,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     ),
   );

@@ -47,13 +47,18 @@ abstract final class AppMotion {
 abstract final class AppTheme {
   static ThemeData get light {
     const scheme = ColorScheme.light(
-      primary: AppColors.brand,
+      // White labels on the brighter brand green miss comfortable contrast.
+      // Keep that green as an accent and use the deeper brand shade for actions.
+      primary: AppColors.brandHover,
       onPrimary: Colors.white,
-      secondary: AppColors.brandHover,
+      secondary: AppColors.brand,
+      onSecondary: AppColors.ink,
       surface: AppColors.surface,
       onSurface: AppColors.ink,
       error: AppColors.danger,
+      onError: Colors.white,
       outline: AppColors.line,
+      surfaceContainerHighest: AppColors.surfaceHover,
     );
     return ThemeData(
       useMaterial3: true,
@@ -89,6 +94,17 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.ink,
+        contentTextStyle: const TextStyle(color: Colors.white),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+      ),
       cardTheme: const CardThemeData(
         color: AppColors.surface,
         surfaceTintColor: Colors.transparent,
@@ -118,14 +134,14 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           side: const BorderSide(color: AppColors.line),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
           foregroundColor: AppColors.ink,
@@ -148,10 +164,13 @@ abstract final class AppTheme {
       primary: Color(0xFF63D6A3),
       onPrimary: Color(0xFF062A1B),
       secondary: Color(0xFF74E3B5),
+      onSecondary: Color(0xFF062A1B),
       surface: Color(0xFF181C19),
       onSurface: Color(0xFFF3F5F3),
       error: Color(0xFFFF8B8B),
+      onError: Color(0xFF310B0B),
       outline: Color(0xFF2A302C),
+      surfaceContainerHighest: Color(0xFF242A26),
     );
     return ThemeData(
       useMaterial3: true,
@@ -159,6 +178,29 @@ abstract final class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFF101311),
       fontFamily: 'sans-serif',
+      textTheme: const TextTheme(
+        displaySmall: TextStyle(
+          fontSize: 36,
+          height: 1.08,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -1.2,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 28,
+          height: 1.15,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -.6,
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 22,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
+        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        bodyLarge: TextStyle(fontSize: 16, height: 1.45),
+        bodyMedium: TextStyle(fontSize: 14, height: 1.45),
+      ),
       cardTheme: const CardThemeData(
         color: Color(0xFF181C19),
         surfaceTintColor: Colors.transparent,
@@ -173,6 +215,45 @@ abstract final class AppTheme {
         backgroundColor: Color(0xFF101311),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Color(0xFFF3F5F3),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: 13,
+        ),
+        border: OutlineInputBorder(
+          borderSide: BorderSide(color: scheme.outline),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: scheme.outline),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF63D6A3), width: 1.5),
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF2A302C),
+        contentTextStyle: const TextStyle(color: Color(0xFFF3F5F3)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: Color(0xFF181C19),
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: Color(0xFF244B37),
+        height: 68,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -182,6 +263,16 @@ abstract final class AppTheme {
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          side: const BorderSide(color: Color(0xFF2A302C)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+        ),
+      ),
+      dividerColor: scheme.outline,
     );
   }
 }

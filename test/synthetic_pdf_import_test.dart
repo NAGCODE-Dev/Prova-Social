@@ -23,7 +23,9 @@ void main() {
         pdf,
         sourceName: 'synthetic_two_column_80_questions.pdf',
       );
-      final questions = const QuestionParser().parse(extraction.text);
+      final questions = const QuestionParser().parsePages(
+        extraction.pages.map((page) => page.text).toList(growable: false),
+      );
       final quality = const ImportQualityGate().assess(extraction, questions);
 
       expect(extraction.pageCount, 8);
@@ -32,6 +34,14 @@ void main() {
       expect(questions.map((question) => question.number), [
         for (var number = 1; number <= 80; number++) number,
       ]);
+      expect(
+        questions.every((question) => question.sourcePage != null),
+        isTrue,
+      );
+      expect(
+        questions.map((question) => question.sourcePage).toSet(),
+        containsAll(List.generate(8, (index) => index + 1)),
+      );
       expect(
         questions.every((question) => question.options.length == 5),
         isTrue,

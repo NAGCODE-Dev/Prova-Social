@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/exam.dart';
-import '../theme/app_theme.dart';
 
 class SourceBadge extends StatelessWidget {
   const SourceBadge({
@@ -15,6 +14,7 @@ class SourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final (label, icon) = switch (sourceType) {
       ExamSourceType.official => ('Fonte oficial', Icons.verified_outlined),
       ExamSourceType.community => (
@@ -32,15 +32,15 @@ class SourceBadge extends StatelessWidget {
       ExamSourceType.unverified => 'Não verificada',
     };
     final color = sourceType == ExamSourceType.official
-        ? AppColors.brandHover
-        : AppColors.muted;
+        ? colors.primary
+        : colors.onSurfaceVariant;
     return Tooltip(
       message: label,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: sourceType == ExamSourceType.official
-              ? AppColors.brandSoft
-              : AppColors.surfaceHover,
+              ? colors.primary.withValues(alpha: .14)
+              : colors.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(7),
         ),
         child: Padding(

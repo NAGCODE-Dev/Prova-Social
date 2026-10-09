@@ -13,6 +13,8 @@ dependencies:
   file_picker: 13.1.0
   flutter:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
   google_mlkit_text_recognition: 0.17.1
   http: 1.6.0
   image: 4.10.1

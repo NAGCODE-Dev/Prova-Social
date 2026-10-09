@@ -95,6 +95,7 @@ ImportReviewPage editor({
           statement: 'Quanto é dois mais dois?',
           options: ['Quatro', 'Cinco'],
           correctIndex: 0,
+          confidence: 1,
         ),
       ],
 );
@@ -118,6 +119,13 @@ void main() {
         }
         if (request.url.path.endsWith('/user')) {
           return http.Response(jsonEncode(user), 200, request: request);
+        }
+        if (request.url.path.contains('/rpc/')) {
+          return http.Response(
+            jsonEncode('published-exam-id'),
+            200,
+            request: request,
+          );
         }
         return http.Response('[]', 200, request: request);
       }),
@@ -183,6 +191,7 @@ void main() {
         (index) => ImportedQuestion(
           statement: 'Enunciado da questão ${index + 1}?',
           options: const ['Primeira', 'Segunda'],
+          confidence: .80,
         ),
       );
       await tester.pumpWidget(
@@ -196,9 +205,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Questão 1 de 200'), findsOneWidget);
+      final editorScroll = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(
+        find.text('Enunciado'),
+        300,
+        scrollable: editorScroll,
+      );
+      await tester.pumpAndSettle();
       expect(find.byType(Card), findsOneWidget);
       expect(find.text('Questão 200'), findsNothing);
-      final editorScroll = find.byType(Scrollable).first;
       await tester.scrollUntilVisible(
         find.text('Marcar questão como revisada'),
         300,
@@ -415,6 +430,38 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('publication waits for human confirmation below 99%', (
+    tester,
+  ) async {
+    final question = ImportedQuestion(
+      statement: 'Questão com confiança intermediária?',
+      options: const ['Sim', 'Não'],
+      correctIndex: 0,
+      confidence: .80,
+    );
+    await tester.pumpWidget(MaterialApp(home: editor(questions: [question])));
+    await tester.pumpAndSettle();
+
+    final publishButton = find.text('Publicar para todos — requer conta');
+    await tester.scrollUntilVisible(
+      publishButton,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(publishButton);
+    await tester.pumpAndSettle();
+    await tester.tap(publishButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AuthPage), findsNothing);
+    expect(find.text('Publicar para todos?'), findsNothing);
+    expect(requests.where((request) => request.method == 'POST'), isEmpty);
+    expect(
+      (await LocalExamStore().load()).single.questions.single.reviewState,
+      QuestionReviewState.inReview,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'OAuth reload restores pending draft but never publishes automatically',
     (tester) async {
@@ -496,6 +543,42 @@ void main() {
     expect(
       requests.where((request) => request.url.path.contains('/rpc/')),
       isEmpty,
+    );
+  });
+  test('publication preserves an optional HTTPS source URL', () async {
+    await login();
+    await expectLater(
+      ExamPublicationService().publish(
+        title: 'Prova válida',
+        category: 'Matéria',
+        source: 'Instituição',
+        sourceUrl: 'http://example.org/prova',
+        durationMinutes: 30,
+        questions: editor().questions,
+      ),
+      throwsFormatException,
+    );
+    expect(
+      requests.where((request) => request.url.path.contains('/rpc/')),
+      isEmpty,
+    );
+
+    final examId = await ExamPublicationService().publish(
+      title: 'Prova válida',
+      category: 'Matéria',
+      source: 'Instituição',
+      sourceUrl: '  https://example.org/prova/2026  ',
+      durationMinutes: 30,
+      questions: editor().questions,
+    );
+    expect(examId, 'published-exam-id');
+    final request = requests.singleWhere(
+      (request) =>
+          request.url.path.endsWith('/rpc/publish_exam_with_source_url'),
+    );
+    expect(
+      jsonDecode(request.body)['p_source_url'],
+      'https://example.org/prova/2026',
     );
   });
   test('local exam answers cannot be sent to backend', () async {

@@ -1,4 +1,5 @@
--- Integration tests for 202609210003_attempt_idempotency.sql.
+-- Integration tests for publication validation, source provenance, and
+-- 202609210003_attempt_idempotency.sql.
 -- This file expects a disposable database with the minimal local auth mock from
 -- scripts/local_db_test.sh. It must never be executed against production.
 
@@ -92,6 +93,31 @@ begin
   ) then
     raise exception 'valid question was not stored';
   end if;
+
+  v_exam_id := public.publish_exam_with_source_url(
+    'Prova com fonte', 'Teste', 'Instituição', 'community', 2026, 30,
+    '[{"statement":"Questão com fonte?","options":["Sim","Não"],"correct_index":0}]',
+    'https://example.org/provas/2026'
+  );
+  if not exists (
+    select 1 from public.exams
+    where id = v_exam_id and source_url = 'https://example.org/provas/2026'
+      and author_id = auth.uid()
+  ) then
+    raise exception 'source URL was not saved with the published exam';
+  end if;
+
+  v_rejected := false;
+  begin
+    perform public.publish_exam_with_source_url(
+      'Prova URL inválida', 'Teste', 'Instituição', 'community', null, 30,
+      '[{"statement":"Questão com fonte?","options":["Sim","Não"],"correct_index":0}]',
+      'http://example.org/provas/2026'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then raise exception 'non-HTTPS source URL was accepted'; end if;
 end
 $$;
 reset role;
