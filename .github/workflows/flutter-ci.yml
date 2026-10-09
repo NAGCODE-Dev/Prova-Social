@@ -356,14 +356,16 @@ jobs:
             exit 0
           fi
 
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             if curl --fail --silent --show-error \
               --output "$RUNNER_TEMP/assetlinks.json" \
-              https://prova-social.pages.dev/.well-known/assetlinks.json; then
+              https://prova-social.pages.dev/.well-known/assetlinks.json \
+              && python3 -c 'import json, pathlib, sys; value=json.loads(pathlib.Path(sys.argv[1]).read_text()); assert isinstance(value, list)' \
+                "$RUNNER_TEMP/assetlinks.json"; then
               break
             fi
-            if [ "$attempt" -eq 5 ]; then
-              echo "assetlinks.json não ficou acessível após o deploy." >&2
+            if [ "$attempt" -eq 10 ]; then
+              echo "assetlinks.json não ficou acessível como JSON válido após o deploy." >&2
               exit 1
             fi
             sleep 3
