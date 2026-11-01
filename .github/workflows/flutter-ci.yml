@@ -645,7 +645,8 @@ jobs:
           ).upper()
           if len(expected) != 64 or expected != actual:
               raise SystemExit(
-                  "ANDROID_APP_LINKS_SHA256 não corresponde ao certificado que assina os APKs de release."
+                  "ANDROID_APP_LINKS_SHA256 não corresponde ao certificado que assina os APKs de release "
+                  f"(fingerprint público do certificado: {actual})."
               )
           print("SHA-256 do App Link corresponde ao certificado dos APKs de release.")
           PY
