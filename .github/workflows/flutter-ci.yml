@@ -533,6 +533,7 @@ jobs:
           EOF
 
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           candidates = [
@@ -547,7 +548,8 @@ jobs:
           s = path.read_text()
 
           if path.suffix == ".kts":
-              min_sdk_marker = "minSdk = flutter.minSdkVersion"
+              min_sdk_pattern = r"(?m)^([ \t]*)minSdk[ \t]*=[ \t]*.*$"
+              min_sdk_replacement = r"\g<1>minSdk = 26"
               signing = """    signingConfigs {
                   create("release") {
                       storeFile = file("../prova-social-release.jks")
@@ -574,7 +576,8 @@ jobs:
                       1,
                   )
           else:
-              min_sdk_marker = "minSdkVersion flutter.minSdkVersion"
+              min_sdk_pattern = r"(?m)^([ \t]*)minSdkVersion[ \t]+.*$"
+              min_sdk_replacement = r"\g<1>minSdkVersion 26"
               signing = """    signingConfigs {
                   release {
                       storeFile file("../prova-social-release.jks")
@@ -601,9 +604,9 @@ jobs:
                       1,
                   )
 
-          if min_sdk_marker not in s:
+          s, min_sdk_matches = re.subn(min_sdk_pattern, min_sdk_replacement, s, count=1)
+          if min_sdk_matches != 1:
               raise SystemExit("Não foi possível configurar Android API 26 para o SDK PaddleOCR.")
-          s = s.replace(min_sdk_marker, min_sdk_marker.replace("flutter.minSdkVersion", "26"), 1)
 
           path.write_text(s)
           PY
