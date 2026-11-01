@@ -44,51 +44,54 @@ class EmeraldBackdrop extends StatelessWidget {
 class StudySurface extends StatelessWidget {
   const StudySurface({
     required this.child,
-    this.padding = const EdgeInsets.all(24),
+    this.padding,
     this.highlighted = false,
     super.key,
   });
 
   final Widget child;
-  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? padding;
   final bool highlighted;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          highlighted
-              ? EmeraldColors.surfaceElevated
-              : EmeraldColors.surface.withValues(alpha: .96),
-          EmeraldColors.backgroundSecondary.withValues(alpha: .96),
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Container(
+      padding: padding ?? EdgeInsets.all(compact ? 18 : 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            highlighted
+                ? EmeraldColors.surfaceElevated
+                : EmeraldColors.surface.withValues(alpha: .96),
+            EmeraldColors.backgroundSecondary.withValues(alpha: .96),
+          ],
+        ),
+        border: Border.all(
+          color: highlighted
+              ? EmeraldColors.borderHighlight.withValues(alpha: .8)
+              : EmeraldColors.border,
+        ),
+        borderRadius: BorderRadius.circular(compact ? 18 : 24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .16),
+            blurRadius: compact ? 16 : 22,
+            offset: Offset(0, compact ? 6 : 10),
+          ),
+          if (highlighted)
+            BoxShadow(
+              color: EmeraldColors.primaryGlow.withValues(alpha: .07),
+              blurRadius: 26,
+              spreadRadius: 1,
+            ),
         ],
       ),
-      border: Border.all(
-        color: highlighted
-            ? EmeraldColors.borderHighlight.withValues(alpha: .8)
-            : EmeraldColors.border,
-      ),
-      borderRadius: BorderRadius.circular(26),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: .16),
-          blurRadius: 22,
-          offset: const Offset(0, 10),
-        ),
-        if (highlighted)
-          BoxShadow(
-            color: EmeraldColors.primaryGlow.withValues(alpha: .07),
-            blurRadius: 26,
-            spreadRadius: 1,
-          ),
-      ],
-    ),
-    child: child,
-  );
+      child: child,
+    );
+  }
 }
 
 class _EmeraldArcsPainter extends CustomPainter {

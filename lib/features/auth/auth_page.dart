@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/backend/auth_repository.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
 import '../home/home_page.dart';
 
@@ -32,11 +31,17 @@ class _AuthPageState extends State<AuthPage> {
   @override
   void initState() {
     super.initState();
-    _authSubscription = _auth.changes.listen((state) {
-      if (widget.closeAfterAuth && state.session != null && mounted) {
-        _closeWithSuccess();
-      }
-    });
+    _authSubscription = _auth.changes.listen(
+      (state) {
+        if (widget.closeAfterAuth && state.session != null && mounted) {
+          _closeWithSuccess();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('[AUTH_STATE] falhou: ${error.runtimeType}');
+        debugPrint('[AUTH_STATE] stack: $stackTrace');
+      },
+    );
   }
 
   @override
@@ -126,6 +131,19 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  void _dismiss() {
+    if (_closed) return;
+    _closed = true;
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop(false);
+    } else {
+      navigator.pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      );
+    }
+  }
+
   String _friendlyMessage(AuthException error) {
     switch (error.code) {
       case 'invalid_credentials':
@@ -143,7 +161,9 @@ class _AuthPageState extends State<AuthPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(text),
-        backgroundColor: error ? AppColors.danger : AppColors.brandHover,
+        backgroundColor: error
+            ? Theme.of(context).colorScheme.error
+            : Theme.of(context).colorScheme.primary,
       ),
     );
   }
@@ -153,7 +173,7 @@ class _AuthPageState extends State<AuthPage> {
     appBar: widget.closeAfterAuth
         ? AppBar(
             leading: IconButton(
-              onPressed: () => Navigator.maybePop(context),
+              onPressed: _dismiss,
               icon: const Icon(Icons.close_rounded),
               tooltip: 'Fechar',
             ),
@@ -187,10 +207,7 @@ class _AuthPageState extends State<AuthPage> {
                     _createAccount
                         ? 'Publique materiais, salve provas e sincronize seu progresso.'
                         : 'Entre somente quando quiser publicar, salvar ou sincronizar.',
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      height: 1.45,
-                    ),
+                    style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 22),
                   const _AccountBenefit(
@@ -314,9 +331,7 @@ class _AuthPageState extends State<AuthPage> {
                   if (widget.closeAfterAuth) ...[
                     const SizedBox(height: 4),
                     TextButton(
-                      onPressed: _loading
-                          ? null
-                          : () => Navigator.maybePop(context),
+                      onPressed: _loading ? null : _dismiss,
                       child: const Text('Agora não'),
                     ),
                   ],
@@ -339,7 +354,7 @@ class _AccountBenefit extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(icon, size: 20, color: AppColors.brand),
+      Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
       const SizedBox(width: 10),
       Expanded(
         child: Text(text, style: Theme.of(context).textTheme.bodyMedium),

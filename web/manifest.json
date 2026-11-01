@@ -1,0 +1,35 @@
+{
+  "name": "Prova Social",
+  "short_name": "Prova Social",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#050907",
+  "theme_color": "#050907",
+  "description": "Resolva provas, descubra o que precisa estudar e refa\u00e7a somente as quest\u00f5es que errou.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

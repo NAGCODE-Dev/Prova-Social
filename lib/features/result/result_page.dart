@@ -287,7 +287,9 @@ class ResultPage extends StatelessWidget {
                       ),
                       icon: const Icon(Icons.replay_rounded),
                       label: Text(
-                        'Refazer ${wrongQuestionsExam.questions.length} questões erradas',
+                        wrongQuestionsExam.questions.length == 1
+                            ? 'Refazer 1 questão errada'
+                            : 'Refazer ${wrongQuestionsExam.questions.length} questões erradas',
                       ),
                     ),
                   ],

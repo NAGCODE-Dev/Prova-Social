@@ -199,42 +199,42 @@ abstract final class AppTheme {
       fontFamily: 'sans-serif',
       textTheme: const TextTheme(
         displaySmall: TextStyle(
-          fontSize: 44,
+          fontSize: 36,
           height: 1.08,
           fontWeight: FontWeight.w700,
-          letterSpacing: -1.5,
+          letterSpacing: -1.2,
           color: EmeraldColors.textPrimary,
         ),
         headlineMedium: TextStyle(
-          fontSize: 38,
+          fontSize: 28,
           height: 1.15,
           fontWeight: FontWeight.w700,
-          letterSpacing: -1,
+          letterSpacing: -.6,
           color: EmeraldColors.textPrimary,
         ),
         headlineSmall: TextStyle(
-          fontSize: 28,
+          fontSize: 22,
           height: 1.2,
           fontWeight: FontWeight.w700,
           color: EmeraldColors.textPrimary,
         ),
         titleLarge: TextStyle(
-          fontSize: 22,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
           color: EmeraldColors.textPrimary,
         ),
         titleMedium: TextStyle(
-          fontSize: 18,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           color: EmeraldColors.textPrimary,
         ),
         bodyLarge: TextStyle(
-          fontSize: 17,
+          fontSize: 16,
           height: 1.45,
           color: EmeraldColors.textPrimary,
         ),
         bodyMedium: TextStyle(
-          fontSize: 15,
+          fontSize: 14,
           height: 1.45,
           color: EmeraldColors.textSecondary,
         ),
@@ -242,11 +242,11 @@ abstract final class AppTheme {
       cardTheme: const CardThemeData(
         color: EmeraldColors.surface,
         surfaceTintColor: Colors.transparent,
-        elevation: 2,
+        elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           side: BorderSide(color: EmeraldColors.border),
-          borderRadius: BorderRadius.all(Radius.circular(24)),
+          borderRadius: BorderRadius.all(Radius.circular(AppRadius.md)),
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -259,23 +259,23 @@ abstract final class AppTheme {
         filled: true,
         fillColor: scheme.surface,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 18,
+          horizontal: 16,
+          vertical: 13,
         ),
         border: OutlineInputBorder(
           borderSide: BorderSide(color: scheme.outline),
-          borderRadius: const BorderRadius.all(Radius.circular(18)),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
         ),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: scheme.outline),
-          borderRadius: const BorderRadius.all(Radius.circular(18)),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
         ),
         focusedBorder: OutlineInputBorder(
           borderSide: const BorderSide(
             color: EmeraldColors.primary,
             width: 1.5,
           ),
-          borderRadius: const BorderRadius.all(Radius.circular(18)),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
         ),
         hintStyle: const TextStyle(color: EmeraldColors.textMuted),
         labelStyle: const TextStyle(color: EmeraldColors.textSecondary),
@@ -293,34 +293,29 @@ abstract final class AppTheme {
         backgroundColor: EmeraldColors.surface,
         surfaceTintColor: Colors.transparent,
         indicatorColor: EmeraldColors.surfaceHighlight,
-        height: 96,
+        height: 68,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 58),
+          minimumSize: const Size(48, 48),
           backgroundColor: EmeraldColors.primary,
           foregroundColor: EmeraldColors.background,
-          elevation: 3,
-          shadowColor: EmeraldColors.primaryGlow.withValues(alpha: .18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 58),
+          minimumSize: const Size(48, 48),
           foregroundColor: EmeraldColors.primaryLight,
           side: const BorderSide(
             color: EmeraldColors.borderHighlight,
             width: 1.5,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       dividerColor: EmeraldColors.border,

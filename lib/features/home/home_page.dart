@@ -52,21 +52,26 @@ class _HomePageState extends State<HomePage> {
   List<Exam> startedExams = const [];
   Map<String, ExamResult> completedAttempts = const {};
   bool loading = true;
+  bool signingOut = false;
   String? loadError;
   StreamSubscription<AuthState>? authSubscription;
 
   @override
   void initState() {
     super.initState();
-    authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
-      _,
-    ) {
-      if (mounted) {
-        setState(() {});
-        _loadContent();
-        unawaited(_loadAttempts());
-      }
-    });
+    authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
+      (_) {
+        if (mounted) {
+          setState(() {});
+          _loadContent();
+          unawaited(_loadAttempts());
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('[AUTH_STATE] falhou: ${error.runtimeType}');
+        debugPrint('[AUTH_STATE] stack: $stackTrace');
+      },
+    );
     _loadContent();
     unawaited(_loadAttempts());
   }
@@ -282,7 +287,11 @@ class _HomePageState extends State<HomePage> {
             MaterialPageRoute<void>(builder: (_) => ResultPage(result: result)),
           ),
         ),
-        _ProfilePage(onLibrary: () => _selectTab(3)),
+        _ProfilePage(
+          onLibrary: () => _selectTab(3),
+          onSignOut: _signOut,
+          signingOut: signingOut,
+        ),
       ];
       return Scaffold(
         appBar: desktop
@@ -293,7 +302,12 @@ class _HomePageState extends State<HomePage> {
                   fit: BoxFit.scaleDown,
                   child: BrandLockup(),
                 ),
-                actions: [_HeaderActions(onProfile: _openProfile)],
+                actions: [
+                  _HeaderActions(
+                    onProfile: _openProfile,
+                    signingOut: signingOut,
+                  ),
+                ],
               ),
         body: Row(
           children: [
@@ -331,7 +345,11 @@ class _HomePageState extends State<HomePage> {
                       const Spacer(),
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: _UserTile(onLogin: _openLogin),
+                        child: _UserTile(
+                          onLogin: _openLogin,
+                          onSignOut: _signOut,
+                          signingOut: signingOut,
+                        ),
                       ),
                     ],
                   ),
@@ -344,6 +362,7 @@ class _HomePageState extends State<HomePage> {
                     _DesktopTopBar(
                       onSearch: () => openGlobalSearch(context, _openExam),
                       onProfile: _openProfile,
+                      signingOut: signingOut,
                     ),
                   Expanded(
                     child: IndexedStack(index: currentTab, children: pages),
@@ -569,6 +588,31 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// Updates the visible session immediately and only then waits for the
+  /// network/storage sign-out to finish. Otherwise a slow sign-out leaves the
+  /// profile showing the old account even though the session is already gone.
+  Future<void> _signOut() async {
+    if (signingOut) return;
+    setState(() => signingOut = true);
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {
+      if (mounted && Supabase.instance.client.auth.currentUser != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível sair. Tente novamente.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => signingOut = false);
+        unawaited(_loadContent());
+        unawaited(_loadAttempts());
+      }
+    }
+  }
+
   Future<bool> _requireAccount(String reason) async {
     if (Supabase.instance.client.auth.currentUser != null) return true;
     final shouldOpen = await showModalBottomSheet<bool>(
@@ -617,8 +661,13 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _DesktopTopBar extends StatelessWidget {
-  const _DesktopTopBar({required this.onSearch, required this.onProfile});
+  const _DesktopTopBar({
+    required this.onSearch,
+    required this.onProfile,
+    required this.signingOut,
+  });
   final VoidCallback onSearch, onProfile;
+  final bool signingOut;
   @override
   Widget build(BuildContext context) => Container(
     height: 72,
@@ -630,18 +679,19 @@ class _DesktopTopBar extends StatelessWidget {
       children: [
         Expanded(child: _SearchBox(onTap: onSearch)),
         const SizedBox(width: 24),
-        _HeaderActions(onProfile: onProfile),
+        _HeaderActions(onProfile: onProfile, signingOut: signingOut),
       ],
     ),
   );
 }
 
 class _HeaderActions extends StatelessWidget {
-  const _HeaderActions({required this.onProfile});
+  const _HeaderActions({required this.onProfile, required this.signingOut});
   final VoidCallback onProfile;
+  final bool signingOut;
   @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = signingOut ? null : Supabase.instance.client.auth.currentUser;
     final name = user?.userMetadata?['display_name']?.toString().trim();
     final initials = (name == null || name.isEmpty)
         ? null
@@ -653,10 +703,10 @@ class _HeaderActions extends StatelessWidget {
         IconButton(
           onPressed: onProfile,
           tooltip: 'Abrir perfil',
-          constraints: const BoxConstraints(minWidth: 58, minHeight: 58),
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           icon: Container(
-            width: 52,
-            height: 52,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: EmeraldColors.surfaceHighlight.withValues(alpha: .8),
               border: Border.all(color: EmeraldColors.border),
@@ -672,21 +722,21 @@ class _HeaderActions extends StatelessWidget {
               child: initials == null
                   ? const Icon(
                       Icons.person_outline_rounded,
-                      size: 26,
+                      size: 22,
                       color: EmeraldColors.primaryLight,
                     )
                   : Text(
                       initials.toUpperCase(),
                       style: const TextStyle(
                         color: EmeraldColors.primaryLight,
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -1009,7 +1059,7 @@ class _HomeFeed extends StatelessWidget {
               ],
             ),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: MediaQuery.sizeOf(context).width < 600 ? 38 : 48,
+              fontSize: MediaQuery.sizeOf(context).width < 600 ? 30 : 48,
             ),
           ),
           const SizedBox(height: 6),
@@ -1169,25 +1219,25 @@ class _EmptyCatalog extends StatelessWidget {
   @override
   Widget build(BuildContext context) => StudySurface(
     highlighted: true,
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.all(20),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 68,
-          height: 68,
+          width: 52,
+          height: 52,
           decoration: BoxDecoration(
             color: EmeraldColors.surfaceHighlight,
             border: Border.all(color: EmeraldColors.borderHighlight),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: const Icon(
             Icons.menu_book_rounded,
             color: EmeraldColors.primaryLight,
-            size: 34,
+            size: 26,
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         Text(
           'Ainda não há provas publicadas',
           style: Theme.of(context).textTheme.titleMedium,
@@ -1196,7 +1246,7 @@ class _EmptyCatalog extends StatelessWidget {
         const Text(
           'Explore as provas disponíveis ou importe um PDF para começar.',
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -1241,7 +1291,7 @@ class _ExamGrid extends StatelessWidget {
       onSave: () => onSave(exams[index].id),
       onOpen: () => onOpen(exams[index]),
     ),
-    separatorBuilder: (_, _) => const SizedBox(height: 8),
+    separatorBuilder: (_, _) => const SizedBox(height: 6),
   );
 }
 
@@ -1268,12 +1318,12 @@ class ExamCard extends StatelessWidget {
     child: InkWell(
       onTap: onOpen,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+        padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 56,
+              width: 38,
+              height: 42,
               decoration: BoxDecoration(
                 color: _HomeColors.brandSoft(context),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -1290,7 +1340,7 @@ class ExamCard extends StatelessWidget {
                 children: [
                   Text(
                     exam.title,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -1318,14 +1368,16 @@ class ExamCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     '${exam.questions.length} questões · ${exam.durationMinutes} min · ${exam.author}',
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 11),
                   ),
                 ],
               ),
             ),
             IconButton(
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              padding: EdgeInsets.zero,
               onPressed: onSave,
               tooltip: saved ? 'Remover dos salvos' : 'Salvar',
               icon: Icon(
@@ -1423,8 +1475,8 @@ class _LibraryPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 64,
-                      height: 64,
+                      width: 48,
+                      height: 48,
                       decoration: const BoxDecoration(
                         color: EmeraldColors.surfaceHighlight,
                         shape: BoxShape.circle,
@@ -1432,10 +1484,10 @@ class _LibraryPage extends StatelessWidget {
                       child: const Icon(
                         Icons.lock_outline_rounded,
                         color: EmeraldColors.primaryLight,
-                        size: 31,
+                        size: 24,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1676,19 +1728,19 @@ class _SavedExamsEmpty extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 58,
-          height: 58,
+          width: 48,
+          height: 48,
           decoration: const BoxDecoration(
             color: EmeraldColors.surfaceHighlight,
             shape: BoxShape.circle,
           ),
           child: const Icon(
             Icons.bookmark_border_rounded,
-            size: 31,
+            size: 24,
             color: EmeraldColors.primaryLight,
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         Text(
           'Suas provas estarão aqui',
           style: Theme.of(context).textTheme.titleLarge,
@@ -1698,7 +1750,7 @@ class _SavedExamsEmpty extends StatelessWidget {
           'Explore o catálogo e salve as provas que deseja resolver depois.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -1723,14 +1775,14 @@ class _FeatureIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     decoration: BoxDecoration(
       color: EmeraldColors.surfaceHighlight,
-      borderRadius: BorderRadius.circular(17),
+      borderRadius: BorderRadius.circular(14),
       border: Border.all(color: EmeraldColors.border),
     ),
-    child: Icon(icon, color: EmeraldColors.primaryLight, size: 28),
+    child: Icon(icon, color: EmeraldColors.primaryLight, size: 24),
   );
 }
 
@@ -1752,9 +1804,9 @@ class _ProfileAction extends StatelessWidget {
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(18),
       child: StudySurface(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Row(
           children: [
             _FeatureIcon(icon: icon),
@@ -1782,11 +1834,17 @@ class _ProfileAction extends StatelessWidget {
 }
 
 class _ProfilePage extends StatelessWidget {
-  const _ProfilePage({required this.onLibrary});
+  const _ProfilePage({
+    required this.onLibrary,
+    required this.onSignOut,
+    required this.signingOut,
+  });
   final VoidCallback onLibrary;
+  final Future<void> Function() onSignOut;
+  final bool signingOut;
   @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = signingOut ? null : Supabase.instance.client.auth.currentUser;
     if (user == null) {
       return _PageScroll(
         child: Column(
@@ -1805,19 +1863,19 @@ class _ProfilePage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 56,
+                    height: 56,
                     decoration: const BoxDecoration(
                       color: EmeraldColors.surfaceHighlight,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.person_outline_rounded,
-                      size: 40,
+                      size: 30,
                       color: EmeraldColors.primaryLight,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   Text(
                     'Estude do seu jeito',
                     style: Theme.of(context).textTheme.headlineSmall,
@@ -1869,17 +1927,17 @@ class _ProfilePage extends StatelessWidget {
           const SizedBox(height: 24),
           StudySurface(
             highlighted: true,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 34,
+                  radius: 28,
                   backgroundColor: EmeraldColors.surfaceHighlight,
                   child: Text(
                     initials,
                     style: const TextStyle(
                       color: EmeraldColors.primaryLight,
-                      fontSize: 19,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1911,7 +1969,7 @@ class _ProfilePage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           StudySurface(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: [
                 const _FeatureIcon(icon: Icons.bar_chart_rounded),
@@ -1964,21 +2022,7 @@ class _ProfilePage extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () async {
-                try {
-                  await Supabase.instance.client.auth.signOut();
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Não foi possível sair. Tente novamente.',
-                        ),
-                      ),
-                    );
-                  }
-                }
-              },
+              onPressed: onSignOut,
               icon: const Icon(Icons.logout_rounded),
               label: const Text('Sair da conta'),
             ),
@@ -2203,15 +2247,23 @@ class _PageScroll extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-    child: Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: child,
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 16 : 24,
+        compact ? 20 : 28,
+        compact ? 16 : 24,
+        32,
       ),
-    ),
-  );
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -2226,8 +2278,8 @@ class _SectionTitle extends StatelessWidget {
       final heading = Row(
         children: [
           Container(
-            width: 5,
-            height: 34,
+            width: 4,
+            height: compact ? 28 : 32,
             decoration: BoxDecoration(
               color: EmeraldColors.primary,
               borderRadius: BorderRadius.circular(4),
@@ -2239,12 +2291,12 @@ class _SectionTitle extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               text,
               style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontSize: compact ? 20 : 24),
+                  ?.copyWith(fontSize: compact ? 18 : 22),
             ),
           ),
           if (!compact && actionLabel != null && onAction != null)
@@ -2284,11 +2336,17 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _UserTile extends StatelessWidget {
-  const _UserTile({required this.onLogin});
+  const _UserTile({
+    required this.onLogin,
+    required this.onSignOut,
+    required this.signingOut,
+  });
   final VoidCallback onLogin;
+  final Future<void> Function() onSignOut;
+  final bool signingOut;
   @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = signingOut ? null : Supabase.instance.client.auth.currentUser;
     final name = user?.userMetadata?['display_name']?.toString().trim();
     return Row(
       children: [
@@ -2328,17 +2386,7 @@ class _UserTile extends StatelessWidget {
             } else if (value == 'login') {
               onLogin();
             } else {
-              try {
-                await Supabase.instance.client.auth.signOut();
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Não foi possível sair. Tente novamente.'),
-                    ),
-                  );
-                }
-              }
+              await onSignOut();
             }
           },
           itemBuilder: (_) => [

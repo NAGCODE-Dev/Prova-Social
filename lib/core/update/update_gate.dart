@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../theme/app_theme.dart';
 import '../widgets/brand.dart';
 import 'github_release_service.dart';
 
@@ -67,6 +66,5 @@ class _UpdateGateState extends State<UpdateGate> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      ColoredBox(color: AppColors.background, child: widget.child);
+  Widget build(BuildContext context) => widget.child;
 }
