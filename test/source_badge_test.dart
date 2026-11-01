@@ -44,4 +44,35 @@ void main() {
     expect(find.text('Não verificada'), findsOneWidget);
     expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
   });
+
+  testWidgets('badge compacto não transborda com fonte ampliada', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: Size(320, 640),
+            textScaler: TextScaler.linear(1.5),
+          ),
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 188,
+                child: SourceBadge(
+                  sourceType: ExamSourceType.community,
+                  compact: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
 }

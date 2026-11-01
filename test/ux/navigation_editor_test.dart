@@ -20,6 +20,41 @@ import 'package:prova_social/features/publish/publish_page.dart';
 
 final requests = <http.Request>[];
 bool failCatalogRequest = false;
+bool provideHomeCatalog = false;
+final homeCatalogRows = [
+  {
+    'id': 'filter-one',
+    'title': 'Prova 2024',
+    'description': 'Prova de seleção',
+    'category': 'Polícia',
+    'source_name': 'VUNESP',
+    'source_type': 'official',
+    'source_url': null,
+    'year': 2024,
+    'duration_minutes': 60,
+    'attempts_count': 0,
+    'created_at': '2026-01-02T00:00:00Z',
+    'profiles': {'display_name': 'Ana'},
+    'questions': <dynamic>[],
+    'exam_media': <dynamic>[],
+  },
+  {
+    'id': 'filter-two',
+    'title': 'Prova 2023',
+    'description': 'Prova de seleção',
+    'category': 'Fiscal',
+    'source_name': 'Cebraspe',
+    'source_type': 'community',
+    'source_url': null,
+    'year': 2023,
+    'duration_minutes': 90,
+    'attempts_count': 0,
+    'created_at': '2026-01-01T00:00:00Z',
+    'profiles': {'display_name': 'Bruno'},
+    'questions': <dynamic>[],
+    'exam_media': <dynamic>[],
+  },
+];
 
 class FailingPayloadStore implements ExamPayloadStorage {
   String? current;
@@ -120,6 +155,13 @@ void main() {
         if (request.url.path.endsWith('/user')) {
           return http.Response(jsonEncode(user), 200, request: request);
         }
+        if (provideHomeCatalog && request.url.path.endsWith('/exams')) {
+          return http.Response(
+            jsonEncode(homeCatalogRows),
+            200,
+            request: request,
+          );
+        }
         if (request.url.path.contains('/rpc/')) {
           return http.Response(
             jsonEncode('published-exam-id'),
@@ -138,6 +180,7 @@ void main() {
     LocalExamStore.storageOverride = PreferencesPayloadStore();
     requests.clear();
     failCatalogRequest = false;
+    provideHomeCatalog = false;
   });
   tearDownAll(() => Supabase.instance.dispose());
 
@@ -265,7 +308,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Abrir perfil'));
     await tester.pumpAndSettle();
-    expect(find.text('Você está explorando sem conta'), findsOneWidget);
+    expect(find.text('Estude do seu jeito'), findsOneWidget);
     expect(find.byType(AuthPage), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
@@ -291,6 +334,59 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets('home filters loaded exams and can clear the selection', (
+    tester,
+  ) async {
+    provideHomeCatalog = true;
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.light, home: const HomePage()),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Prova 2024'), findsOneWidget);
+    expect(find.text('Prova 2023'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Filtrar provas carregadas'));
+    await tester.pumpAndSettle();
+    final yearDropdown = find.byType(DropdownButtonFormField<String>).first;
+    await tester.tap(yearDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2024').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar filtros'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Prova 2024'), findsOneWidget);
+    expect(find.text('Prova 2023'), findsNothing);
+    expect(
+      find.text('Filtros aplicados às 2 provas já carregadas.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Filtrar provas carregadas'));
+    await tester.pumpAndSettle();
+    final categoryDropdown = find.byType(DropdownButtonFormField<String>).at(1);
+    await tester.tap(categoryDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fiscal').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar filtros'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nenhuma das 2 provas carregadas combina com estes filtros.'),
+      findsOneWidget,
+    );
+    expect(find.text('Prova 2023'), findsNothing);
+
+    final clearFilters = find.text('Limpar filtros');
+    expect(clearFilters, findsOneWidget);
+    await tester.ensureVisible(clearFilters);
+    await tester.pumpAndSettle();
+    await tester.tap(clearFilters);
+    await tester.pumpAndSettle();
+    expect(find.text('Prova 2023'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final width in [320.0, 1280.0]) {
     testWidgets('avatar guest and signed-in, layout $width', (tester) async {
       await tester.binding.setSurfaceSize(Size(width, 900));
@@ -306,7 +402,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip('Abrir perfil'));
       await tester.pumpAndSettle();
-      expect(find.text('Você está explorando sem conta'), findsOneWidget);
+      expect(find.text('Estude do seu jeito'), findsOneWidget);
       expect(find.byType(AuthPage), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Entrar ou criar conta'));

@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 /// Universal-ish exam/question parser.
 ///
 /// Structural uncertainty is kept on the resulting question for human review;
@@ -8,14 +12,31 @@ class ImportedQuestion {
     required this.options,
     this.correctIndex,
     this.number,
+    String? id,
     this.sourcePage,
+    List<int>? sourcePages,
+    this.sourcePosition,
+    this.instructions,
+    this.subject,
+    this.topic,
+    this.language,
+    List<String>? supportingMaterialIds,
+    Map<String, double>? fieldConfidence,
+    List<String>? warnings,
     this.format = QuestionFormat.multipleChoice,
     this.confidence = 0,
     this.warning,
     QuestionReviewState? reviewState,
     this.versionLabel = 'Versão principal',
     List<ImportedQuestionVersion>? alternateVersions,
-  }) : reviewState =
+  }) : id = id ?? _stableQuestionId(number, sourcePage, statement),
+       sourcePages =
+           sourcePages ?? (sourcePage == null ? <int>[] : <int>[sourcePage]),
+       supportingMaterialIds = supportingMaterialIds ?? <String>[],
+       fieldConfidence = fieldConfidence ?? <String, double>{},
+       warnings =
+           warnings ?? (warning == null ? <String>[] : <String>[warning]),
+       reviewState =
            reviewState ??
            (warning != null || confidence < lowConfidenceQuestionThreshold
                ? QuestionReviewState.needsAttention
@@ -28,7 +49,17 @@ class ImportedQuestion {
   List<String> options;
   int? correctIndex;
   int? number;
+  String id;
   int? sourcePage;
+  final List<int> sourcePages;
+  int? sourcePosition;
+  String? instructions;
+  String? subject;
+  String? topic;
+  String? language;
+  final List<String> supportingMaterialIds;
+  final Map<String, double> fieldConfidence;
+  final List<String> warnings;
   QuestionFormat format;
   double confidence;
   String? warning;
@@ -64,11 +95,105 @@ class ImportedQuestion {
   }
 
   Map<String, Object?> toJson(int position) => {
+    'id': id,
     'position': position,
+    'number': number,
     'statement': statement.trim(),
     'options': options.map((text) => {'text': text.trim()}).toList(),
     'correctIndex': correctIndex,
+    'sourcePage': sourcePage,
+    'sourcePages': sourcePages,
+    'sourcePosition': sourcePosition,
+    'instructions': instructions,
+    'format': format.name,
+    'subject': subject,
+    'topic': topic,
+    'language': language,
+    'supportingMaterialIds': supportingMaterialIds,
+    'confidence': confidence,
+    'fieldConfidence': fieldConfidence,
+    'warnings': warnings,
+    'warning': warning,
+    'reviewState': reviewState.name,
+    'versionLabel': versionLabel,
+    'alternateVersions': alternateVersions
+        .map((version) => version.toJson())
+        .toList(),
   };
+
+  factory ImportedQuestion.fromJson(Map<String, dynamic> json) {
+    final warning = json['warning'] as String?;
+    final confidence = ((json['confidence'] as num?)?.toDouble() ?? 0)
+        .clamp(0, 1)
+        .toDouble();
+    final number = json['number'] as int?;
+    final page = json['sourcePage'] as int?;
+    final statement = json['statement'] as String? ?? '';
+    final fields = <String, double>{};
+    final rawFields = json['fieldConfidence'];
+    if (rawFields is Map) {
+      for (final entry in rawFields.entries) {
+        if (entry.value is num) {
+          fields[entry.key.toString()] = (entry.value as num)
+              .toDouble()
+              .clamp(0, 1)
+              .toDouble();
+        }
+      }
+    }
+    return ImportedQuestion(
+      id: json['id'] as String? ?? _stableQuestionId(number, page, statement),
+      statement: statement,
+      options: (json['options'] as List? ?? const [])
+          .map(
+            (option) => option is Map
+                ? option['text']?.toString() ?? ''
+                : option.toString(),
+          )
+          .toList(),
+      correctIndex: json['correctIndex'] as int?,
+      number: number,
+      sourcePage: page,
+      sourcePages: List<int>.from(
+        json['sourcePages'] as List? ?? (page == null ? const [] : [page]),
+      ),
+      sourcePosition: json['sourcePosition'] as int?,
+      instructions: json['instructions'] as String?,
+      subject: json['subject'] as String?,
+      topic: json['topic'] as String?,
+      language: json['language'] as String?,
+      supportingMaterialIds: List<String>.from(
+        json['supportingMaterialIds'] as List? ?? const [],
+      ),
+      fieldConfidence: fields,
+      warnings: List<String>.from(
+        json['warnings'] as List? ?? (warning == null ? const [] : [warning]),
+      ),
+      format: QuestionFormat.values.firstWhere(
+        (format) => format.name == json['format'],
+        orElse: () => QuestionFormat.multipleChoice,
+      ),
+      confidence: confidence,
+      warning: warning,
+      reviewState: QuestionReviewState.values.firstWhere(
+        (state) => state.name == json['reviewState'],
+        orElse: () => QuestionReviewState.unreviewed,
+      ),
+      versionLabel: json['versionLabel'] as String? ?? 'Versão principal',
+      alternateVersions: (json['alternateVersions'] as List? ?? const [])
+          .map(
+            (version) => ImportedQuestionVersion.fromJson(
+              Map<String, dynamic>.from(version as Map),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+String _stableQuestionId(int? number, int? page, String statement) {
+  final fingerprint = sha256.convert(utf8.encode(statement.trim())).toString();
+  return 'q-${page ?? 0}-${number ?? 0}-${fingerprint.substring(0, 16)}';
 }
 
 enum QuestionReviewState { unreviewed, inReview, reviewed, needsAttention }
@@ -191,8 +316,14 @@ class QuestionParser {
       final nextLine = i + 1 < candidates.length
           ? candidates[i + 1].lineIndex
           : lines.length;
-      final block = lines
-          .sublist(candidate.lineIndex, nextLine)
+      final candidateBlock = lines.sublist(candidate.lineIndex, nextLine);
+      final sectionBoundary = candidateBlock.indexWhere(
+        _isNonQuestionSectionBoundary,
+      );
+      final boundedBlock = candidateBlock
+          .take(sectionBoundary < 0 ? candidateBlock.length : sectionBoundary)
+          .toList(growable: false);
+      final block = boundedBlock
           .where((line) => !_pageMarker.hasMatch(line))
           .join('\n')
           .trim();
@@ -206,6 +337,25 @@ class QuestionParser {
         parsed.versionLabel =
             candidateVariantLabels[candidate.lineIndex] ?? 'Versão principal';
         parsed.sourcePage = sourcePagesByLine[candidate.lineIndex];
+        final sourcePageSet = <int>{?parsed.sourcePage};
+        for (var offset = 0; offset < boundedBlock.length; offset++) {
+          if (_pageMarker.hasMatch(boundedBlock[offset])) continue;
+          final page = sourcePagesByLine[candidate.lineIndex + offset];
+          if (page != null) sourcePageSet.add(page);
+        }
+        final sourcePages = sourcePageSet.toList()..sort();
+        parsed.sourcePages
+          ..clear()
+          ..addAll(sourcePages);
+        parsed.sourcePosition = candidate.lineIndex;
+        parsed.language = parsed.versionLabel == 'Versão principal'
+            ? null
+            : parsed.versionLabel;
+        parsed.id = _stableQuestionId(
+          parsed.number,
+          parsed.sourcePage,
+          parsed.statement,
+        );
         questions.add(parsed);
         inheritedTrueFalse = parsed.format == QuestionFormat.trueFalse;
       } else if (candidate.explicit) {
@@ -258,6 +408,11 @@ class QuestionParser {
     if (heading.length < 8 || heading != heading.toUpperCase()) return false;
     return RegExp(r'[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3}').hasMatch(heading);
   }
+
+  bool _isNonQuestionSectionBoundary(String line) => RegExp(
+    r'^(?:REDA[CÇ][AÃ]O|PROPOSTA DE REDA[CÇ][AÃ]O|RASCUNHO|FOLHA DE RASCUNHO|CLASSIFICA[CÇ][AÃ]O PERI[ÓO]DICA|TABELA PERI[ÓO]DICA|FOLHA DE RESPOSTAS)\b',
+    caseSensitive: false,
+  ).hasMatch(line.trim());
 
   List<ImportedQuestion> _coalesceParallelNumberedVersions(
     List<ImportedQuestion> questions,
@@ -465,7 +620,7 @@ class QuestionParser {
         lineIndex: -1,
         number: int.tryParse(bareNumber.group(1)!),
         content: '',
-        confidence: .86,
+        confidence: followsQuestionNumber || hasFollowingOptions ? .94 : .86,
         explicit: false,
       );
     }
@@ -527,6 +682,9 @@ class QuestionParser {
         return _uncertainQuestion(content, start);
       }
       final warnings = <String>[];
+      final missingOptionText = parsed.options.every(
+        (option) => option.isEmpty,
+      );
       if (parsed.options.length < 4) {
         warnings.add(
           'Foram detectadas ${parsed.options.length} alternativas; revisar estrutura.',
@@ -541,16 +699,23 @@ class QuestionParser {
           'Marcadores de alternativas incompletos ou fora de ordem.',
         );
       }
+      if (missingOptionText) {
+        warnings.add(
+          'Alternativas identificadas, mas o conteúdo visual não foi extraído; revisar na página de origem.',
+        );
+      }
       return ImportedQuestion(
         statement: statement,
         options: parsed.options,
         number: start.number,
         format: QuestionFormat.multipleChoice,
-        confidence: _optionConfidence(
-          start,
-          parsed.options.length,
-          hasIncoherentMarkers: optionScan.hasIncoherentMarkers,
-        ),
+        confidence: missingOptionText
+            ? .65
+            : _optionConfidence(
+                start,
+                parsed.options.length,
+                hasIncoherentMarkers: optionScan.hasIncoherentMarkers,
+              ),
         warning: warnings.isEmpty ? null : warnings.join(' '),
       );
     }
@@ -628,11 +793,11 @@ class QuestionParser {
       // is not mistaken for an alternative. Parenthesized/bracketed and
       // marker-only labels remain supported for image-based alternatives.
       final wrapped = RegExp(
-        r'^\s*(?:\(([A-Z])\)|\[([A-Z])\])\s*(?:[.):\-–])?\s*(.*?)\s*$',
+        r'^\s*(?:\(([A-Z])\)|\[([A-Z])\])\s*(?:[.):])?\s*(.*?)\s*$',
         caseSensitive: false,
       ).firstMatch(line);
       final unwrapped = RegExp(
-        r'^\s*([A-Z])\s*[.):\-–]\s*(.*?)\s*$',
+        r'^\s*([A-Z])\s*[.):]\s*(.*?)\s*$',
         caseSensitive: false,
       ).firstMatch(line);
       final markerOnly = RegExp(
@@ -723,6 +888,20 @@ class QuestionParser {
 
     final coherent = _coherentOptions(result);
     var expectedLabel = 'A'.codeUnitAt(0);
+    final hasCompleteFilledSequence =
+        coherent.length >= 4 &&
+        coherent.first.letter == 'A' &&
+        result
+            .where((marker) => !coherent.contains(marker))
+            .every((marker) => marker.text.isEmpty) &&
+        coherent.every((marker) {
+          final complete =
+              marker.text.isNotEmpty &&
+              marker.letter.codeUnitAt(0) == expectedLabel;
+          expectedLabel++;
+          return complete;
+        });
+    expectedLabel = 'A'.codeUnitAt(0);
     final hasLabelGap =
         coherent.any((marker) {
           final label = marker.letter.codeUnitAt(0);
@@ -734,20 +913,48 @@ class QuestionParser {
     return _OptionScan(
       markers: coherent,
       rawMarkerCount: result.length,
-      hasIncoherentMarkers: coherent.length != result.length || hasLabelGap,
+      hasIncoherentMarkers:
+          !hasCompleteFilledSequence &&
+          (coherent.length != result.length || hasLabelGap),
     );
   }
 
   List<_OptionMarker> _coherentOptions(List<_OptionMarker> markers) {
     if (markers.length < 2) return const [];
+    final completeFilledRuns = <List<_OptionMarker>>[];
+    var filledRun = <_OptionMarker>[];
+    for (final marker in markers) {
+      final isNext =
+          filledRun.isNotEmpty &&
+          marker.letter.codeUnitAt(0) ==
+              filledRun.last.letter.codeUnitAt(0) + 1;
+      if (marker.text.isNotEmpty &&
+          ((filledRun.isEmpty && marker.letter == 'A') || isNext)) {
+        filledRun.add(marker);
+      } else {
+        if (filledRun.length >= 4) completeFilledRuns.add(filledRun);
+        filledRun = marker.text.isNotEmpty && marker.letter == 'A'
+            ? [marker]
+            : <_OptionMarker>[];
+      }
+    }
+    if (filledRun.length >= 4) completeFilledRuns.add(filledRun);
+    if (completeFilledRuns.isNotEmpty) {
+      return completeFilledRuns.reduce(
+        (best, candidate) => candidate.length >= best.length ? candidate : best,
+      );
+    }
+
     final output = <_OptionMarker>[markers.first];
     var previous = markers.first.letter.codeUnitAt(0);
     for (var i = 1; i < markers.length; i++) {
       final code = markers[i].letter.codeUnitAt(0);
-      if (code > previous) {
-        output.add(markers[i]);
-        previous = code;
-      } else if (code == 'A'.codeUnitAt(0) && previous >= 'E'.codeUnitAt(0)) {
+      if (code == 'A'.codeUnitAt(0)) {
+        if (previous >= 'E'.codeUnitAt(0)) {
+          output.add(markers[i]);
+          previous = code;
+        }
+      } else if (code > previous) {
         output.add(markers[i]);
         previous = code;
       }
@@ -761,7 +968,6 @@ class QuestionParser {
       final marker = markers[i];
       final end = i + 1 < markers.length ? markers[i + 1].start : block.length;
       var text = block.substring(marker.contentStart, end).trim();
-      if (text.isEmpty) continue;
       text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
       options.add(text);
     }

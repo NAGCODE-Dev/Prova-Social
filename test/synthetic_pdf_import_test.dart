@@ -58,4 +58,19 @@ void main() {
       expect(quality.questionsNeedingReview, 0);
     },
   );
+
+  test('rejects PDFs above the configured page limit', () async {
+    final pdf = await File(
+      'test/fixtures/synthetic_two_column_80_questions.pdf',
+    ).readAsBytes();
+
+    await expectLater(
+      const PdfTextExtractor().extract(pdf, maxPages: 7),
+      throwsA(
+        isA<PdfPageLimitException>()
+            .having((error) => error.pageCount, 'pageCount', 8)
+            .having((error) => error.limit, 'limit', 7),
+      ),
+    );
+  });
 }

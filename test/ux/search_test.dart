@@ -131,13 +131,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
 
-      expect(
-        find.text('Não encontramos essa prova no catálogo Prova Social.'),
-        findsOneWidget,
-      );
+      expect(find.text('Nenhum resultado no catálogo.'), findsOneWidget);
       expect(find.text('Cebraspe'), findsOneWidget);
       expect(
-        find.textContaining('não significa que o app verificou'),
+        find.textContaining('Confira a origem e a licença'),
         findsOneWidget,
       );
 
@@ -214,10 +211,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       requests['vazio']!.complete([]);
       await tester.pump();
-      expect(
-        find.text('Não encontramos essa prova no catálogo Prova Social.'),
-        findsOneWidget,
-      );
+      expect(find.text('Nenhum resultado no catálogo.'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'erro');
       await tester.pump(const Duration(milliseconds: 350));
       requests['erro']!.completeError(Exception('offline'));

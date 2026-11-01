@@ -484,8 +484,10 @@ Map<String, dynamic> _examToJson(Exam exam) => {
   'title': exam.title,
   'description': exam.description,
   'author': exam.author,
+  'uploaderName': exam.uploaderName,
   'durationMinutes': exam.durationMinutes,
   'attempts': exam.attempts,
+  'year': exam.year,
   'sourceType': exam.sourceType.name,
   'sourceUrl': exam.sourceUrl,
   'questions': exam.questions
@@ -496,6 +498,17 @@ Map<String, dynamic> _examToJson(Exam exam) => {
           'statement': question.statement,
           'options': question.options,
           'correctIndex': question.correctIndex,
+          'media': question.media
+              .map(
+                (media) => {
+                  'id': media.id,
+                  'objectKey': media.objectKey,
+                  'mimeType': media.mimeType,
+                  'sha256': media.sha256,
+                  'altText': media.altText,
+                },
+              )
+              .toList(growable: false),
         },
       )
       .toList(),
@@ -508,8 +521,10 @@ Exam _examFromJson(Map<String, dynamic> json) => Exam(
   title: json['title'] as String,
   description: json['description'] as String,
   author: json['author'] as String,
+  uploaderName: json['uploaderName'] as String?,
   durationMinutes: json['durationMinutes'] as int,
   attempts: json['attempts'] as int,
+  year: json['year'] as int?,
   sourceType: ExamSourceType.fromDatabase(json['sourceType']),
   sourceUrl: json['sourceUrl'] as String?,
   questions: List<dynamic>.from(json['questions'] as List)
@@ -521,6 +536,18 @@ Exam _examFromJson(Map<String, dynamic> json) => Exam(
           statement: question['statement'] as String,
           options: List<String>.from(question['options'] as List),
           correctIndex: question['correctIndex'] as int?,
+          media: [
+            for (final media in List<Map<String, dynamic>>.from(
+              (question['media'] as List? ?? const []).whereType<Map>(),
+            ))
+              QuestionMedia(
+                id: media['id'] as String,
+                objectKey: media['objectKey'] as String,
+                mimeType: media['mimeType'] as String,
+                sha256: media['sha256'] as String,
+                altText: media['altText'] as String? ?? '',
+              ),
+          ],
         );
       })
       .toList(growable: false),

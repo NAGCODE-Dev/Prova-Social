@@ -11,10 +11,12 @@ import 'package:pdfrx/pdfrx.dart';
 import 'ocr_recognition.dart';
 import 'ocr_router.dart';
 
+/// OCR session scoped to one PDF import; native ML Kit state is reused per page.
 class OcrService {
-  const OcrService();
+  OcrService();
 
   static const _paddleOcr = PaddleOcrAndroid();
+  TextRecognizer? _mlKitRecognizer;
 
   Set<OcrEngine> get availableEngines => switch (defaultTargetPlatform) {
     TargetPlatform.android => const {OcrEngine.paddleOcr, OcrEngine.mlKit},
@@ -41,13 +43,13 @@ class OcrService {
     if (rendered == null) return OcrRecognition(engine: engine, text: '');
 
     try {
-      final bitmap = img.Image.fromBytes(
+      // Pixel conversion and JPEG compression are CPU-heavy; keep them off the
+      // UI isolate so scanned pages do not freeze import progress.
+      final jpeg = await compute(_encodeOcrPage, (
+        pixels: rendered.pixels,
         width: rendered.width,
         height: rendered.height,
-        bytes: rendered.pixels.buffer,
-        order: img.ChannelOrder.bgra,
-      );
-      final jpeg = img.encodeJpg(bitmap, quality: 88);
+      ));
       return switch (engine) {
         OcrEngine.paddleOcr => await _recognizeWithPaddle(jpeg),
         OcrEngine.mlKit => await _recognizeWithMlKit(jpeg, page.pageNumber),
@@ -125,7 +127,9 @@ class OcrService {
     int pageNumber,
   ) async {
     File? temporary;
-    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    final recognizer = _mlKitRecognizer ??= TextRecognizer(
+      script: TextRecognitionScript.latin,
+    );
     try {
       final directory = await getTemporaryDirectory();
       temporary = File(
@@ -153,11 +157,34 @@ class OcrService {
         text: recognized.text.trim(),
         regions: List.unmodifiable(regions),
       );
-    } finally {
+    } catch (_) {
+      // Do not retain a potentially broken native handle for subsequent pages.
+      if (identical(_mlKitRecognizer, recognizer)) {
+        _mlKitRecognizer = null;
+      }
       await recognizer.close();
+      rethrow;
+    } finally {
       if (temporary != null && await temporary.exists()) {
         await temporary.delete();
       }
     }
   }
+
+  /// Releases native OCR state after the current document has been processed.
+  Future<void> dispose() async {
+    final recognizer = _mlKitRecognizer;
+    _mlKitRecognizer = null;
+    if (recognizer != null) await recognizer.close();
+  }
+}
+
+Uint8List _encodeOcrPage(({Uint8List pixels, int width, int height}) page) {
+  final bitmap = img.Image.fromBytes(
+    width: page.width,
+    height: page.height,
+    bytes: page.pixels.buffer,
+    order: img.ChannelOrder.bgra,
+  );
+  return img.encodeJpg(bitmap, quality: 88);
 }

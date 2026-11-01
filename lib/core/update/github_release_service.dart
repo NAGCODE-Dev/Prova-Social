@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -21,6 +23,10 @@ class ReleaseInfo {
 
 class GithubReleaseService {
   const GithubReleaseService();
+
+  static const _deviceChannel = MethodChannel(
+    'dev.nagcode/prova_social/device',
+  );
 
   static const _latestRelease =
       'https://api.github.com/repos/NAGCODE-Dev/Prova-Social/releases/latest';
@@ -45,17 +51,8 @@ class GithubReleaseService {
 
     final assets = (json['assets'] as List<dynamic>? ?? const [])
         .cast<Map<String, dynamic>>();
-    Map<String, dynamic>? apk;
-    for (final asset in assets) {
-      if (asset['name'] == 'prova-social-android.apk') {
-        apk = asset;
-        break;
-      }
-    }
-    apk ??= assets.cast<Map<String, dynamic>?>().firstWhere(
-      (asset) => (asset?['name'] as String? ?? '').endsWith('.apk'),
-      orElse: () => null,
-    );
+    final abi = await _androidAbi();
+    final apk = selectApkAsset(assets, abi: abi);
 
     final releaseUrl = Uri.tryParse(json['html_url'] as String? ?? '');
     final downloadUrl = Uri.tryParse(
@@ -70,6 +67,38 @@ class GithubReleaseService {
       downloadUrl: downloadUrl ?? releaseUrl,
       releaseUrl: releaseUrl,
     );
+  }
+
+  Future<String?> _androidAbi() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      return await _deviceChannel.invokeMethod<String>('androidAbi');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Prefer the device-specific split; retain the universal APK as a safe
+  /// fallback for old releases and unsupported Android ABIs.
+  static Map<String, dynamic>? selectApkAsset(
+    List<Map<String, dynamic>> assets, {
+    required String? abi,
+  }) {
+    if (abi != null &&
+        const {'arm64-v8a', 'armeabi-v7a', 'x86_64'}.contains(abi)) {
+      for (final asset in assets) {
+        if (asset['name'] == 'app-$abi-release.apk') return asset;
+      }
+    }
+    for (final asset in assets) {
+      if (asset['name'] == 'prova-social-android.apk' ||
+          asset['name'] == 'app-release.apk') {
+        return asset;
+      }
+    }
+    return null;
   }
 
   static bool isNewer(String available, String installed) {

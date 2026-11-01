@@ -90,7 +90,9 @@ class SupabaseBuildConfigTests(unittest.TestCase):
         self.assertIn("SUPABASE_URL: ${{ secrets.SUPABASE_URL }}", workflow)
         self.assertIn("SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}", workflow)
         self.assertGreaterEqual(workflow.count("--write-from-environment"), 3)
-        self.assertGreaterEqual(workflow.count("--dart-define-from-file=\"$RUNNER_TEMP/prova-social-supabase.json\""), 4)
+        self.assertGreaterEqual(workflow.count("--dart-define-from-file=\"$RUNNER_TEMP/prova-social-supabase.json\""), 3)
+        self.assertEqual(workflow.count("flutter build apk --release"), 1)
+        self.assertNotIn("prova-social-android.apk", workflow)
         self.assertNotIn("--dart-define=SUPABASE_URL=", workflow)
         self.assertNotIn("--dart-define=SUPABASE_PUBLISHABLE_KEY=", workflow)
 

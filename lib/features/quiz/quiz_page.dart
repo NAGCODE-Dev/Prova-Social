@@ -9,6 +9,7 @@ import '../../core/backend/attempt_draft_store.dart';
 import '../../core/backend/attempt_submission.dart';
 import '../../core/backend/attempt_sync_service.dart';
 import '../../core/navigation/share_link_service.dart';
+import '../../core/widgets/question_media_gallery.dart';
 import '../../domain/models/exam.dart';
 import '../result/result_page.dart';
 
@@ -318,10 +319,11 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
                         horizontal: 16,
                         vertical: 4,
                       ),
-                      child: Row(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
                         children: [
                           Icon(icon, size: 16),
-                          const SizedBox(width: 6),
                           Text(label),
                           if (status == DraftSaveStatus.failed)
                             TextButton(
@@ -672,22 +674,51 @@ class _QuestionStatus extends StatelessWidget {
   final int marked;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: Text(
-          'Questão ${current + 1} de $total',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ),
-      Text(
-        '$answered respondidas · $marked revisar',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontSize: 12,
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 420;
+      final counts = Wrap(
+        spacing: 12,
+        runSpacing: 4,
+        children: [Text('$answered respondidas'), Text('$marked para revisar')],
+      );
+      if (compact) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Questão ${current + 1} de $total',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            DefaultTextStyle(
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+              child: counts,
+            ),
+          ],
+        );
+      }
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Questão ${current + 1} de $total',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          DefaultTextStyle(
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+            child: counts,
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -721,6 +752,10 @@ class _QuestionContent extends StatelessWidget {
         style: Theme.of(context).textTheme.titleLarge
             ?.copyWith(fontSize: 20, height: 1.5),
       ),
+      if (question.media.isNotEmpty) ...[
+        const SizedBox(height: AppSpacing.md),
+        QuestionMediaGallery(media: question.media),
+      ],
       const SizedBox(height: AppSpacing.xl),
       ...List.generate(question.options.length, (index) {
         final active = selected == index;
@@ -779,7 +814,11 @@ class _QuestionContent extends StatelessWidget {
                     Expanded(
                       child: Text(
                         question.options[index],
-                        style: const TextStyle(fontSize: 16, height: 1.4),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 16,
+                          height: 1.4,
+                        ),
                       ),
                     ),
                     if (active)
@@ -826,9 +865,9 @@ class _FocusActions extends StatelessWidget {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820),
-            child: Row(
-              children: [
-                IconButton(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final toggle = IconButton(
                   tooltip: marked
                       ? 'Remover da revisão'
                       : 'Marcar para revisão',
@@ -839,14 +878,12 @@ class _FocusActions extends StatelessWidget {
                         : Icons.bookmark_border_rounded,
                   ),
                   color: marked ? AppColors.warning : null,
-                ),
-                const Spacer(),
-                OutlinedButton(
+                );
+                final previous = OutlinedButton(
                   onPressed: onPrevious,
                   child: const Text('Anterior'),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                FilledButton.icon(
+                );
+                final next = FilledButton.icon(
                   onPressed: onNext,
                   icon: Icon(
                     last
@@ -854,8 +891,33 @@ class _FocusActions extends StatelessWidget {
                         : Icons.arrow_forward_rounded,
                   ),
                   label: Text(last ? 'Revisar entrega' : 'Próxima'),
-                ),
-              ],
+                );
+                if (constraints.maxWidth < 420) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          toggle,
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(child: previous),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      next,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    toggle,
+                    const Spacer(),
+                    previous,
+                    const SizedBox(width: AppSpacing.sm),
+                    next,
+                  ],
+                );
+              },
             ),
           ),
         ),

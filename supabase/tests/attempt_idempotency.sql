@@ -19,6 +19,8 @@ select set_config(
 do $$
 declare
   v_exam_id uuid;
+  v_media_exam_id uuid;
+  v_media_asset_id uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
   v_rejected boolean;
 begin
   v_rejected := false;
@@ -86,6 +88,74 @@ begin
       and question_count = 1 and author_id = auth.uid()
   ) then
     raise exception 'valid exam was not published atomically';
+  end if;
+
+  insert into public.media_assets (
+    id, owner_id, object_key, sha256, mime_type, byte_size
+  ) values (
+    v_media_asset_id, auth.uid(),
+    auth.uid()::text || '/media/' || repeat('a', 64) || '.jpg',
+    repeat('a', 64), 'image/jpeg', 128
+  );
+  v_media_exam_id := public.publish_exam_with_media(
+    'Prova com figura', 'Teste', 'Fonte comunitária', 'community', 2026, 30,
+    '[{"statement":"Questão com figura?","topic":"Geral","options":["Primeira","Segunda"],"correct_index":1}]',
+    null,
+    jsonb_build_array(jsonb_build_object(
+      'asset_id', v_media_asset_id,
+      'question_position', 1,
+      'role', 'question_figure',
+      'alt_text', 'Página original da questão'
+    ))
+  );
+  if not exists (
+    select 1 from public.exam_media em
+    join public.questions q on q.id = em.question_id
+    where em.exam_id = v_media_exam_id and em.asset_id = v_media_asset_id
+      and q.exam_id = em.exam_id and q.position = em.question_position
+  ) then
+    raise exception 'published figure is not linked to its question ID';
+  end if;
+
+  v_rejected := false;
+  begin
+    perform public.publish_exam_with_media(
+      'Prova sem autorização', 'Teste', 'Fonte comunitária', 'community', 2026, 30,
+      '[{"statement":"Questão com figura?","topic":"Geral","options":["Primeira","Segunda"],"correct_index":1}]',
+      null,
+      '[{"asset_id":"ffffffff-ffff-4fff-8fff-ffffffffffff","question_position":1,"role":"question_figure","alt_text":"Figura"}]'
+    );
+  exception when sqlstate '22023' then
+    v_rejected := true;
+  end;
+  if not v_rejected then
+    raise exception 'foreign media asset was accepted';
+  end if;
+  if exists (
+    select 1 from public.exams e
+    where e.author_id = auth.uid() and e.title = 'Prova sem autorização'
+  ) then
+    raise exception 'failed media publication left a partial exam';
+  end if;
+  v_rejected := false;
+  begin
+    perform public.publish_exam_with_media(
+      'Prova com duplicidade', 'Teste', 'Fonte comunitária', 'community', 2026, 30,
+      '[{"statement":"Questão com figura?","topic":"Geral","options":["Primeira","Segunda"],"correct_index":1}]',
+      null,
+      jsonb_build_array(
+        jsonb_build_object('asset_id',v_media_asset_id,'question_position',1,'role','question_figure','alt_text','Figura'),
+        jsonb_build_object('asset_id',v_media_asset_id,'question_position',1,'role','question_figure','alt_text','Figura')
+      )
+    );
+  exception when unique_violation then
+    v_rejected := true;
+  end;
+  if not v_rejected or exists (
+    select 1 from public.exams e
+    where e.author_id = auth.uid() and e.title = 'Prova com duplicidade'
+  ) then
+    raise exception 'duplicate media left a partially published exam';
   end if;
   if not exists (
     select 1 from public.questions q

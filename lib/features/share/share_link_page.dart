@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/backend/exam_repository.dart';
 import '../../core/navigation/share_link_service.dart';
+import '../../core/widgets/question_media_gallery.dart';
+import '../../core/widgets/source_badge.dart';
 import '../../domain/models/exam.dart';
 import '../auth/auth_page.dart';
 import '../quiz/quiz_page.dart';
+import 'question_discussion.dart';
 
 class ShareLinkPage extends StatefulWidget {
   const ShareLinkPage({required this.destination, super.key});
@@ -81,7 +84,17 @@ class _PublicContent extends StatelessWidget {
           const SizedBox(height: 8),
           Text(exam.title, style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
-          Text('${exam.author} · ${exam.questions.length} questões'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SourceBadge(sourceType: exam.sourceType),
+              Text(
+                '${exam.author}${exam.year == null ? '' : ' · ${exam.year}'} · ${exam.questions.length} questões',
+              ),
+            ],
+          ),
           if (question != null) ...[
             const SizedBox(height: 28),
             Text(
@@ -93,6 +106,10 @@ class _PublicContent extends StatelessWidget {
               question!.statement,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
+            if (question!.media.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              QuestionMediaGallery(media: question!.media),
+            ],
             const SizedBox(height: 16),
             for (var index = 0; index < question!.options.length; index++)
               ListTile(
@@ -101,6 +118,18 @@ class _PublicContent extends StatelessWidget {
                 ),
                 title: Text(question!.options[index]),
               ),
+            const SizedBox(height: 24),
+            QuestionDiscussion(
+              questionId: question!.id,
+              topic: question!.topic,
+              onSignIn: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AuthPage(closeAfterAuth: true),
+                  ),
+                );
+              },
+            ),
           ] else ...[
             const SizedBox(height: 20),
             Text(exam.description),
@@ -123,7 +152,11 @@ class _PublicContent extends StatelessWidget {
               ),
             ),
             icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Resolver esta prova'),
+            label: Text(
+              question == null
+                  ? 'Resolver esta prova'
+                  : 'Resolver esta questão',
+            ),
           ),
         ],
       ),

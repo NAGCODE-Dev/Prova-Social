@@ -2,7 +2,15 @@
 set -eu
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-cluster_root=/tmp/prova_social_postgres_5433
+pg_bindir=$(pg_config --bindir)
+
+if [ ! -x "$pg_bindir/psql" ]; then
+  echo "Cliente psql ausente em $pg_bindir. Instale o pacote PostgreSQL correspondente." >&2
+  exit 1
+fi
+PATH="$pg_bindir:$PATH"
+export PATH
+cluster_root=/tmp/prova_social_postgres_5433_local
 socket_dir="$cluster_root/socket"
 port=5433
 database=prova_social_test
@@ -10,7 +18,7 @@ admin_uri="host=$socket_dir port=$port user=postgres"
 test_uri="$admin_uri dbname=$database"
 
 if [ "$database" != prova_social_test ] ||
-   [ "$cluster_root" != /tmp/prova_social_postgres_5433 ] ||
+   [ "$cluster_root" != /tmp/prova_social_postgres_5433_local ] ||
    [ "$port" -ne 5433 ]; then
   echo "Configuração de segurança inesperada; teste recusado." >&2
   exit 1

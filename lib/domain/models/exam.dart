@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class Exam {
   const Exam({
     required this.id,
@@ -8,6 +10,8 @@ class Exam {
     required this.durationMinutes,
     required this.attempts,
     required this.questions,
+    this.uploaderName,
+    this.year,
     this.sourceType = ExamSourceType.unverified,
     this.sourceUrl,
     this.isLocal = false,
@@ -19,8 +23,10 @@ class Exam {
   final String title;
   final String description;
   final String author;
+  final String? uploaderName;
   final int durationMinutes;
   final int attempts;
+  final int? year;
   final List<Question> questions;
   final ExamSourceType sourceType;
   final String? sourceUrl;
@@ -30,15 +36,17 @@ class Exam {
     return uri?.scheme == 'https' && uri!.host.isNotEmpty ? uri : null;
   }
 
-  Exam copyWith({List<Question>? questions}) => Exam(
+  Exam copyWith({List<Question>? questions, int? year}) => Exam(
     id: id,
     isLocal: isLocal,
     category: category,
     title: title,
     description: description,
     author: author,
+    uploaderName: uploaderName,
     durationMinutes: durationMinutes,
     attempts: attempts,
+    year: year ?? this.year,
     questions: questions ?? this.questions,
     sourceType: sourceType,
     sourceUrl: sourceUrl,
@@ -64,6 +72,7 @@ class Question {
     required this.statement,
     required this.options,
     this.correctIndex,
+    this.media = const [],
   });
 
   final String id;
@@ -71,14 +80,35 @@ class Question {
   final String statement;
   final List<String> options;
   final int? correctIndex;
+  final List<QuestionMedia> media;
 
-  Question copyWith({int? correctIndex}) => Question(
-    id: id,
-    topic: topic,
-    statement: statement,
-    options: options,
-    correctIndex: correctIndex ?? this.correctIndex,
-  );
+  Question copyWith({int? correctIndex, List<QuestionMedia>? media}) =>
+      Question(
+        id: id,
+        topic: topic,
+        statement: statement,
+        options: options,
+        correctIndex: correctIndex ?? this.correctIndex,
+        media: media ?? this.media,
+      );
+}
+
+class QuestionMedia {
+  const QuestionMedia({
+    required this.id,
+    required this.objectKey,
+    required this.mimeType,
+    required this.sha256,
+    required this.altText,
+    this.localBytes,
+  });
+
+  final String id;
+  final String objectKey;
+  final String mimeType;
+  final String sha256;
+  final String altText;
+  final Uint8List? localBytes;
 }
 
 class ExamResult {
@@ -130,6 +160,8 @@ class ExamResult {
       author: exam.author,
       durationMinutes: exam.durationMinutes,
       attempts: 0,
+      year: exam.year,
+      uploaderName: exam.uploaderName,
       sourceType: exam.sourceType,
       sourceUrl: exam.sourceUrl,
       questions: [
@@ -140,6 +172,7 @@ class ExamResult {
             statement: exam.questions[index].statement,
             options: exam.questions[index].options,
             correctIndex: exam.questions[index].correctIndex,
+            media: exam.questions[index].media,
           ),
       ],
     );

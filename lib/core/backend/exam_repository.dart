@@ -30,7 +30,10 @@ class ExamRepository {
   static const _examSelect =
       'id,title,description,category,source_name,source_type,source_url,year,'
       'duration_minutes,attempts_count,created_at,'
-      'questions(id,exam_id,position,topic,statement,options,created_at)';
+      'profiles!exams_author_id_fkey(display_name),'
+      'questions(id,exam_id,position,topic,statement,options,created_at),'
+      'exam_media(asset_id,question_position,role,alt_text,'
+      'media_assets(id,object_key,mime_type,sha256))';
 
   Future<ExamCatalogPage> publishedExamPage({
     ExamCatalogCursor? after,
@@ -198,12 +201,25 @@ class ExamRepository {
     author: (row['source_name'] as String?)?.trim().isNotEmpty == true
         ? (row['source_name'] as String).trim()
         : 'Fonte não informada',
+    uploaderName: row['profiles'] is Map
+        ? (row['profiles'] as Map)['display_name'] as String?
+        : null,
     durationMinutes: row['duration_minutes'] as int,
     attempts: row['attempts_count'] as int,
+    year: (row['year'] as num?)?.toInt(),
     sourceType: ExamSourceType.fromDatabase(row['source_type']),
     sourceUrl: row['source_url'] is String ? row['source_url'] as String : null,
     questions: questionRows.map((question) {
       final rawOptions = List<dynamic>.from(question['options'] as List);
+      final mediaRows =
+          List<Map<String, dynamic>>.from(
+            ((question['exam_media'] as List?) ??
+                    (row['exam_media'] as List?) ??
+                    const [])
+                .whereType<Map>(),
+          ).where(
+            (relation) => relation['question_position'] == question['position'],
+          );
       return Question(
         id: question['id'] as String,
         topic: (question['topic'] as String?) ?? 'Geral',
@@ -216,6 +232,20 @@ class ExamRepository {
             )
             .toList(),
         correctIndex: null,
+        media: [
+          for (final relation in mediaRows)
+            if (relation['role'] == 'question_figure' &&
+                relation['media_assets'] is Map)
+              QuestionMedia(
+                id: (relation['media_assets'] as Map)['id'] as String,
+                objectKey:
+                    (relation['media_assets'] as Map)['object_key'] as String,
+                mimeType:
+                    (relation['media_assets'] as Map)['mime_type'] as String,
+                sha256: (relation['media_assets'] as Map)['sha256'] as String,
+                altText: relation['alt_text'] as String? ?? '',
+              ),
+        ],
       );
     }).toList(),
   );

@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/source_badge.dart';
 import '../../core/backend/attempt_sync_service.dart';
 import '../../domain/models/exam.dart';
+import 'review_page.dart';
 import '../quiz/quiz_page.dart';
 
 class PendingResultPage extends StatefulWidget {
@@ -243,7 +244,7 @@ class ResultPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            'Suas questões para revisão estão organizadas abaixo.',
+                            'Confira seu desempenho e revise as questões quando quiser.',
                             style: TextStyle(color: Color(0xFFD7F3E7)),
                           ),
                         ],
@@ -302,99 +303,48 @@ class ResultPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   SourceBadge(sourceType: result.exam.sourceType),
-                  Text(result.exam.author),
+                  Text(
+                    '${result.exam.author}'
+                    '${result.exam.year == null ? '' : ' · ${result.exam.year}'}',
+                  ),
                   if (result.exam.safeSourceUrl case final sourceUrl?)
                     TextButton.icon(
                       onPressed: () => launchUrl(sourceUrl),
                       icon: const Icon(Icons.open_in_new),
                       label: const Text('Abrir fonte'),
                     ),
-                  for (final topic in result.byTopic.entries)
+                  if (result.byTopic.isNotEmpty) ...[
+                    const SizedBox(height: 8),
                     Text(
-                      '${topic.key}: ${topic.value.correct}/${topic.value.total} acertos',
+                      'Desempenho por assunto',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 10),
+                    for (final topic in result.byTopic.entries)
+                      _TopicPerformance(
+                        topic: topic.key,
+                        correct: topic.value.correct,
+                        total: topic.value.total,
+                      ),
+                  ],
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Revisão das questões',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ReviewPage(result: result),
                       ),
-                      TextButton.icon(
-                        onPressed: () => _copyJson(context),
-                        icon: const Icon(Icons.copy_rounded),
-                        label: const Text('Copiar JSON'),
-                      ),
-                    ],
+                    ),
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('Abrir revisão das questões'),
                   ),
-                  const SizedBox(height: 10),
-                  ...List.generate(result.exam.questions.length, (index) {
-                    final question = result.exam.questions[index];
-                    final selected = result.answers[index];
-                    final correct =
-                        question.correctIndex != null &&
-                        selected == question.correctIndex;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    correct
-                                        ? Icons.check_circle_rounded
-                                        : Icons.cancel_rounded,
-                                    color: correct
-                                        ? AppColors.success
-                                        : AppColors.danger,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Questão ${index + 1}: ${correct ? 'Correta' : 'Revisar'}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(question.statement),
-                              if (result.markedForReview.contains(index))
-                                const Text('Marcada para revisão'),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Sua resposta: ${selected == null ? 'Em branco' : question.options[selected]}',
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                              ),
-                              if (!correct) ...[
-                                Text(
-                                  question.correctIndex == null
-                                      ? 'Gabarito indisponível'
-                                      : 'Gabarito: ${question.options[question.correctIndex!]}',
-                                  style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _copyJson(context),
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('Copiar resultado JSON'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -419,6 +369,45 @@ class ResultPage extends StatelessWidget {
 
   static String _time(int value) =>
       '${(value ~/ 60).toString().padLeft(2, '0')}:${(value % 60).toString().padLeft(2, '0')}';
+}
+
+class _TopicPerformance extends StatelessWidget {
+  const _TopicPerformance({
+    required this.topic,
+    required this.correct,
+    required this.total,
+  });
+
+  final String topic;
+  final int correct;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Semantics(
+      container: true,
+      label: '$topic: $correct de $total acertos',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(topic)),
+              const SizedBox(width: 12),
+              Text('$correct/$total'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(
+            value: total == 0 ? 0 : correct / total,
+            semanticsLabel: 'Desempenho em $topic',
+            semanticsValue: '${(correct / total * 100).round()}%',
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _Stat extends StatelessWidget {

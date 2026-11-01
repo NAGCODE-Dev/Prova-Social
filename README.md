@@ -143,7 +143,7 @@ cp .env.supabase.json.example .env.supabase.json
 ## 📦 Distribuição
 
 - **Flutter Web**: `/app/` ou rota oficial
-- **APK universal**: GitHub Releases
+- **APK por arquitetura**: releases novas distribuem apenas os APKs menores (`arm64-v8a`, `armeabi-v7a` e `x86_64`); o atualizador escolhe o compatível com o aparelho. O APK universal continua como fallback para releases antigas.
 - **Site**: `https://prova-social.pages.dev/`
 - **Atualizações**: O app consulta releases do GitHub de forma resiliente
 

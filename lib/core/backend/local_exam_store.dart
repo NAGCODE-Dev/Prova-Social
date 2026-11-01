@@ -11,6 +11,7 @@ import '../../domain/models/exam.dart';
 import 'content_package_service.dart';
 import 'local_exam_payload_store.dart';
 import '../import/question_parser.dart';
+import '../import/imported_document.dart';
 
 /// Local-only content. Authentication never changes its visibility.
 class LocalExam {
@@ -25,6 +26,9 @@ class LocalExam {
     this.sourceUrl,
     this.pendingPublication = false,
     this.reviewIndex = 0,
+    this.importedDocument,
+    this.downloaded = false,
+    this.sourceType = ExamSourceType.unverified,
   });
   final String id, title, category, source;
   final int durationMinutes;
@@ -33,6 +37,16 @@ class LocalExam {
   final List<ImportedQuestion> questions;
   final bool pendingPublication;
   final int reviewIndex;
+  final ImportedDocument? importedDocument;
+  final bool downloaded;
+  final ExamSourceType sourceType;
+  int get offlineImageBytes =>
+      importedDocument?.pages.fold<int>(
+        0,
+        (total, page) => total + (page.previewBytes?.length ?? 0),
+      ) ??
+      0;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
@@ -42,70 +56,34 @@ class LocalExam {
     'durationMinutes': durationMinutes,
     'year': year,
     'pendingPublication': pendingPublication,
+    'downloaded': downloaded,
+    'sourceType': sourceType.name,
     'reviewIndex': reviewIndex,
+    if (importedDocument != null)
+      'importedDocument': importedDocument!.toJson(),
     'questions': questions
-        .map(
-          (q) => {
-            'statement': q.statement,
-            'options': q.options,
-            'correctIndex': q.correctIndex,
-            'number': q.number,
-            'sourcePage': q.sourcePage,
-            'format': q.format.name,
-            'confidence': q.confidence,
-            'warning': q.warning,
-            'reviewState': q.reviewState.name,
-            'versionLabel': q.versionLabel,
-            'alternateVersions': q.alternateVersions
-                .map((version) => version.toJson())
-                .toList(),
-          },
-        )
+        .asMap()
+        .entries
+        .map((entry) => entry.value.toJson(entry.key))
         .toList(),
   };
   factory LocalExam.fromJson(Map<String, dynamic> data) {
     final questions = (data['questions'] as List)
         .map(
-          (q) => ImportedQuestion(
-            statement: q['statement'] as String,
-            options: List<String>.from(q['options'] as List),
-            correctIndex: q['correctIndex'] as int?,
-            number: q['number'] as int?,
-            sourcePage: q['sourcePage'] as int?,
-            format: QuestionFormat.values.firstWhere(
-              (format) => format.name == q['format'],
-              orElse: () => QuestionFormat.multipleChoice,
-            ),
-            confidence: ((q['confidence'] as num?)?.toDouble() ?? 0)
-                .clamp(0, 1)
-                .toDouble(),
-            warning: q['warning'] as String?,
-            reviewState: QuestionReviewState.values.firstWhere(
-              (state) => state.name == q['reviewState'],
-              orElse: () => QuestionReviewState.unreviewed,
-            ),
-            versionLabel: q['versionLabel'] as String? ?? 'Versão principal',
-            alternateVersions: (q['alternateVersions'] as List? ?? const [])
-                .map(
-                  (version) => ImportedQuestionVersion.fromJson(
-                    Map<String, dynamic>.from(version as Map),
-                  ),
-                )
-                .toList(),
-          ),
+          (q) => ImportedQuestion.fromJson(Map<String, dynamic>.from(q as Map)),
         )
         .toList();
     if (questions.length > 500 ||
         questions.any(
           (q) =>
-              q.options.length > 10 ||
+              q.options.length > 100 ||
               q.alternateVersions.length > 4 ||
               (q.correctIndex != null &&
                   (q.correctIndex! < 0 ||
                       q.correctIndex! >= q.options.length)) ||
               q.alternateVersions.any(
                 (version) =>
-                    version.options.length > 10 ||
+                    version.options.length > 100 ||
                     (version.correctIndex != null &&
                         (version.correctIndex! < 0 ||
                             version.correctIndex! >= version.options.length)),
@@ -122,11 +100,18 @@ class LocalExam {
       durationMinutes: data['durationMinutes'] as int,
       year: data['year'] as int?,
       pendingPublication: data['pendingPublication'] == true,
+      downloaded: data['downloaded'] == true,
+      sourceType: ExamSourceType.fromDatabase(data['sourceType']),
       reviewIndex: ((data['reviewIndex'] as num?)?.toInt() ?? 0).clamp(
         0,
         questions.isEmpty ? 0 : questions.length - 1,
       ),
       questions: questions,
+      importedDocument: data['importedDocument'] is Map
+          ? ImportedDocument.fromJson(
+              Map<String, dynamic>.from(data['importedDocument'] as Map),
+            )
+          : null,
     );
   }
   // Editing the question set starts a distinct attempt instead of restoring
@@ -135,28 +120,52 @@ class LocalExam {
       '$id-${sha256.convert(utf8.encode(jsonEncode(questions.map((q) => {'statement': q.statement, 'options': q.options, 'correctIndex': q.correctIndex}).toList())))}';
 
   Exam get exam => Exam(
-    id: attemptExamId,
+    id: downloaded ? id : attemptExamId,
+    sourceUrl: sourceUrl,
     title: title,
     category: category,
     description: 'Prova privada salva neste aparelho.',
     author: source,
+    sourceType: sourceType,
     durationMinutes: durationMinutes,
     attempts: 0,
-    isLocal: true,
+    isLocal: !downloaded,
     questions: questions
         .asMap()
         .entries
         .map(
           (e) => Question(
-            id: '$id-${e.key}',
+            id: downloaded ? e.value.id : '$id-${e.key}',
             topic: category,
             statement: e.value.statement,
             options: e.value.options,
             correctIndex: e.value.correctIndex,
+            media: [
+              if (downloaded && importedDocument != null)
+                for (final number in e.value.sourcePages)
+                  for (final page in importedDocument!.pages)
+                    if (page.number == number && page.previewBytes != null)
+                      QuestionMedia(
+                        id: page.mediaAssetId ?? '$id-media-$number',
+                        objectKey: page.mediaObjectKey ?? '',
+                        mimeType: page.mediaMimeType ?? 'image/jpeg',
+                        sha256: page.mediaSha256 ?? '',
+                        altText: page.mediaAltText ?? '',
+                        localBytes: page.previewBytes,
+                      ),
+            ],
           ),
         )
         .toList(),
   );
+}
+
+class ActiveAttemptDownloadException implements Exception {
+  const ActiveAttemptDownloadException();
+
+  @override
+  String toString() =>
+      'Conclua a tentativa ativa antes de remover as imagens offline.';
 }
 
 class LocalExamStore {
@@ -264,15 +273,28 @@ class LocalExamStore {
     final snapshot = LocalExam.fromJson(
       jsonDecode(jsonEncode(exam.toJson())) as Map<String, dynamic>,
     );
+    return _serialize(() => _saveSnapshot(snapshot), 'LOCAL_SAVE_QUEUE');
+  }
+
+  Future<bool> removeDownloaded(
+    String id, {
+    Set<String> activeExamIds = const {},
+  }) => _serialize(
+    () => _removeDownloaded(id, activeExamIds: activeExamIds),
+    'LOCAL_REMOVE_QUEUE',
+  );
+
+  Future<T> _serialize<T>(Future<T> Function() operation, String logTag) {
     final previous = _tail;
-    final operation = previous == null
-        ? _saveSnapshot(snapshot)
-        : previous.then((_) => _saveSnapshot(snapshot));
-    final tail = operation.then<void>(
+    final running = previous == null
+        ? operation()
+        : previous.then((_) => operation());
+    final tail = running.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {
-        debugPrint('[LOCAL_SAVE_QUEUE] operação falhou: ${error.runtimeType}');
-        debugPrint('[LOCAL_SAVE_QUEUE] stack: $stackTrace');
+        if (error is ActiveAttemptDownloadException) return;
+        debugPrint('[$logTag] operação falhou: ${error.runtimeType}');
+        debugPrint('[$logTag] stack: $stackTrace');
       },
     );
     _tail = tail;
@@ -281,7 +303,62 @@ class LocalExamStore {
         if (identical(_tail, tail)) _tail = null;
       }),
     );
-    return operation;
+    return running;
+  }
+
+  Future<bool> _removeDownloaded(
+    String id, {
+    required Set<String> activeExamIds,
+  }) async {
+    final diskPayload = await _storage.read();
+    final diskBackup = await _storage.readBackup();
+    final prefs =
+        _storage.fileBacked && (diskPayload != null || diskBackup != null)
+        ? null
+        : await SharedPreferences.getInstance();
+    final currentPayload =
+        diskPayload ??
+        prefs?.getString(key) ??
+        diskBackup ??
+        prefs?.getString('${key}_backup');
+    if (currentPayload == null) return false;
+    final currentBackup = diskBackup ?? prefs?.getString('${key}_backup');
+    final items = _decodeWithBackup(currentPayload, backup: currentBackup);
+    final target = items.where((exam) => exam.id == id).firstOrNull;
+    if (target == null || !target.downloaded) return false;
+    if (activeExamIds.contains(id)) {
+      throw const ActiveAttemptDownloadException();
+    }
+
+    final validPrevious = _encode(items);
+    items.removeWhere((exam) => exam.id == id && exam.downloaded);
+    final encoded = _encode(items);
+    final saveOk = await _storage.write(encoded, backupPayload: validPrevious);
+    if (!saveOk) {
+      final preferences = prefs ?? await SharedPreferences.getInstance();
+      final backupOk = await preferences.setString(
+        '${key}_backup',
+        validPrevious,
+      );
+      final preferencesOk = await preferences.setString(key, encoded);
+      if (!backupOk || !preferencesOk) {
+        throw StateError(
+          'Não foi possível remover o download do aparelho. Tente novamente.',
+        );
+      }
+    } else {
+      try {
+        final preferences = prefs ?? await SharedPreferences.getInstance();
+        await preferences.remove(key);
+        await preferences.remove('${key}_backup');
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[LOCAL_EXAM_MIGRATION] arquivo salvo; limpeza de legado falhou: ${error.runtimeType}',
+        );
+        debugPrint('[LOCAL_EXAM_MIGRATION] stack: $stackTrace');
+      }
+    }
+    return true;
   }
 
   Future<void> _saveSnapshot(LocalExam snapshot) async {

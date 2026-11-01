@@ -14,4 +14,6 @@ class OcrService {
     PdfPage page, {
     required OcrEngine engine,
   }) async => OcrRecognition(engine: engine, text: '');
+
+  Future<void> dispose() async {}
 }

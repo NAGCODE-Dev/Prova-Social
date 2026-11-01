@@ -4,6 +4,7 @@ import 'core/navigation/share_link_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/update/update_gate.dart';
 import 'core/startup/startup_gate.dart';
+import 'core/widgets/emerald_backdrop.dart';
 import 'features/auth/auth_gate.dart';
 import 'features/share/share_link_page.dart';
 
@@ -19,7 +20,9 @@ class ProvaSocialApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
+      builder: (context, child) =>
+          EmeraldBackdrop(child: child ?? const SizedBox.shrink()),
       onGenerateInitialRoutes: (initialRoute) => [
         MaterialPageRoute<void>(
           settings: RouteSettings(name: initialRoute),

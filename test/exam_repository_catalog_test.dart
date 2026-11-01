@@ -32,6 +32,49 @@ Map<String, dynamic> examRow(String id, String createdAt) => {
 };
 
 void main() {
+  test('maps the submitting profile separately from the exam source', () {
+    final exam = ExamRepository.mapPublishedExam({
+      ...examRow('authored', '2026-09-29T10:00:00+00:00'),
+      'profiles': {'display_name': 'Ana'},
+    }, const []);
+
+    expect(exam.author, 'Community');
+    expect(exam.uploaderName, 'Ana');
+  });
+
+  test('maps question media to the stable question record', () {
+    final exam = ExamRepository.mapPublishedExam(
+      examRow('media', '2026-09-29T10:00:00+00:00'),
+      [
+        {
+          ...examRow('media', '2026-09-29T10:00:00+00:00')['questions'][0]
+              as Map<String, dynamic>,
+          'exam_media': [
+            {
+              'question_id': 'question-media',
+              'question_position': 1,
+              'role': 'question_figure',
+              'alt_text': 'Página original da questão',
+              'media_assets': {
+                'id': 'asset-1',
+                'object_key': 'owner/media/hash.jpg',
+                'mime_type': 'image/jpeg',
+                'sha256': 'a' * 64,
+              },
+            },
+          ],
+        },
+      ],
+    );
+
+    expect(exam.questions.single.id, 'question-media');
+    expect(exam.questions.single.media.single.id, 'asset-1');
+    expect(
+      exam.questions.single.media.single.altText,
+      'Página original da questão',
+    );
+  });
+
   test(
     'catalog pages are keyset-paginated and include questions in one query',
     () async {
@@ -66,6 +109,10 @@ void main() {
       expect(requests.single.queryParameters['status'], 'eq.published');
       expect(requests.single.queryParameters['is_public'], 'eq.true');
       expect(requests.single.queryParameters['select'], contains('questions('));
+      expect(
+        requests.single.queryParameters['select'],
+        contains('profiles!exams_author_id_fkey(display_name)'),
+      );
       expect(
         requests.single.queryParameters['questions.order'],
         'position.asc.nullslast',

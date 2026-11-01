@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://prova-social.pages.dev/sitemap.xml

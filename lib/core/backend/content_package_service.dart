@@ -27,8 +27,26 @@ class ContentPackageService {
     );
   }
 
-  Map<String, dynamic> open(List<int> compressed) {
-    final raw = GZipDecoder().decodeBytes(compressed);
+  Map<String, dynamic> open(List<int> compressed, {int? maxUncompressedBytes}) {
+    if (maxUncompressedBytes != null) {
+      if (maxUncompressedBytes < 1 || compressed.length < 18) {
+        throw const FormatException('Pacote comprimido inválido.');
+      }
+      final trailer = compressed.length - 4;
+      final declaredSize =
+          (compressed[trailer] |
+              (compressed[trailer + 1] << 8) |
+              (compressed[trailer + 2] << 16) |
+              (compressed[trailer + 3] << 24)) >>>
+          0;
+      if (declaredSize > maxUncompressedBytes) {
+        throw const FormatException('Conteúdo descompactado excede o limite.');
+      }
+    }
+    final raw = GZipDecoder().decodeBytes(compressed, verify: true);
+    if (maxUncompressedBytes != null && raw.length > maxUncompressedBytes) {
+      throw const FormatException('Conteúdo descompactado excede o limite.');
+    }
     return Map<String, dynamic>.from(jsonDecode(utf8.decode(raw)) as Map);
   }
 }

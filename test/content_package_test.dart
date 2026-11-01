@@ -19,6 +19,17 @@ void main() {
 
     final package = service.create(payload);
     final restored = service.open(package.bytes);
+    expect(
+      service.open(
+        package.bytes,
+        maxUncompressedBytes: package.uncompressedBytes,
+      )['examId'],
+      'exam-1',
+    );
+    expect(
+      () => service.open(package.bytes, maxUncompressedBytes: 8),
+      throwsFormatException,
+    );
 
     expect(restored['examId'], 'exam-1');
     expect((restored['questions'] as List).length, 80);

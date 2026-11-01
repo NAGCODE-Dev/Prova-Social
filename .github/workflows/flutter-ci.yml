@@ -300,6 +300,12 @@ jobs:
             "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > site/app/version.json
 
+      - name: Gerar páginas públicas para indexação
+        run: |
+          python3 tool/generate_seo_pages.py \
+            --config "$RUNNER_TEMP/prova-social-supabase.json" \
+            --site-dir site
+
       - name: Preparar assetlinks.json do Android
         env:
           ANDROID_APP_LINKS_SHA256: ${{ secrets.ANDROID_APP_LINKS_SHA256 }}
@@ -675,14 +681,6 @@ jobs:
           python3 tool/supabase_build_config.py \
             --write-from-environment "$RUNNER_TEMP/prova-social-supabase.json"
 
-          flutter build apk --release \
-            --dart-define-from-file="$RUNNER_TEMP/prova-social-supabase.json" \
-            --dart-define=APP_ENV=production \
-            --dart-define=WEB_AUTH_CALLBACK="https://prova-social.pages.dev/app/"
-
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/prova-social-android.apk
-
           flutter build apk --release --split-per-abi \
             --dart-define-from-file="$RUNNER_TEMP/prova-social-supabase.json" \
             --dart-define=APP_ENV=production \
@@ -722,7 +720,6 @@ jobs:
         run: |
           set -e
           assets=(
-            build/app/outputs/flutter-apk/prova-social-android.apk
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk

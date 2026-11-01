@@ -410,7 +410,7 @@ D) Conclusão quatro.
     expect(question.warning, contains('discursiva'));
   });
 
-  test('preserva questão com alternativas que são apenas marcadores', () {
+  test('preserva slots de alternativas visuais sem texto extraído', () {
     final questions = parser.parse('''
 53
 Determine o valor indicado na figura.
@@ -419,13 +419,34 @@ Determine o valor indicado na figura.
 (C)
 (D)
 (E)
-54
 ''');
 
     expect(questions, hasLength(1));
     expect(questions.single.number, 53);
-    expect(questions.single.format, QuestionFormat.unknown);
-    expect(questions.single.warning, isNotNull);
+    expect(questions.single.format, QuestionFormat.multipleChoice);
+    expect(questions.single.options, ['', '', '', '', '']);
+    expect(
+      questions.single.warning,
+      contains('conteúdo visual não foi extraído'),
+    );
+    expect(questions.single.confidence, .65);
+  });
+
+  test('termina uma questão antes da seção de redação', () {
+    final question = parser.parse('''
+Questão 80. Selecione a opção indicada na figura.
+(A)
+(B)
+(C)
+(D)
+(E)
+REDAÇÃO
+Texto 1: este conteúdo pertence à proposta de redação.
+''').single;
+
+    expect(question.number, 80);
+    expect(question.statement, isNot(contains('Texto 1')));
+    expect(question.options, ['', '', '', '', '']);
   });
 
   test('não classifica prosa iniciada por artigo como alternativa', () {

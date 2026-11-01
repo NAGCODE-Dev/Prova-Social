@@ -11,18 +11,21 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/backend/exam_publication_service.dart';
+import '../../core/backend/exam_media_repository.dart';
 import '../../core/import/pdf_text_extractor.dart';
 import '../../core/import/import_quality_gate.dart';
+import '../../core/import/imported_document.dart';
 import '../../core/import/question_parser.dart';
 import '../../core/import/exam_metadata_suggester.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/emerald_backdrop.dart';
 
 class PublishPage extends StatelessWidget {
   const PublishPage({super.key});
 
   @override
   Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.fromLTRB(20, 28, 20, 100),
+    padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
     children: [
       Center(
         child: ConstrainedBox(
@@ -30,8 +33,18 @@ class PublishPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Criar e compartilhar',
+              Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'Criar e '),
+                    TextSpan(
+                      text: 'compartilhar',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -44,6 +57,11 @@ class PublishPage extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               LayoutBuilder(
                 builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 760 ? 2 : 1;
+                  final spacing = 16.0;
+                  final itemWidth = columns == 1
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - spacing) / columns;
                   final options = [
                     _PublishChoice(
                       icon: Icons.picture_as_pdf_outlined,
@@ -79,16 +97,11 @@ class PublishPage extends StatelessWidget {
                       ),
                     ),
                   ];
-                  return Column(
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
                     children: options
-                        .map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            child: item,
-                          ),
-                        )
+                        .map((item) => SizedBox(width: itemWidth, child: item))
                         .toList(),
                   );
                 },
@@ -167,54 +180,62 @@ class _PublishChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.surface,
-    shape: RoundedRectangleBorder(
-      side: BorderSide(color: Theme.of(context).colorScheme.outline),
-      borderRadius: BorderRadius.circular(AppRadius.md),
-    ),
+    color: Colors.transparent,
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary
-                    .withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              EmeraldColors.surfaceElevated,
+              EmeraldColors.backgroundSecondary,
+            ],
+          ),
+          border: Border.all(color: EmeraldColors.borderHighlight),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: EmeraldColors.surfaceHighlight,
+                  border: Border.all(color: EmeraldColors.border),
+                  borderRadius: BorderRadius.circular(21),
+                ),
+                child: Icon(icon, size: 34, color: EmeraldColors.primaryLight),
               ),
-              child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 3),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ],
+              const SizedBox(width: 12),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: EmeraldColors.textPrimary,
+                size: 28,
+              ),
+            ],
+          ),
         ),
       ),
     ),
@@ -288,7 +309,7 @@ class _PdfImportPageState extends State<PdfImportPage> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'O PDF será usado para extrair texto. Confira enunciados e alternativas; imagens do arquivo ainda não são importadas.',
+                  'O texto será extraído e páginas com conteúdo visual incerto ficarão disponíveis para conferência.',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -455,15 +476,122 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
     const qualityGate = ImportQualityGate();
     qualityGate.markNumberingIssues(questions);
     final quality = qualityGate.assess(extraction, questions);
+    processingStatus.value = 'Associando imagens às questões incertas';
+    final visualPages = questions
+        .where(
+          (question) =>
+              question.warning?.contains('conteúdo visual não foi extraído') ==
+              true,
+        )
+        .expand((question) => question.sourcePages)
+        .toSet();
+    final referencePages = extraction.pages
+        .where((page) {
+          final text = page.text.toUpperCase();
+          final pointsToAppendix = text.contains('NO FINAL DESTE CADERNO');
+          return !pointsToAppendix &&
+              (text.contains('CLASSIFICAÇÃO') ||
+                  RegExp(
+                    r'TABELA.{0,24}PERIÓDICA',
+                    caseSensitive: false,
+                  ).hasMatch(text));
+        })
+        .map((page) => page.pageNumber)
+        .toSet();
+    if (extraction.pages.any(
+      (page) =>
+          page.text.toUpperCase().contains('NO FINAL DESTE CADERNO') &&
+          page.text.toUpperCase().contains('CLASSIFICAÇÃO'),
+    )) {
+      referencePages.add(extraction.pageCount);
+    }
+    final requestedPreviewPages = {...visualPages, ...referencePages};
+    final pagePreviews = await const PdfTextExtractor().renderPages(
+      bytes,
+      requestedPreviewPages,
+    );
     final suggestion = suggestExamMetadata(
       fileName: widget.file.name,
       firstPageText: extraction.pages.firstOrNull?.text ?? '',
     );
+    final questionVisualSources = associateQuestionVisualSources(questions);
+    final referenceMaterials = <SupportingMaterial>[];
+    for (final page in extraction.pages.where(
+      (page) => referencePages.contains(page.pageNumber),
+    )) {
+      final matchingQuestion = questions.where((question) {
+        final text = '${question.statement} ${question.options.join(' ')}';
+        return RegExp(
+          r'(classifica[cç][aã]o peri[oó]dica|tabela peri[oó]dica|no final deste caderno)',
+          caseSensitive: false,
+        ).hasMatch(text);
+      }).firstOrNull;
+      final material = SupportingMaterial(
+        id: 'reference-material-${page.pageNumber}',
+        type: 'referenceTable',
+        questionId: matchingQuestion?.id,
+        text: page.text,
+        page: page.pageNumber,
+        caption: 'Material de referência da prova',
+      );
+      referenceMaterials.add(material);
+      if (matchingQuestion != null) {
+        matchingQuestion.supportingMaterialIds.add(material.id);
+      }
+    }
     return _ImportResult(
       extraction: extraction,
       questions: questions,
       quality: quality,
       suggestion: suggestion,
+      document: ImportedDocument(
+        metadata: {
+          'sourceName': widget.file.name,
+          'pageCount': extraction.pageCount,
+          'expectedQuestionCount': null,
+          'identifiedQuestionCount': questions.length,
+          'languages': questions
+              .map((q) => q.language)
+              .whereType<String>()
+              .toSet()
+              .toList(),
+        },
+        pages: extraction.pages
+            .map(
+              (page) => ImportedDocumentPage(
+                number: page.pageNumber,
+                text: page.text,
+                nativeText: page.nativeText,
+                source: page.source.name,
+                regions: page.regions
+                    .map(
+                      (region) => {
+                        'text': region.text,
+                        'confidence': region.confidence,
+                        'points': region.points
+                            .map((point) => {'x': point.x, 'y': point.y})
+                            .toList(),
+                      },
+                    )
+                    .toList(),
+                previewBytes: pagePreviews[page.pageNumber],
+                warning:
+                    page.warning ??
+                    (requestedPreviewPages.contains(page.pageNumber) &&
+                            !pagePreviews.containsKey(page.pageNumber)
+                        ? 'Não foi possível renderizar a página de origem; o conteúdo extraído permanece salvo.'
+                        : null),
+              ),
+            )
+            .toList(),
+        supportingMaterials: [...questionVisualSources, ...referenceMaterials],
+        questions: questions,
+        qualityNotices: [
+          ...quality.reasons,
+          if (pagePreviews.length < requestedPreviewPages.length)
+            'Algumas páginas com material visual não puderam ser renderizadas.',
+        ],
+      ),
     );
   }
 
@@ -482,8 +610,12 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
           }
           return _ProcessMessage(
             icon: Icons.error_outline_rounded,
-            title: 'Não foi possível ler o PDF',
-            text: 'O arquivo pode estar danificado, protegido ou em um formato incompatível. Confira se ele abre normalmente e escolha outro PDF para tentar novamente.',
+            title: snapshot.error is PdfPageLimitException
+                ? 'PDF com páginas demais'
+                : 'Não foi possível ler o PDF',
+            text: snapshot.error is PdfPageLimitException
+                ? snapshot.error.toString()
+                : 'O arquivo pode estar danificado, protegido ou em um formato incompatível. Confira se ele abre normalmente e escolha outro PDF para tentar novamente.',
             action: () => Navigator.pop(context),
             actionLabel: 'Escolher outro arquivo',
           );
@@ -646,6 +778,7 @@ class _PdfProcessingPageState extends State<PdfProcessingPage> {
                               durationMinutes:
                                   int.tryParse(duration.text) ?? 120,
                               questions: result.questions,
+                              importedDocument: result.document,
                             ),
                           ),
                         );
@@ -674,11 +807,13 @@ class _ImportResult {
     required this.questions,
     required this.quality,
     required this.suggestion,
+    required this.document,
   });
   final PdfExtractionResult extraction;
   final List<ImportedQuestion> questions;
   final ImportQualityAssessment quality;
   final ExamMetadataSuggestion suggestion;
+  final ImportedDocument document;
 }
 
 class _ProcessMessage extends StatelessWidget {
@@ -749,6 +884,7 @@ class ImportReviewPage extends StatefulWidget {
     this.sourceUrl,
     required this.durationMinutes,
     required this.questions,
+    this.importedDocument,
     this.year,
     this.localId,
     this.pendingPublication = false,
@@ -763,6 +899,7 @@ class ImportReviewPage extends StatefulWidget {
   final bool pendingPublication;
   final int reviewIndex;
   final List<ImportedQuestion> questions;
+  final ImportedDocument? importedDocument;
   @override
   State<ImportReviewPage> createState() => _ImportReviewPageState();
 }
@@ -804,11 +941,21 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     questions = widget.questions
         .map(
           (q) => ImportedQuestion(
+            id: q.id,
             statement: q.statement,
             options: List.of(q.options),
             correctIndex: q.correctIndex,
             number: q.number,
             sourcePage: q.sourcePage,
+            sourcePages: List.of(q.sourcePages),
+            sourcePosition: q.sourcePosition,
+            instructions: q.instructions,
+            subject: q.subject,
+            topic: q.topic,
+            language: q.language,
+            supportingMaterialIds: List.of(q.supportingMaterialIds),
+            fieldConfidence: Map.of(q.fieldConfidence),
+            warnings: List.of(q.warnings),
             format: q.format,
             confidence: q.confidence,
             warning: q.warning,
@@ -875,6 +1022,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     questions: questions,
     pendingPublication: pendingPublication,
     reviewIndex: currentQuestionIndex,
+    importedDocument: widget.importedDocument?.copyWith(questions: questions),
   );
   void _changed({bool debounce = false}) {
     revision++;
@@ -1125,6 +1273,37 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         return;
       }
       if (!mounted) return;
+      final media = <ExamMediaInput>[];
+      final document = widget.importedDocument;
+      if (document != null) {
+        final pagesByNumber = {
+          for (final page in document.pages) page.number: page,
+        };
+        for (var index = 0; index < questions.length; index++) {
+          final question = questions[index];
+          final sourcePages = <int>{
+            ...question.sourcePages,
+            if (question.sourcePage != null) question.sourcePage!,
+            for (final material in document.supportingMaterials)
+              if (question.supportingMaterialIds.contains(material.id) &&
+                  material.page != null)
+                material.page!,
+          };
+          for (final pageNumber in sourcePages) {
+            final bytes = pagesByNumber[pageNumber]?.previewBytes;
+            if (bytes == null) continue;
+            media.add(
+              ExamMediaInput(
+                bytes: bytes,
+                mimeType: 'image/jpeg',
+                questionPosition: index + 1,
+                altText:
+                    'Página $pageNumber da questão ${question.number ?? index + 1}',
+              ),
+            );
+          }
+        }
+      }
       await ExamPublicationService().publish(
         title: title.text,
         category: category.text,
@@ -1133,6 +1312,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
         durationMinutes: int.parse(duration.text),
         year: int.tryParse(year.text),
         questions: questions,
+        media: media,
       );
       await _save(pending: false);
       if (!mounted) return;
@@ -1144,11 +1324,19 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     } catch (error, stackTrace) {
       debugPrint('[PUBLICATION] ERRO: ${error.runtimeType}');
       debugPrint('[PUBLICATION] STACK: $stackTrace');
+      if (error is PublishedMediaAttachmentException) {
+        try {
+          await _save(pending: false);
+        } catch (_) {
+          // The publication already exists; preserve the existing local copy.
+        }
+      }
       if (mounted) {
-        final message =
-            error is PostgrestException &&
-                error.code == 'PGRST202' &&
-                sourceUrl.text.trim().isNotEmpty
+        final message = error is PublishedMediaAttachmentException
+            ? 'A prova foi publicada, mas algumas imagens não foram associadas. Ela está disponível sem essas figuras; não publique novamente.'
+            : error is PostgrestException &&
+                  error.code == 'PGRST202' &&
+                  sourceUrl.text.trim().isNotEmpty
             ? 'O servidor ainda não foi atualizado para salvar o link da fonte. Sua prova continua salva no aparelho; tente novamente após a atualização.'
             : 'Não foi possível publicar. Sua prova continua salva no aparelho.';
         ScaffoldMessenger.of(context)
@@ -1426,6 +1614,93 @@ class _ImportReviewPageState extends State<ImportReviewPage>
     ),
   );
 
+  Widget _sourcePagePreviews(ImportedQuestion question) {
+    final document = widget.importedDocument;
+    if (document == null) return const SizedBox.shrink();
+    final sourcePages = question.sourcePages.isEmpty
+        ? [?question.sourcePage]
+        : question.sourcePages;
+    final previews = sourcePages
+        .map((number) => document.pages.where((page) => page.number == number))
+        .where((matches) => matches.isNotEmpty)
+        .map((matches) => matches.first)
+        .where((page) => page.previewBytes != null)
+        .toList(growable: false);
+    if (previews.isEmpty) return const SizedBox.shrink();
+    final expandFirst =
+        question.warning?.contains('conteúdo visual não foi extraído') == true;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        children: [
+          for (var index = 0; index < previews.length; index++)
+            ExpansionTile(
+              initiallyExpanded: index == 0 && expandFirst,
+              tilePadding: EdgeInsets.zero,
+              title: Text('Ver página original ${previews[index].number}'),
+              children: [
+                SizedBox(
+                  height: 360,
+                  width: double.infinity,
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: Image.memory(
+                      previews[index].previewBytes!,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _supportingMaterialPreviews() {
+    final document = widget.importedDocument;
+    if (document == null) return const SizedBox.shrink();
+    final materials = document.supportingMaterials
+        .where((material) => material.page != null)
+        .map((material) {
+          final page = document.pages.where((p) => p.number == material.page);
+          return (material: material, page: page.firstOrNull);
+        })
+        .where((entry) => entry.page?.previewBytes != null)
+        .toList(growable: false);
+    if (materials.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: ExpansionTile(
+        title: const Text('Materiais visuais de referência'),
+        children: [
+          for (final entry in materials)
+            ExpansionTile(
+              title: Text(
+                '${entry.material.caption ?? 'Material de referência'} · página ${entry.material.page}',
+              ),
+              children: [
+                SizedBox(
+                  height: 360,
+                  width: double.infinity,
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: Image.memory(
+                      entry.page!.previewBytes!,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _question(int index) {
     final question = questions[index];
     return Card(
@@ -1469,6 +1744,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
+            _sourcePagePreviews(question),
             if (question.alternateVersions.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -1724,6 +2000,7 @@ class _ImportReviewPageState extends State<ImportReviewPage>
             children: [
               _header(),
               _versionChoice(),
+              _supportingMaterialPreviews(),
               _reviewProgress(),
               if (questions.isNotEmpty) _question(currentQuestionIndex),
               _questionNavigation(),
@@ -1785,19 +2062,32 @@ class _PrivacyNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.lock_outline_rounded, size: 20, color: muted),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            'Rascunhos ficam privados. Uma prova só aparece para a comunidade depois da revisão e publicação.',
-            style: TextStyle(color: muted),
+    return StudySurface(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: EmeraldColors.surfaceHighlight,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.lock_outline_rounded,
+              color: EmeraldColors.primaryLight,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'Rascunhos ficam privados. Uma prova só aparece para a comunidade depois da revisão e publicação.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

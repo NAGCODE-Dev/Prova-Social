@@ -14,8 +14,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/emerald_backdrop.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../core/backend/exam_repository.dart';
+import '../../core/backend/digital_exam_service.dart';
 import '../../core/backend/attempt_sync_service.dart';
 import '../../core/navigation/share_link_service.dart';
 import '../../domain/models/exam.dart';
@@ -40,6 +42,7 @@ class _HomePageState extends State<HomePage> {
   bool resumedPublication = false;
   final saved = <String>{};
   List<Exam> exams = const [];
+  ExamSearchFilters homeFilters = const ExamSearchFilters();
   List<Exam> savedExams = const [];
   ExamCatalogCursor? catalogCursor;
   bool catalogHasMore = false;
@@ -101,6 +104,21 @@ class _HomePageState extends State<HomePage> {
         });
       }
     }
+  }
+
+  Future<void> _setHomeFilters() async {
+    final filters = await showExamSearchFilters(
+      context: context,
+      exams: exams,
+      initial: homeFilters,
+      title: 'Filtrar provas carregadas',
+    );
+    if (!mounted || filters == null) return;
+    setState(() => homeFilters = filters);
+  }
+
+  void _clearHomeFilters() {
+    setState(() => homeFilters = const ExamSearchFilters());
   }
 
   Future<void> _loadMoreExams() async {
@@ -213,6 +231,8 @@ class _HomePageState extends State<HomePage> {
       final pages = [
         _HomeFeed(
           exams: exams,
+          filters: homeFilters,
+          startedExams: startedExams,
           loading: loading,
           error: loadError,
           onRetry: _loadContent,
@@ -223,6 +243,10 @@ class _HomePageState extends State<HomePage> {
           saved: saved,
           onSave: _toggleSave,
           onOpen: _openExam,
+          onPublish: () => _selectTab(2),
+          onContinue: _continueAttempt,
+          onFiltersChanged: _setHomeFilters,
+          onClearFilters: _clearHomeFilters,
         ),
         SearchPage(search: repository.search, onOpen: _openExam),
         const PublishPage(),
@@ -231,20 +255,16 @@ class _HomePageState extends State<HomePage> {
           localExams: localExams,
           localError: localError,
           onRetryLocal: _loadLocal,
+          onRemoveDownload: _removeDownloadedExam,
+          onExplore: () => _selectTab(1),
+          onPublish: () => _selectTab(2),
           saved: saved,
           onOpen: _openExam,
           onSignIn: _openLogin,
           onSave: _toggleSave,
           pendingAttempts: pendingAttempts,
           startedExams: startedExams,
-          onContinue: (exam) async {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => QuizPage(exam: exam, onSignIn: _openLogin),
-              ),
-            );
-            await _loadAttempts();
-          },
+          onContinue: _continueAttempt,
           completedAttempts: completedAttempts,
           onPending: (item) async {
             await Navigator.of(context).push(
@@ -268,6 +288,7 @@ class _HomePageState extends State<HomePage> {
         appBar: desktop
             ? null
             : AppBar(
+                toolbarHeight: 72,
                 title: const FittedBox(
                   fit: BoxFit.scaleDown,
                   child: BrandLockup(),
@@ -334,18 +355,10 @@ class _HomePageState extends State<HomePage> {
         ),
         bottomNavigationBar: desktop
             ? null
-            : NavigationBar(
+            : _BottomNavBar(
+                destinations: destinations,
                 selectedIndex: currentTab,
-                onDestinationSelected: _selectTab,
-                destinations: destinations
-                    .map(
-                      (item) => NavigationDestination(
-                        icon: Icon(item.$1),
-                        selectedIcon: Icon(item.$2),
-                        label: item.$3,
-                      ),
-                    )
-                    .toList(),
+                onSelected: _selectTab,
               ),
       );
     },
@@ -389,10 +402,155 @@ class _HomePageState extends State<HomePage> {
           saved: saved.contains(exam.id),
           onSave: () => _toggleSave(exam.id),
           onSignIn: _openLogin,
+          isDownloaded: localExams.any(
+            (item) => item.downloaded && item.id == exam.id,
+          ),
+          onDownload: () => _downloadExam(exam),
         ),
       ),
     );
     await _loadAttempts();
+  }
+
+  Future<void> _continueAttempt(Exam exam) async {
+    final resumable = _restoreDownloadedMedia(exam);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QuizPage(exam: resumable, onSignIn: _openLogin),
+      ),
+    );
+    await _loadAttempts();
+  }
+
+  Exam _restoreDownloadedMedia(Exam exam) {
+    final downloaded = localExams
+        .where((item) => item.downloaded && item.id == exam.id)
+        .firstOrNull
+        ?.exam;
+    if (downloaded == null) return exam;
+    final questionsById = {
+      for (final question in downloaded.questions) question.id: question,
+    };
+    return exam.copyWith(
+      questions: [
+        for (final question in exam.questions)
+          question.copyWith(
+            media: questionsById[question.id]?.media ?? question.media,
+          ),
+      ],
+    );
+  }
+
+  Future<bool> _downloadExam(Exam exam) async {
+    try {
+      final existing = (await LocalExamStore().load()).any(
+        (item) => item.downloaded && item.id == exam.id,
+      );
+      if (!existing) {
+        final offlineCopy = await DigitalExamService().download(exam);
+        await LocalExamStore().save(offlineCopy);
+      }
+      await _loadLocal();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              existing
+                  ? 'Esta prova já está disponível offline.'
+                  : 'Prova baixada e pronta para uso offline.',
+            ),
+          ),
+        );
+      }
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível baixar a prova. Confira a conexão e tente novamente.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _removeDownloadedExam(LocalExam exam) async {
+    Future<void> showBlockedMessage() async {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Conclua a tentativa ativa antes de remover as imagens offline.',
+          ),
+        ),
+      );
+    }
+
+    try {
+      final activeExams = await attemptSync.store.startedExams();
+      if (activeExams.any((active) => active.id == exam.id)) {
+        await showBlockedMessage();
+        return;
+      }
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Remover prova baixada?'),
+          content: Text(
+            'A cópia offline e ${_formatByteSize(exam.offlineImageBytes)} '
+            'em imagens serão removidas. A prova pública continuará disponível '
+            'quando houver conexão.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover download'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      final latestActive = await attemptSync.store.startedExams();
+      final removed = await LocalExamStore().removeDownloaded(
+        exam.id,
+        activeExamIds: latestActive.map((active) => active.id).toSet(),
+      );
+      if (!mounted) return;
+      await _loadLocal();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            removed
+                ? 'Download removido. A prova criada localmente foi preservada.'
+                : 'Este download já não está na biblioteca.',
+          ),
+        ),
+      );
+    } on ActiveAttemptDownloadException {
+      await showBlockedMessage();
+    } catch (error, stackTrace) {
+      debugPrint('[OFFLINE_REMOVE] falhou: ${error.runtimeType}');
+      debugPrint('[OFFLINE_REMOVE] stack: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível remover o download. Tente novamente.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _openProfile() async {
@@ -495,24 +653,37 @@ class _HeaderActions extends StatelessWidget {
         IconButton(
           onPressed: onProfile,
           tooltip: 'Abrir perfil',
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-          icon: CircleAvatar(
-            radius: 18,
-            backgroundColor: _HomeColors.brandSoft(context),
-            child: initials == null
-                ? Icon(
-                    Icons.person_outline_rounded,
-                    size: 19,
-                    color: _HomeColors.brandHover(context),
-                  )
-                : Text(
-                    initials.toUpperCase(),
-                    style: TextStyle(
-                      color: _HomeColors.brandHover(context),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
+          constraints: const BoxConstraints(minWidth: 58, minHeight: 58),
+          icon: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: EmeraldColors.surfaceHighlight.withValues(alpha: .8),
+              border: Border.all(color: EmeraldColors.border),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: EmeraldColors.primaryGlow.withValues(alpha: .08),
+                  blurRadius: 16,
+                ),
+              ],
+            ),
+            child: Center(
+              child: initials == null
+                  ? const Icon(
+                      Icons.person_outline_rounded,
+                      size: 26,
+                      color: EmeraldColors.primaryLight,
+                    )
+                  : Text(
+                      initials.toUpperCase(),
+                      style: const TextStyle(
+                        color: EmeraldColors.primaryLight,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -533,7 +704,14 @@ class _SearchBox extends StatelessWidget {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           alignment: Alignment.centerLeft,
-          minimumSize: const Size(48, 48),
+          minimumSize: const Size(48, 64),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          backgroundColor: EmeraldColors.surface.withValues(alpha: .7),
+          side: const BorderSide(color: EmeraldColors.border, width: 1.5),
+          foregroundColor: EmeraldColors.primaryLight,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
         child: const Row(
           children: [
@@ -541,7 +719,7 @@ class _SearchBox extends StatelessWidget {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Buscar provas, concursos e matérias',
+                'Buscar provas e matérias',
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -569,12 +747,15 @@ class _RailItem extends StatelessWidget {
         type: MaterialType.transparency,
         child: ListTile(
           selected: selected,
-          selectedTileColor: _HomeColors.brandSoft(context),
-          selectedColor: _HomeColors.brandHover(context),
+          selectedTileColor: EmeraldColors.surfaceHighlight,
+          selectedColor: EmeraldColors.primary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(16),
           ),
-          leading: Icon(selected ? data.$2 : data.$1),
+          leading: Icon(
+            selected ? data.$2 : data.$1,
+            color: selected ? EmeraldColors.primary : EmeraldColors.textPrimary,
+          ),
           title: Text(
             data.$3,
             style: const TextStyle(fontWeight: FontWeight.w600),
@@ -586,9 +767,177 @@ class _RailItem extends StatelessWidget {
   }
 }
 
+class _BottomNavBar extends StatelessWidget {
+  const _BottomNavBar({
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<(IconData, IconData, String)> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: EmeraldColors.backgroundSecondary.withValues(alpha: .96),
+      border: const Border(top: BorderSide(color: EmeraldColors.border)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: .2),
+          blurRadius: 18,
+          offset: const Offset(0, -6),
+        ),
+      ],
+    ),
+    child: SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      child: Row(
+        children: [
+          for (var index = 0; index < destinations.length; index++)
+            Expanded(
+              child: _BottomNavItem(
+                item: destinations[index],
+                selected: selectedIndex == index,
+                onTap: () => onSelected(index),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _BottomNavItem extends StatelessWidget {
+  const _BottomNavItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final (IconData, IconData, String) item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPublish = item.$3 == 'Publicar';
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: item.$3,
+      child: Tooltip(
+        message: item.$3,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: AppMotion.of(context, AppMotion.fast),
+                  width: isPublish
+                      ? 50
+                      : selected
+                      ? 60
+                      : 48,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: isPublish
+                        ? EmeraldColors.primary
+                        : selected
+                        ? EmeraldColors.surfaceHighlight
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(isPublish ? 15 : 24),
+                    border: selected && !isPublish
+                        ? Border.all(
+                            color: EmeraldColors.borderHighlight.withValues(
+                              alpha: .8,
+                            ),
+                          )
+                        : null,
+                    boxShadow: isPublish
+                        ? [
+                            BoxShadow(
+                              color: EmeraldColors.primaryGlow.withValues(
+                                alpha: .24,
+                              ),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Icon(
+                    isPublish
+                        ? Icons.add_rounded
+                        : selected
+                        ? item.$2
+                        : item.$1,
+                    color: isPublish
+                        ? EmeraldColors.background
+                        : selected
+                        ? EmeraldColors.primaryLight
+                        : EmeraldColors.textSecondary,
+                    size: isPublish ? 28 : 23,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  item.$3,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isPublish
+                        ? EmeraldColors.primaryLight
+                        : selected
+                        ? EmeraldColors.primary
+                        : EmeraldColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: selected || isPublish
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                AnimatedContainer(
+                  duration: AppMotion.of(context, AppMotion.fast),
+                  width: selected && !isPublish ? 30 : 0,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: EmeraldColors.primary,
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: selected && !isPublish
+                        ? [
+                            BoxShadow(
+                              color: EmeraldColors.primaryGlow.withValues(
+                                alpha: .3,
+                              ),
+                              blurRadius: 8,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HomeFeed extends StatelessWidget {
   const _HomeFeed({
     required this.exams,
+    required this.filters,
+    required this.startedExams,
     required this.loading,
     required this.error,
     required this.onRetry,
@@ -599,8 +948,14 @@ class _HomeFeed extends StatelessWidget {
     required this.saved,
     required this.onSave,
     required this.onOpen,
+    required this.onPublish,
+    required this.onContinue,
+    required this.onFiltersChanged,
+    required this.onClearFilters,
   });
   final List<Exam> exams;
+  final ExamSearchFilters filters;
+  final List<Exam> startedExams;
   final bool loading;
   final String? error;
   final VoidCallback onRetry;
@@ -611,116 +966,253 @@ class _HomeFeed extends StatelessWidget {
   final Set<String> saved;
   final ValueChanged<String> onSave;
   final ValueChanged<Exam> onOpen;
+  final VoidCallback onPublish;
+  final ValueChanged<Exam> onContinue;
+  final VoidCallback onFiltersChanged;
+  final VoidCallback onClearFilters;
   @override
-  Widget build(BuildContext context) => _PageScroll(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Encontre sua próxima prova',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Materiais publicados pela comunidade, com origem visível.',
-          style: TextStyle(color: _HomeColors.muted(context)),
-        ),
-        const SizedBox(height: 18),
-        _SearchBox(onTap: () => openGlobalSearch(context, onOpen)),
-        const SizedBox(height: 28),
-        const _SectionTitle('Publicadas recentemente'),
-        const SizedBox(height: 12),
-        if (error != null && exams.isEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
+  Widget build(BuildContext context) {
+    final filteredExams = filters.apply(exams);
+    final hasFilters = filters.activeCount > 0;
+    final displayName = Supabase
+        .instance
+        .client
+        .auth
+        .currentUser
+        ?.userMetadata?['display_name']
+        ?.toString()
+        .trim();
+    return _PageScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (displayName != null && displayName.isNotEmpty) ...[
+            Text(
+              'Olá, $displayName',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: _HomeColors.muted(context)),
+            ),
+            const SizedBox(height: 4),
+          ],
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Encontre sua próxima '),
+                TextSpan(
+                  text: 'prova',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: MediaQuery.sizeOf(context).width < 600 ? 38 : 48,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Materiais publicados pela comunidade, com origem visível.',
+            style: TextStyle(color: _HomeColors.muted(context)),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _SearchBox(
+                  onTap: () => openGlobalSearch(context, onOpen),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: exams.isEmpty ? null : onFiltersChanged,
+                tooltip: 'Filtrar provas carregadas',
+                icon: Badge(
+                  isLabelVisible: hasFilters,
+                  label: Text('${filters.activeCount}'),
+                  child: const Icon(Icons.tune_rounded),
+                ),
+              ),
+            ],
+          ),
+          if (startedExams.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const _SectionTitle('Continuar de onde parou'),
+            const SizedBox(height: 12),
+            ...startedExams.map(
+              (exam) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.play_circle_outline_rounded),
+                title: Text(
+                  exam.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${exam.questions.length} questões · salvo neste aparelho',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => onContinue(exam),
+              ),
+            ),
+          ],
+          const SizedBox(height: 28),
+          _SectionTitle(
+            'Publicadas recentemente',
+            actionLabel: hasFilters ? 'Limpar filtros' : 'Ver todas',
+            onAction: hasFilters
+                ? onClearFilters
+                : () => openGlobalSearch(context, onOpen),
+          ),
+          if (hasFilters) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Filtros aplicados às ${exams.length} provas já carregadas.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: _HomeColors.muted(context)),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (error != null && exams.isEmpty)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Não foi possível carregar as provas',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(error!),
+                    const SizedBox(height: AppSpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (loading && exams.isEmpty)
+            const ExamListSkeleton()
+          else if (exams.isEmpty)
+            _EmptyCatalog(
+              onExplore: () => openGlobalSearch(context, onOpen),
+              onPublish: onPublish,
+            )
+          else if (filteredExams.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Não foi possível carregar as provas',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  Text(
+                    'Nenhuma das ${exams.length} provas carregadas combina com estes filtros.',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(error!),
-                  const SizedBox(height: AppSpacing.sm),
-                  OutlinedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Tentar novamente'),
-                  ),
+                  if (hasMore)
+                    Text(
+                      'Carregue mais provas para ampliar os resultados.',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: _HomeColors.muted(context)),
+                    ),
                 ],
               ),
+            )
+          else
+            _ExamGrid(
+              exams: filteredExams,
+              saved: saved,
+              onSave: onSave,
+              onOpen: onOpen,
             ),
-          )
-        else if (loading && exams.isEmpty)
-          const ExamListSkeleton()
-        else if (exams.isEmpty)
-          _EmptyCatalog(onExplore: () => openGlobalSearch(context, onOpen))
-        else
-          _ExamGrid(exams: exams, saved: saved, onSave: onSave, onOpen: onOpen),
-        if (loadMoreError != null)
-          ListTile(
-            title: Text(loadMoreError!),
-            trailing: IconButton(
-              onPressed: onLoadMore,
-              tooltip: 'Tentar novamente',
-              icon: const Icon(Icons.refresh_rounded),
+          if (loadMoreError != null)
+            ListTile(
+              title: Text(loadMoreError!),
+              trailing: IconButton(
+                onPressed: onLoadMore,
+                tooltip: 'Tentar novamente',
+                icon: const Icon(Icons.refresh_rounded),
+              ),
             ),
-          ),
-        if (hasMore)
-          Align(
-            alignment: Alignment.center,
-            child: OutlinedButton(
-              onPressed: loadingMore ? null : onLoadMore,
-              child: loadingMore
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Carregar mais provas'),
+          if (hasMore)
+            Align(
+              alignment: Alignment.center,
+              child: OutlinedButton(
+                onPressed: loadingMore ? null : onLoadMore,
+                child: loadingMore
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Carregar mais provas'),
+              ),
             ),
-          ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _EmptyCatalog extends StatelessWidget {
-  const _EmptyCatalog({required this.onExplore});
+  const _EmptyCatalog({required this.onExplore, required this.onPublish});
 
   final VoidCallback onExplore;
+  final VoidCallback onPublish;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(AppSpacing.lg),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      border: Border.all(color: Theme.of(context).colorScheme.outline),
-      borderRadius: BorderRadius.circular(AppRadius.md),
-    ),
+  Widget build(BuildContext context) => StudySurface(
+    highlighted: true,
+    padding: const EdgeInsets.all(24),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          Icons.menu_book_outlined,
-          color: Theme.of(context).colorScheme.primary,
-          size: 28,
+        Container(
+          width: 68,
+          height: 68,
+          decoration: BoxDecoration(
+            color: EmeraldColors.surfaceHighlight,
+            border: Border.all(color: EmeraldColors.borderHighlight),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(
+            Icons.menu_book_rounded,
+            color: EmeraldColors.primaryLight,
+            size: 34,
+          ),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: 20),
         Text(
           'Ainda não há provas publicadas',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: AppSpacing.xs),
-        const Text('Explore uma fonte oficial ou importe um PDF para começar.'),
-        const SizedBox(height: AppSpacing.md),
-        OutlinedButton.icon(
-          onPressed: onExplore,
-          icon: const Icon(Icons.search_rounded),
-          label: const Text('Explorar provas'),
+        const Text(
+          'Explore as provas disponíveis ou importe um PDF para começar.',
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onExplore,
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Explorar provas'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onPublish,
+            icon: const Icon(Icons.upload_file_rounded),
+            label: const Text('Importar PDF'),
+          ),
         ),
       ],
     ),
@@ -796,34 +1288,37 @@ class ExamCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Text(
+                    exam.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          exam.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
+                      SourceBadge(sourceType: exam.sourceType, compact: true),
+                      Text(
+                        [
+                          if (exam.year != null) exam.year.toString(),
+                          exam.category,
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _HomeColors.muted(context),
+                          fontSize: 12,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      SourceBadge(sourceType: exam.sourceType, compact: true),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${exam.category} · ${exam.questions.length} questões · ${exam.durationMinutes} min',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _HomeColors.muted(context),
-                      fontSize: 12,
-                    ),
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    exam.author,
-                    maxLines: 1,
+                    '${exam.questions.length} questões · ${exam.durationMinutes} min · ${exam.author}',
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 12),
                   ),
@@ -853,6 +1348,9 @@ class _LibraryPage extends StatelessWidget {
     required this.localExams,
     required this.localError,
     required this.onRetryLocal,
+    required this.onRemoveDownload,
+    required this.onExplore,
+    required this.onPublish,
     required this.saved,
     required this.onOpen,
     required this.onSignIn,
@@ -867,6 +1365,9 @@ class _LibraryPage extends StatelessWidget {
   final List<LocalExam> localExams;
   final String? localError;
   final VoidCallback onRetryLocal;
+  final Future<void> Function(LocalExam exam) onRemoveDownload;
+  final VoidCallback onExplore;
+  final VoidCallback onPublish;
   final List<Exam> exams;
   final Set<String> saved;
   final ValueChanged<Exam> onOpen;
@@ -882,16 +1383,134 @@ class _LibraryPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final savedExams = exams.where((exam) => saved.contains(exam.id)).toList();
     final signedIn = Supabase.instance.client.auth.currentUser != null;
+    final downloadedExams = localExams
+        .where((item) => item.downloaded)
+        .toList(growable: false);
+    final offlineImageBytes = downloadedExams.fold<int>(
+      0,
+      (total, item) => total + item.offlineImageBytes,
+    );
     return _PageScroll(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Sua biblioteca',
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Sua '),
+                TextSpan(
+                  text: 'biblioteca',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Text(
+            'Acesse suas provas salvas e gerencie seus arquivos.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 24),
+          StudySurface(
+            highlighted: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: const BoxDecoration(
+                        color: EmeraldColors.surfaceHighlight,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_outline_rounded,
+                        color: EmeraldColors.primaryLight,
+                        size: 31,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Privadas neste aparelho',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Suas provas privadas ficam neste aparelho. Exporte uma cópia antes de limpar dados ou desinstalar.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onPublish,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Importar ou criar prova'),
+                  ),
+                ),
+                if (!signedIn) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onSignIn,
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text('Entrar na conta'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (!signedIn) ...[
+            const SizedBox(height: 14),
+            StudySurface(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: EmeraldColors.primaryLight,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Entre para acessar favoritos públicos. As provas locais continuam privadas.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (localError != null) ...[
+            const SizedBox(height: 16),
+            ListTile(
+              title: Text(localError!),
+              trailing: IconButton(
+                onPressed: onRetryLocal,
+                tooltip: 'Tentar novamente',
+                icon: const Icon(Icons.refresh),
+              ),
+            ),
+          ],
           if (startedExams.isNotEmpty) ...[
+            const SizedBox(height: 28),
             const _SectionTitle('Em andamento neste aparelho'),
             ...startedExams.map(
               (exam) => ListTile(
@@ -903,82 +1522,90 @@ class _LibraryPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
-          const _SectionTitle('Privadas neste aparelho'),
-          const Text(
-            'Sem sincronização automática. Exporte uma cópia antes de limpar dados ou desinstalar.',
-          ),
-          if (localError != null)
-            ListTile(
-              title: Text(localError!),
-              trailing: IconButton(
-                onPressed: onRetryLocal,
-                tooltip: 'Tentar novamente',
-                icon: const Icon(Icons.refresh),
-              ),
-            ),
-          if (localError == null && localExams.isEmpty)
-            const Text('Importe ou crie uma prova para salvá-la só para você.'),
-          ...localExams.map(
-            (item) => ListTile(
-              leading: const Icon(Icons.lock_outline),
-              title: Text(
-                item.title.trim().isEmpty ? 'Rascunho sem título' : item.title,
-              ),
-              subtitle: Text(
-                item.pendingPublication
-                    ? 'Publicação pendente de confirmação'
-                    : 'Salva só para mim',
-              ),
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ImportReviewPage(
-                      title: item.title,
-                      category: item.category,
-                      source: item.source,
-                      sourceUrl: item.sourceUrl,
-                      durationMinutes: item.durationMinutes,
-                      year: item.year,
-                      questions: item.questions,
-                      localId: item.id,
-                      pendingPublication: item.pendingPublication,
-                      reviewIndex: item.reviewIndex,
-                    ),
-                  ),
-                );
-                onRetryLocal();
-              },
-              trailing: IconButton(
-                tooltip: 'Fazer prova',
-                onPressed:
-                    item.questions.isEmpty ||
-                        item.questions.any(
-                          (q) =>
-                              q.statement.trim().isEmpty ||
-                              q.options.length < 2 ||
-                              q.correctIndex == null,
-                        )
-                    ? null
-                    : () => onOpen(item.exam),
-                icon: const Icon(Icons.play_arrow),
-              ),
-            ),
-          ),
-          if (!signedIn) ...[
-            const SizedBox(height: 10),
+          if (downloadedExams.isNotEmpty) ...[
+            const _SectionTitle('Baixadas para uso offline'),
             Text(
-              'Entre para acessar favoritos públicos da sua conta. As provas locais continuam privadas.',
+              '${_formatByteSize(offlineImageBytes)} ocupados por imagens offline',
               style: TextStyle(color: _HomeColors.muted(context)),
             ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: onSignIn,
-              icon: const Icon(Icons.login_rounded),
-              label: const Text('Entrar na conta'),
+            ...downloadedExams.map(
+              (item) => ListTile(
+                leading: const Icon(Icons.download_done_rounded),
+                title: Text(item.title),
+                subtitle: Text(
+                  '${item.questions.length} questões · '
+                  '${_formatByteSize(item.offlineImageBytes)} em imagens',
+                ),
+                onTap: () => onOpen(item.exam),
+                trailing: Wrap(
+                  spacing: 0,
+                  children: [
+                    IconButton(
+                      tooltip: 'Começar prova offline',
+                      onPressed: () => onOpen(item.exam),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Remover prova baixada',
+                      onPressed: () => onRemoveDownload(item),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
+                ),
+              ),
             ),
+            const SizedBox(height: 16),
           ],
-          const SizedBox(height: 18),
-
+          ...localExams
+              .where((item) => !item.downloaded)
+              .map(
+                (item) => ListTile(
+                  leading: const Icon(Icons.lock_outline),
+                  title: Text(
+                    item.title.trim().isEmpty
+                        ? 'Rascunho sem título'
+                        : item.title,
+                  ),
+                  subtitle: Text(
+                    item.pendingPublication
+                        ? 'Publicação pendente de confirmação'
+                        : 'Salva só para mim',
+                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ImportReviewPage(
+                          title: item.title,
+                          category: item.category,
+                          source: item.source,
+                          sourceUrl: item.sourceUrl,
+                          durationMinutes: item.durationMinutes,
+                          year: item.year,
+                          questions: item.questions,
+                          localId: item.id,
+                          pendingPublication: item.pendingPublication,
+                          reviewIndex: item.reviewIndex,
+                        ),
+                      ),
+                    );
+                    onRetryLocal();
+                  },
+                  trailing: IconButton(
+                    tooltip: 'Fazer prova',
+                    onPressed:
+                        item.questions.isEmpty ||
+                            item.questions.any(
+                              (q) =>
+                                  q.statement.trim().isEmpty ||
+                                  q.options.length < 2 ||
+                                  q.correctIndex == null,
+                            )
+                        ? null
+                        : () => onOpen(item.exam),
+                    icon: const Icon(Icons.play_arrow),
+                  ),
+                ),
+              ),
           const SizedBox(height: 28),
           if (pendingAttempts.isNotEmpty) ...[
             const _SectionTitle('Entregas aguardando correção'),
@@ -1023,10 +1650,7 @@ class _LibraryPage extends StatelessWidget {
           const _SectionTitle('Provas salvas'),
           const SizedBox(height: 12),
           if (savedExams.isEmpty)
-            Text(
-              'Salve uma prova para encontrá-la aqui.',
-              style: TextStyle(color: _HomeColors.muted(context)),
-            )
+            _SavedExamsEmpty(onExplore: onExplore)
           else
             _ExamGrid(
               exams: savedExams,
@@ -1038,6 +1662,123 @@ class _LibraryPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SavedExamsEmpty extends StatelessWidget {
+  const _SavedExamsEmpty({required this.onExplore});
+
+  final VoidCallback onExplore;
+
+  @override
+  Widget build(BuildContext context) => StudySurface(
+    highlighted: true,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 58,
+          height: 58,
+          decoration: const BoxDecoration(
+            color: EmeraldColors.surfaceHighlight,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.bookmark_border_rounded,
+            size: 31,
+            color: EmeraldColors.primaryLight,
+          ),
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Suas provas estarão aqui',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Explore o catálogo e salve as provas que deseja resolver depois.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onExplore,
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Explorar provas'),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+String _formatByteSize(int bytes) => bytes < 1024 * 1024
+    ? '${(bytes / 1024).toStringAsFixed(0)} KB'
+    : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+class _FeatureIcon extends StatelessWidget {
+  const _FeatureIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 52,
+    height: 52,
+    decoration: BoxDecoration(
+      color: EmeraldColors.surfaceHighlight,
+      borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: EmeraldColors.border),
+    ),
+    child: Icon(icon, color: EmeraldColors.primaryLight, size: 28),
+  );
+}
+
+class _ProfileAction extends StatelessWidget {
+  const _ProfileAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: StudySurface(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            _FeatureIcon(icon: icon),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: EmeraldColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _ProfilePage extends StatelessWidget {
@@ -1052,31 +1793,55 @@ class _ProfilePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Perfil', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 28),
-            Icon(
-              Icons.person_outline_rounded,
-              size: 52,
-              color: _HomeColors.brand(context),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Você está explorando sem conta',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
             const SizedBox(height: 8),
             Text(
-              'Fazer provas continua liberado. Entre para publicar, salvar e sincronizar resultados.',
-              style: TextStyle(color: _HomeColors.muted(context)),
+              'Gerencie sua conta e preferências.',
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
-            const SizedBox(height: 22),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const AuthPage(closeAfterAuth: true),
-                ),
+            const SizedBox(height: 24),
+            StudySurface(
+              highlighted: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: const BoxDecoration(
+                      color: EmeraldColors.surfaceHighlight,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_outline_rounded,
+                      size: 40,
+                      color: EmeraldColors.primaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Estude do seu jeito',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fazer provas continua liberado. Entre para publicar, salvar e sincronizar resultados.',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AuthPage(closeAfterAuth: true),
+                        ),
+                      ),
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text('Entrar ou criar conta'),
+                    ),
+                  ),
+                ],
               ),
-              icon: const Icon(Icons.login_rounded),
-              label: const Text('Entrar ou criar conta'),
             ),
           ],
         ),
@@ -1095,70 +1860,128 @@ class _ProfilePage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: _HomeColors.brandSoft(context),
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    color: _HomeColors.brandHover(context),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+          Text('Perfil', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            'Gerencie sua conta e preferências.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 24),
+          StudySurface(
+            highlighted: true,
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: EmeraldColors.surfaceHighlight,
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: EmeraldColors.primaryLight,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      user.email ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: _HomeColors.muted(context)),
-                    ),
-                  ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        user.email ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
           ),
-          const SizedBox(height: 28),
-          const Divider(),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.collections_bookmark_outlined),
-            title: const Text('Biblioteca e resultados'),
+          const SizedBox(height: 16),
+          StudySurface(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                const _FeatureIcon(icon: Icons.bar_chart_rounded),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Seu progresso',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        'Acesse suas provas e resultados.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onLibrary,
+                  iconAlignment: IconAlignment.end,
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  label: const Text('Ver'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _ProfileAction(
+            icon: Icons.collections_bookmark_outlined,
+            title: 'Biblioteca e resultados',
+            subtitle: 'Acesse provas salvas e atividades.',
             onTap: onLibrary,
-            trailing: const Icon(Icons.chevron_right_rounded),
           ),
-          const Divider(),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.logout_rounded),
-            title: const Text('Sair da conta'),
-            onTap: () async {
-              try {
-                await Supabase.instance.client.auth.signOut();
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Não foi possível sair. Tente novamente.'),
-                    ),
-                  );
+          const SizedBox(height: 12),
+          _ProfileAction(
+            icon: Icons.info_outline_rounded,
+            title: 'Sobre o Prova Social',
+            subtitle: 'Saiba mais sobre o aplicativo.',
+            onTap: () => showAboutDialog(
+              context: context,
+              applicationName: 'Prova Social',
+              children: const [
+                Text('Encontre, importe, resolva e revise provas.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                try {
+                  await Supabase.instance.client.auth.signOut();
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Não foi possível sair. Tente novamente.',
+                        ),
+                      ),
+                    );
+                  }
                 }
-              }
-            },
+              },
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Sair da conta'),
+            ),
           ),
         ],
       ),
@@ -1172,11 +1995,15 @@ class _ExamDetails extends StatelessWidget {
     required this.saved,
     required this.onSave,
     required this.onSignIn,
+    required this.isDownloaded,
+    required this.onDownload,
   });
   final Exam exam;
   final bool saved;
   final VoidCallback onSave;
   final Future<void> Function() onSignIn;
+  final bool isDownloaded;
+  final Future<bool> Function() onDownload;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1228,6 +2055,8 @@ class _ExamDetails extends StatelessWidget {
             children: [
               _Meta(Icons.quiz_outlined, '${exam.questions.length} questões'),
               _Meta(Icons.schedule_rounded, '${exam.durationMinutes} minutos'),
+              if (exam.year case final year?)
+                _Meta(Icons.event_outlined, '$year'),
               if (!exam.isLocal)
                 _Meta(
                   Icons.people_outline_rounded,
@@ -1252,16 +2081,26 @@ class _ExamDetails extends StatelessWidget {
           if (!exam.isLocal)
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onSave,
-                icon: Icon(
-                  saved
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                ),
-                label: Text(
-                  saved ? 'Salva na biblioteca' : 'Salvar na biblioteca',
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _OfflineDownloadButton(
+                    downloaded: isDownloaded,
+                    onDownload: onDownload,
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: onSave,
+                    icon: Icon(
+                      saved
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                    ),
+                    label: Text(
+                      saved ? 'Salva na biblioteca' : 'Salvar na biblioteca',
+                    ),
+                  ),
+                ],
               ),
             ),
           const SizedBox(height: 32),
@@ -1295,6 +2134,55 @@ class _ExamDetails extends StatelessWidget {
   );
 }
 
+class _OfflineDownloadButton extends StatefulWidget {
+  const _OfflineDownloadButton({
+    required this.downloaded,
+    required this.onDownload,
+  });
+  final bool downloaded;
+  final Future<bool> Function() onDownload;
+
+  @override
+  State<_OfflineDownloadButton> createState() => _OfflineDownloadButtonState();
+}
+
+class _OfflineDownloadButtonState extends State<_OfflineDownloadButton> {
+  late bool downloaded = widget.downloaded;
+  bool busy = false;
+
+  Future<void> _download() async {
+    if (busy || downloaded) return;
+    setState(() => busy = true);
+    final success = await widget.onDownload();
+    if (mounted) {
+      setState(() {
+        busy = false;
+        downloaded = success;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: busy || downloaded ? null : _download,
+    icon: busy
+        ? const SizedBox.square(
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(
+            downloaded ? Icons.download_done_rounded : Icons.download_rounded,
+          ),
+    label: Text(
+      busy
+          ? 'Baixando prova…'
+          : downloaded
+          ? 'Disponível offline'
+          : 'Baixar para usar offline',
+    ),
+  );
+}
+
 class _Meta extends StatelessWidget {
   const _Meta(this.icon, this.text);
   final IconData icon;
@@ -1316,7 +2204,7 @@ class _PageScroll extends StatelessWidget {
   final double maxWidth;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(20, 28, 20, 100),
+    padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
     child: Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
@@ -1327,11 +2215,72 @@ class _PageScroll extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+  const _SectionTitle(this.text, {this.actionLabel, this.onAction});
   final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
   @override
-  Widget build(BuildContext context) =>
-      Text(text, style: Theme.of(context).textTheme.headlineSmall);
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 440;
+      final heading = Row(
+        children: [
+          Container(
+            width: 5,
+            height: 34,
+            decoration: BoxDecoration(
+              color: EmeraldColors.primary,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: EmeraldColors.primaryGlow.withValues(alpha: .24),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontSize: compact ? 20 : 24),
+            ),
+          ),
+          if (!compact && actionLabel != null && onAction != null)
+            TextButton.icon(
+              onPressed: onAction,
+              iconAlignment: IconAlignment.end,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 17),
+              label: Text(actionLabel!),
+              style: TextButton.styleFrom(
+                foregroundColor: EmeraldColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
+        ],
+      );
+      if (!compact || actionLabel == null || onAction == null) return heading;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          heading,
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: EmeraldColors.primary,
+                minimumSize: const Size(48, 48),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: Text(actionLabel!),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _UserTile extends StatelessWidget {

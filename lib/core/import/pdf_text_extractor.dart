@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 
 import 'package:pdfrx/pdfrx.dart';
 
@@ -89,6 +90,18 @@ class PdfExtractionResult {
       ocrPages == 0;
 }
 
+class PdfPageLimitException implements Exception {
+  const PdfPageLimitException({required this.pageCount, required this.limit});
+
+  final int pageCount;
+  final int limit;
+
+  @override
+  String toString() =>
+      'O PDF tem $pageCount páginas; o limite é $limit. '
+      'Divida o arquivo em PDFs menores e tente novamente.';
+}
+
 class PdfTextExtractor {
   const PdfTextExtractor({
     this.router = const OcrRouter(),
@@ -96,6 +109,7 @@ class PdfTextExtractor {
   });
 
   static const minimumNativeTextLength = OcrRouter.minimumNativeTextLength;
+  static const defaultMaxPages = 500;
   static Future<void>? _pdfrxInitialization;
   final OcrRouter router;
   final OcrLayoutOrderer layoutOrderer;
@@ -120,14 +134,25 @@ class PdfTextExtractor {
   Future<PdfExtractionResult> extract(
     Uint8List bytes, {
     String? sourceName,
+    int maxPages = defaultMaxPages,
   }) async {
+    if (maxPages < 1) {
+      throw ArgumentError.value(maxPages, 'maxPages', 'Must be positive.');
+    }
     await _initializePdfrx();
-    const ocr = OcrService();
-    final document = await PdfDocument.openData(
-      bytes,
-      sourceName: sourceName ?? 'import.pdf',
-    );
+    final ocr = OcrService();
+    PdfDocument? document;
     try {
+      document = await PdfDocument.openData(
+        bytes,
+        sourceName: sourceName ?? 'import.pdf',
+      );
+      if (document.pages.length > maxPages) {
+        throw PdfPageLimitException(
+          pageCount: document.pages.length,
+          limit: maxPages,
+        );
+      }
       final pageResults = <PdfPageExtraction>[];
       for (final page in document.pages) {
         final structuredText = await page.loadStructuredText();
@@ -227,6 +252,92 @@ class PdfTextExtractor {
         pages: List.unmodifiable(pageResults),
         ocrAvailable: ocr.availableEngines.isNotEmpty,
       );
+    } finally {
+      try {
+        await document?.dispose();
+      } finally {
+        await ocr.dispose();
+      }
+    }
+  }
+
+  /// Renders only requested source pages for image based question review.
+  /// JPEG is used for compact previews; the original PDF remains the source
+  /// of truth and raster rendering avoids destructive SVG conversion.
+  Future<Map<int, Uint8List>> renderPages(
+    Uint8List bytes,
+    Iterable<int> pageNumbers, {
+    int maxLongEdge = 1200,
+    int jpegQuality = 76,
+    int maxTotalBytes = 12 * 1024 * 1024,
+    int maxPages = defaultMaxPages,
+  }) async {
+    final requested = pageNumbers.where((page) => page > 0).toSet();
+    if (requested.isEmpty) return const {};
+    if (maxPages < 1) {
+      throw ArgumentError.value(maxPages, 'maxPages', 'Must be positive.');
+    }
+    if (maxLongEdge < 320 || maxLongEdge > 2400) {
+      throw RangeError.range(maxLongEdge, 320, 2400, 'maxLongEdge');
+    }
+    if (maxTotalBytes < 1024 || maxTotalBytes > 64 * 1024 * 1024) {
+      throw RangeError.range(
+        maxTotalBytes,
+        1024,
+        64 * 1024 * 1024,
+        'maxTotalBytes',
+      );
+    }
+    await _initializePdfrx();
+    final document = await PdfDocument.openData(
+      bytes,
+      sourceName: 'preview.pdf',
+    );
+    try {
+      if (document.pages.length > maxPages) {
+        throw PdfPageLimitException(
+          pageCount: document.pages.length,
+          limit: maxPages,
+        );
+      }
+      final previews = <int, Uint8List>{};
+      var totalBytes = 0;
+      for (final page in document.pages) {
+        if (!requested.contains(page.pageNumber)) continue;
+        final scale = math
+            .min(1.8, maxLongEdge / math.max(page.width, page.height))
+            .toDouble();
+        PdfImage? rendered;
+        try {
+          rendered = await page.render(
+            fullWidth: page.width * scale,
+            fullHeight: page.height * scale,
+            backgroundColor: 0xffffffff,
+          );
+          if (rendered == null) continue;
+          final encoded = await compute(_encodeRenderedPage, (
+            pixels: rendered.pixels,
+            width: rendered.width,
+            height: rendered.height,
+            quality: jpegQuality.clamp(50, 92).toInt(),
+          ));
+          if (totalBytes + encoded.length > maxTotalBytes) {
+            debugPrint(
+              '[PDF_PREVIEW] limite total atingido; demais páginas adiadas',
+            );
+            break;
+          }
+          previews[page.pageNumber] = encoded;
+          totalBytes += encoded.length;
+        } catch (error) {
+          debugPrint(
+            '[PDF_PREVIEW] page=${page.pageNumber} falhou: ${error.runtimeType}',
+          );
+        } finally {
+          rendered?.dispose();
+        }
+      }
+      return Map.unmodifiable(previews);
     } finally {
       await document.dispose();
     }
@@ -343,6 +454,18 @@ class PdfTextExtractor {
     }
     return splitX;
   }
+}
+
+Uint8List _encodeRenderedPage(
+  ({Uint8List pixels, int width, int height, int quality}) page,
+) {
+  final bitmap = img.Image.fromBytes(
+    width: page.width,
+    height: page.height,
+    bytes: page.pixels.buffer,
+    order: img.ChannelOrder.bgra,
+  );
+  return img.encodeJpg(bitmap, quality: page.quality);
 }
 
 class _NativeTextLine {

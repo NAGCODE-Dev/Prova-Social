@@ -5,7 +5,10 @@
 - Prova: `https://prova-social.pages.dev/provas/<exam-uuid>`
 - Questão: `https://prova-social.pages.dev/provas/<exam-uuid>/questoes/<question-uuid>`
 - O destino abre o conteúdo público no app ou no Flutter Web; a chave de respostas não é incluída na consulta pública.
-- `site/_redirects` encaminha URLs de prova ao Flutter Web em `/app/`.
+- No build do site, o CI gera HTML indexável e entradas do sitemap somente para provas publicadas e públicas, consultadas com a chave publicável e sujeitas às políticas RLS existentes. As páginas de questão exibem enunciado e alternativas, nunca o gabarito.
+- As rotas HTML geradas têm precedência sobre o fallback para `/app/`; o shell Flutter em `/app/` usa `noindex,follow` para evitar indexação duplicada.
+- O sitemap inclui as URLs canônicas geradas a cada publicação. Para refletir remoção ou mudança de visibilidade de conteúdo, é necessário publicar o site novamente.
+- A descoberta e a indexação pelo Google dependem do rastreamento do site; o sitemap também pode ser enviado manualmente pelo Google Search Console.
 - O workflow de release acrescenta `autoVerify` e o filtro HTTPS ao manifesto Android gerado. Configure `ANDROID_APP_LINKS_SHA256` com o SHA-256 do certificado de release armazenado em `ANDROID_KEYSTORE_BASE64`; não use a impressão digital de `~/.android/debug.keystore`. O CI confere o segredo contra o keystore antes de gerar APKs e valida a resposta publicada em `/.well-known/assetlinks.json` depois do deploy.
 - O repositório não tem projeto iOS nem `apple-app-site-association`; Universal Links no iOS continuam pendentes.
 

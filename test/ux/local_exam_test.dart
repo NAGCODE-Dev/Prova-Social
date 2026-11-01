@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:prova_social/core/backend/local_exam_store.dart';
 import 'package:prova_social/core/backend/local_exam_payload_store.dart';
+import 'package:prova_social/core/import/imported_document.dart';
 import 'package:prova_social/core/import/question_parser.dart';
 
 LocalExam draft(String title, {bool pending = false, String? sourceUrl}) =>
@@ -96,6 +98,53 @@ void main() {
       expect(restored.toJson().containsKey('is_public'), isFalse);
     },
   );
+  test('removes only downloaded exams and protects active attempts', () async {
+    final store = LocalExamStore();
+    await store.save(draft('Prova criada localmente'));
+    await store.save(
+      LocalExam(
+        id: 'public-download',
+        title: 'Prova baixada',
+        category: 'Matéria',
+        source: 'Fonte',
+        durationMinutes: 30,
+        downloaded: true,
+        questions: draft('Questão').questions,
+        importedDocument: ImportedDocument(
+          metadata: const {},
+          pages: [
+            ImportedDocumentPage(
+              number: 1,
+              text: '',
+              previewBytes: Uint8List(120),
+            ),
+            ImportedDocumentPage(
+              number: 2,
+              text: '',
+              previewBytes: Uint8List(80),
+            ),
+          ],
+          questions: const [],
+        ),
+      ),
+    );
+
+    final downloaded = (await store.load()).singleWhere(
+      (exam) => exam.downloaded,
+    );
+    expect(downloaded.offlineImageBytes, 200);
+    await expectLater(
+      store.removeDownloaded(downloaded.id, activeExamIds: {downloaded.id}),
+      throwsA(isA<ActiveAttemptDownloadException>()),
+    );
+
+    expect(await store.removeDownloaded(downloaded.id), isTrue);
+    expect(await store.removeDownloaded('local-test'), isFalse);
+    final remaining = await store.load();
+    expect(remaining, hasLength(1));
+    expect(remaining.single.title, 'Prova criada localmente');
+    expect(remaining.single.downloaded, isFalse);
+  });
   test('new local library payloads are compressed and integrity checked', () async {
     final imported = draft('Prova compactada');
     imported.questions.addAll(

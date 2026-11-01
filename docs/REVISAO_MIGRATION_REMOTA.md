@@ -1,3 +1,51 @@
+# Revisão de mídia por questão — 31/10/2026
+
+Foi aplicada ao projeto Supabase **Prova Social** a migration local
+`20261031120000_exam_media_publication.sql`. O histórico remoto registrou a
+versão `20261101002428` com o nome `exam_media_publication`. A inspeção anterior
+confirmou tabelas de mídia existentes sem relação direta com `questions`; a
+migration corrige a policy de leitura de `media_assets`, preenche `question_id`,
+mantém `question_position` para compatibilidade e instala uma RPC que publica
+prova, questões e vínculos de mídia na mesma transação.
+
+A verificação remota confirmou a coluna `question_id`, o gatilho de associação,
+a RPC `publish_exam_with_media` e o bucket `exam-content`. A tabela
+`exam_media` permanece sem vínculos (0 linhas), portanto nenhum dado de prova
+existente foi modificado. Os advisors após a aplicação mostram os mesmos avisos
+de segurança preexistentes e também classificam a nova RPC autenticada como
+`SECURITY DEFINER`; ela exige `auth.uid()`, valida a propriedade dos ativos e
+fixa o `search_path`. O aviso deve ser acompanhado junto aos avisos das RPCs de
+publicação já existentes.
+
+O app envia as prévias JPEG que já são preservadas na importação. Os ativos são
+deduplicados por SHA-256, limitados a 5 MiB cada e 12 MiB por publicação; falha
+na publicação limpa os ativos novos ainda não associados. O catálogo carrega os
+metadados por questão, e a tela de resolução baixa as figuras sob demanda com
+cache LRU de 24 MiB e validação SHA-256. Materiais visuais associados a uma
+questão (incluindo tabelas de referência reconhecidas) seguem o mesmo fluxo.
+O download de pacotes comprimidos também passou a deduplicar chamadas
+simultâneas, verificar tamanho e SHA-256 e limitar o cache em memória a 16 MiB.
+Novas publicações geram os dois arquivos GZip (questões públicas sem gabarito e
+manifesto com referências de mídia); a biblioteca permite baixar uma cópia
+persistente, incluindo figuras, e reabri-la sem rede. Se o pacote de uma prova
+semeada antiga estiver ausente, o app monta a cópia pelas linhas relacionais.
+O vínculo usa o ID estável da questão e confirma a posição como compatibilidade.
+Se a RPC transacional de mídia ainda não estiver instalada, a publicação usa as
+RPCs antigas e associa os ativos em seguida; se algum vínculo falhar, a
+interface informa que a prova já foi publicada e não sugere publicá-la de novo.
+A migration nova mantém o caminho atômico para projetos atualizados.
+
+Teste SQL de publicação atômica, propriedade de ativo e vínculo por ID foi
+adicionado a `supabase/tests/attempt_idempotency.sql`. Em Ubuntu com PostgreSQL
+18, `./scripts/local_db_test.sh` passou aplicando todas as migrations ao banco
+descartável e executando os testes SQL de mídia, rollback, permissões e
+idempotência concorrente. O script agora localiza os binários pelo
+`pg_config --bindir`, roda como usuário normal e aceita somente socket Unix.
+O schema remoto também foi verificado após a aplicação; ainda falta um smoke
+test autenticado do app publicando uma prova real com mídia.
+
+## Histórico de correções anteriores
+
 # Correção aplicada — 26/09/2026
 
 Após autorização do responsável para corrigir o Supabase, a migration
