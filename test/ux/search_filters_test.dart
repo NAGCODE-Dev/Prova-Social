@@ -337,4 +337,41 @@ void main() {
     expect(find.text('Não verificada'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('exam card stays compact on a phone with larger text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(360, 800),
+            textScaler: TextScaler.linear(1.15),
+          ),
+          child: Scaffold(
+            body: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                ExamCard(
+                  exam: exams.first,
+                  saved: false,
+                  onSave: () {},
+                  onOpen: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = tester.getSize(find.byType(ExamCard));
+    expect(card.height, lessThanOrEqualTo(124));
+    expect(find.text('Prova one'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

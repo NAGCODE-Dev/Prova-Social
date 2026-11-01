@@ -4,9 +4,47 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prova_social/core/startup/startup_gate.dart';
 import 'package:prova_social/core/backend/supabase_config.dart';
+import 'package:prova_social/core/theme/app_theme.dart';
+import 'package:prova_social/core/update/update_gate.dart';
 import 'package:prova_social/core/widgets/brand.dart';
+import 'package:prova_social/core/widgets/emerald_backdrop.dart';
 
 void main() {
+  testWidgets('the initial screen keeps the brand backdrop, not a light box', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        themeMode: ThemeMode.dark,
+        builder: (context, child) =>
+            EmeraldBackdrop(child: child ?? const SizedBox.shrink()),
+        home: const UpdateGate(child: Text('Pronto')),
+      ),
+    );
+
+    expect(
+      find.ancestor(
+        of: find.text('Pronto'),
+        matching: find.byType(EmeraldBackdrop),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      AppTheme.dark.scaffoldBackgroundColor,
+      isSameColorAs(Colors.transparent),
+    );
+    final lightBoxes = tester
+        .widgetList<ColoredBox>(find.byType(ColoredBox))
+        .where((box) => box.color == AppColors.background)
+        .toList();
+    expect(
+      lightBoxes,
+      isEmpty,
+      reason: 'a light palette box hides the backdrop',
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('Supabase configuration failure explains how to recover', (
     tester,
   ) async {

@@ -295,6 +295,58 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('Agora não fecha o login quando ele é a rota inicial', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        home: const AuthPage(closeAfterAuth: true),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Agora não'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agora não'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AuthPage), findsNothing);
+    expect(find.byType(HomePage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('sair da conta atualiza o perfil para visitante', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        home: const HomePage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.runAsync(login);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Abrir perfil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pessoa Teste'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Sair da conta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sair da conta'));
+    await tester.pumpAndSettle();
+
+    expect(Supabase.instance.client.auth.currentUser, isNull);
+    expect(find.text('Estude do seu jeito'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('visitor can open a truthful profile without signing in', (
     tester,
   ) async {

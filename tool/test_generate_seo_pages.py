@@ -261,7 +261,83 @@ class GenerateSeoPagesTest(unittest.TestCase):
             manifest = json.loads((web_dir / "manifest.json").read_text())
             self.assertIn('<meta name="robots" content="noindex,follow">', index)
             self.assertIn("<title>Prova Social</title>", index)
+            self.assertIn('<html lang="pt-BR">', index)
+            self.assertIn('<meta name="theme-color" content="#050907">', index)
+            self.assertIn('id="prova-social-shell"', index)
+            self.assertIn("background: #050907;", index)
+            self.assertIn('color-scheme: dark;', index)
+            self.assertIn('<link rel="manifest" href="manifest.json">', index)
+            self.assertIn(
+                '<link rel="icon" type="image/png" href="favicon.png">', index
+            )
+            self.assertIn(
+                '<link rel="apple-touch-icon" href="icons/Icon-192.png">', index
+            )
             self.assertEqual(manifest["name"], "Prova Social")
+            self.assertEqual(manifest["short_name"], "Prova Social")
+            self.assertEqual(manifest["background_color"], "#050907")
+            self.assertEqual(manifest["theme_color"], "#050907")
+            self.assertEqual(manifest["orientation"], "portrait-primary")
+            self.assertEqual(
+                [icon["src"] for icon in manifest["icons"]],
+                [
+                    "icons/Icon-192.png",
+                    "icons/Icon-512.png",
+                    "icons/Icon-maskable-192.png",
+                    "icons/Icon-maskable-512.png",
+                ],
+            )
+
+    def test_web_preparer_is_idempotent_and_keeps_flutter_base_href(self):
+        scaffold = """<!doctype html>
+<html><head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="prova_social">
+  <link rel="manifest" href="manifest.json">
+  <title>prova_social</title>
+</head><body></body></html>
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            web_dir = Path(directory) / "web"
+            web_dir.mkdir()
+            (web_dir / "index.html").write_text(scaffold, encoding="utf-8")
+            (web_dir / "manifest.json").write_text(
+                json.dumps({"name": "prova_social", "short_name": "prova_social"}),
+                encoding="utf-8",
+            )
+
+            for _ in range(2):
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "tool/prepare_web.py")],
+                    cwd=directory,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+            index = (web_dir / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<base href="$FLUTTER_BASE_HREF">', index)
+            self.assertIn(
+                '<meta name="viewport" content="width=device-width, '
+                'initial-scale=1.0, viewport-fit=cover">',
+                index,
+            )
+            for tag in (
+                '<meta name="theme-color"',
+                '<meta name="robots"',
+                '<meta name="description"',
+                '<link rel="manifest"',
+                'id="prova-social-shell"',
+            ):
+                self.assertEqual(index.count(tag), 1, tag)
+
+            manifest = json.loads((web_dir / "manifest.json").read_text())
+            self.assertEqual(len(manifest["icons"]), 4)
 
     def test_workflow_generates_seo_pages_after_building_the_site(self):
         workflow = (ROOT / ".github/workflows/flutter-ci.yml").read_text(
