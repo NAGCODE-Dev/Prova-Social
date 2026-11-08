@@ -333,8 +333,9 @@ correr em paralelo apenas quando não compartilham arquivo ou decisão.
 - [x] Marcar documentos históricos da raiz com banner e índice do que está vigente.
 - [x] Corrigir o README: remover imagens/demonstração ou implementá-las.
 - [x] Decidir licença e adicionar `LICENSE` (ADR-0007 aceito: todos os direitos reservados).
-- [ ] Registrar ADRs de paleta, distribuição, persistência, câmera e dependências;
-      licença foi aceita (ADR-0007) e o vault tem proposta (ADR-0008).
+- [x] Registrar ADRs de paleta, distribuição, persistência, câmera e dependências
+      (ADR-0001, 0004, 0005, 0006 e 0009, todos propostos).
+- [ ] Aprovar os ADR-0001, 0004, 0005, 0006, 0008 e 0009; o ADR-0007 já foi aceito.
 - **Saída:** nenhuma contradição conhecida entre documento e código; toda
   decisão estrutural tem ADR.
 

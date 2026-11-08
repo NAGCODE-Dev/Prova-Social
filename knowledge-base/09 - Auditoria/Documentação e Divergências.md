@@ -97,13 +97,14 @@ sem commit/push. Ele não altera código do app.
   decisão foi aprovada pelo responsável e registrada no
   [[../06 - Decisões/ADR/ADR-0007 - Licença do app e política de fixtures de terceiros|ADR-0007]]
   como `aceito`.
-- **ADRs:** o ADR-0007 (licença e fixtures) foi aceito; o
-  [[../06 - Decisões/ADR/ADR-0008 - Hierarquia documental e versionamento do vault|ADR-0008]]
-  (hierarquia e vault) segue `proposto`.
+- **ADRs:** o ADR-0007 (licença e fixtures) foi aceito. Foram criados como
+  `proposto` o ADR-0008 (hierarquia/vault), o ADR-0001 (paleta/tema), o
+  ADR-0004 (persistência), o ADR-0005 (distribuição/ABI), o ADR-0006
+  (câmera/imagem) e o ADR-0009 (dependências/atualização).
 
-Ainda não resolvido neste lote: aprovação do ADR-0008, ADRs de paleta/
-distribuição/persistência/câmera/dependências, revisão dos notices de
-dependências e a varredura automática de links.
+Ainda não resolvido neste lote: **aprovação** dos ADR-0001, 0004, 0005, 0006,
+0008 e 0009, revisão dos notices de dependências e a varredura automática de
+links.
 
 ## Pendências
 
@@ -114,8 +115,7 @@ dependências e a varredura automática de links.
 - Não eliminar fontes históricas; adicionar banner, data e link para a nota
   vigente antes de substituir afirmações.
 - Adicionar verificação automática de links, frontmatter e segredos no CI.
-- Aprovar o ADR-0008 e registrar os ADRs de paleta, distribuição,
-  persistência, câmera e dependências.
+- Aprovar os ADR-0001, 0004, 0005, 0006, 0008 e 0009, que estão propostos.
 - Revisar notices de dependências e confirmar o titular legal do copyright.
 - Auditar guias operacionais restantes em `docs/` e decidir quais continuam
   vigentes, quais viram nota no vault e quais permanecem apenas históricos.

@@ -32,15 +32,15 @@ O template está em [[ADR|ADR]]. A síntese que originou a lista está em
 
 | ID | Decisão | Áreas | Urgência | Status |
 |---|---|---|---|---|
-| ADR-0001 | Paleta e tema: dark-only com `EmeraldColors` ou light+dark com tokens do `AGENTS.md` | 15, 16, 18 | Alta | proposto |
+| [[ADR-0001 - Paleta, tema e identidade visual\|ADR-0001]] | Paleta e tema: dark-only com `EmeraldColors` ou light+dark com tokens do `AGENTS.md` | 15, 16, 18 | Alta | proposto |
 | ADR-0002 | Modelo de questão: objetiva/discursiva, gabarito e publicação | 2, 9, 10, 12 | Alta | proposto |
 | ADR-0003 | Versionamento de conteúdo e vínculo da tentativa à versão resolvida | 2, 6, 12 | Alta | proposto |
-| ADR-0004 | Persistência local: JSON/SharedPreferences vs SQLite transacional | 7, 8 | Alta | proposto |
-| ADR-0005 | Distribuição Android: APK universal + splits e seleção de ABI no site | 15, 17 | Alta | proposto |
-| ADR-0006 | Escopo de importação por câmera: implementar ou remover do README | 9, 13, 18 | Média | proposto |
+| [[ADR-0004 - Persistência local transacional\|ADR-0004]] | Persistência local: JSON/SharedPreferences vs SQLite transacional | 7, 8 | Alta | proposto |
+| [[ADR-0005 - Distribuição Android e seleção de ABI\|ADR-0005]] | Distribuição Android: APK universal + splits e seleção de ABI no site | 15, 17 | Alta | proposto |
+| [[ADR-0006 - Escopo de câmera, galeria e importação por imagem\|ADR-0006]] | Escopo de importação por câmera: implementar ou remover do README | 9, 13, 18 | Média | proposto |
 | [[ADR-0007 - Licença do app e política de fixtures de terceiros\|ADR-0007]] | Licença do app e política de fixtures de terceiros | 9, 14, 17, 18 | Alta | **aceito** |
 | [[ADR-0008 - Hierarquia documental e versionamento do vault\|ADR-0008]] | Hierarquia documental e versionamento do vault | 18 | Alta | proposto |
-| ADR-0009 | Política de dependências, pins e cadência de atualização | 17 | Média | proposto |
+| [[ADR-0009 - Política de dependências, pins e atualização\|ADR-0009]] | Política de dependências, pins e cadência de atualização | 17 | Média | proposto |
 | ADR-0010 | Comunidades, moderação e ciclo de vida | 11, 12 | Média | proposto |
 | ADR-0011 | Tamanho de APK, modelos sob demanda e componentes nativos | 13, 17 | Média | proposto |
 | ADR-0012 | Acessibilidade, tema claro/escuro e meta de contraste | 14, 16 | Média | proposto |

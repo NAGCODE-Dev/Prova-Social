@@ -16,8 +16,10 @@ atualizado: 2026-11-05
   (`lote1/fonte-unica`, base `2c62e30`), sem tocar no Lote 0. Correções:
   `AGENTS.md` §25, hierarquia documental, banners históricos, README sem
   promessas de imagens/demonstração. Licença definida como **todos os direitos
-  reservados**, com `LICENSE` na raiz e ADR-0007 `aceito`; ADR-0008
-  (hierarquia/vault) segue `proposto`. Nada foi commitado ou enviado.
+  reservados**, com `LICENSE` na raiz e ADR-0007 `aceito`. Foram criados como
+  `proposto` os ADR-0001 (paleta), 0004 (persistência), 0005 (distribuição),
+  0006 (câmera), 0008 (hierarquia/vault) e 0009 (dependências). Commit local
+  criado; push bloqueado por falta de credencial do GitHub neste ambiente.
 - **Fase atual:** Fase 2 do Plano Mestre — decisões e arquitetura, após a
   auditoria profunda das 18 áreas.
 - **Vault:** funcionando em `knowledge-base/`, com configuração Obsidian mínima
