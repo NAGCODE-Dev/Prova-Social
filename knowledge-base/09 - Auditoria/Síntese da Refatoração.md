@@ -12,6 +12,12 @@ atualizado: 2026-11-04
 
 # Síntese da refatoração global
 
+> **Atualização de 2026-11-08 (Lote 1):** a numeração duplicada do `AGENTS.md`,
+> os banners dos relatórios históricos, o README e a hierarquia documental foram
+> corrigidos. Consulte [[../00 - Central/Hierarquia Documental|Hierarquia
+> Documental]] e [[Documentação e Divergências|Documentação e Divergências]].
+> O diagnóstico abaixo permanece como evidência da auditoria de 2026-11-04.
+
 ## Resumo executivo
 
 As **18 áreas** foram auditadas contra o código, os testes, o banco, o CI, o site
@@ -322,13 +328,13 @@ correr em paralelo apenas quando não compartilham arquivo ou decisão.
 
 ### Lote 1 — Fonte única e decisões
 
-- Corrigir a segunda seção 15 do `AGENTS.md` e definir a hierarquia documental.
-- Criar `.gitignore` no vault e versioná-lo com autorização.
-- Marcar documentos históricos da raiz com banner e índice do que está vigente.
-- Corrigir o README: remover imagens/demonstração ou implementá-las; decidir
-  licença e adicionar `LICENSE`.
-- Registrar ADRs de paleta, distribuição, persistência, câmera, licença,
-  dependências e vault.
+- [x] Corrigir a segunda seção 15 do `AGENTS.md` e definir a hierarquia documental.
+- [x] Criar `.gitignore` no vault e versioná-lo com autorização.
+- [x] Marcar documentos históricos da raiz com banner e índice do que está vigente.
+- [x] Corrigir o README: remover imagens/demonstração ou implementá-las.
+- [x] Decidir licença e adicionar `LICENSE` (ADR-0007 aceito: todos os direitos reservados).
+- [ ] Registrar ADRs de paleta, distribuição, persistência, câmera e dependências;
+      licença foi aceita (ADR-0007) e o vault tem proposta (ADR-0008).
 - **Saída:** nenhuma contradição conhecida entre documento e código; toda
   decisão estrutural tem ADR.
 

@@ -1,5 +1,7 @@
 # Codex Goal — Prova Social P0
 
+> **Documento histórico.** Instrução de uma tarefa anterior. Não é fonte vigente de requisitos. Consulte [`AGENTS.md`](AGENTS.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 ## Regra principal
 
 Leia primeiro `AGENTS.md`. Ele continua sendo a fonte principal de verdade do projeto.

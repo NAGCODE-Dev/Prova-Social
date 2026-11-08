@@ -1,5 +1,7 @@
 # Prova Social — relatório da implementação
 
+> **Documento histórico.** Escrito em 03/11/2026. Não é fonte vigente de requisitos nem retrato do estado atual. Para o estado vigente, consulte [`knowledge-base/00 - Central/Estado Atual.md`](knowledge-base/00%20-%20Central/Estado%20Atual.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 **Data:** 03/11/2026  
 **Escopo entregue nesta continuação:** auditoria atualizada, quality gate de
 importação, revisão histórica local dos erros e manifesto/regressão do fixture

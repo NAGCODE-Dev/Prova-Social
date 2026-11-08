@@ -1,5 +1,7 @@
 # Relatório P0 — 26/09/2026
 
+> **Documento histórico.** Escrito em 26/09/2026. Não é fonte vigente de requisitos nem retrato do estado atual. Consulte [`knowledge-base/00 - Central/Estado Atual.md`](../knowledge-base/00%20-%20Central/Estado%20Atual.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](../knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 > Documento histórico. Para o estado consolidado após push, migration e consulta remota, leia o [relatório de revisão externa](REVISAO_EXTERNA_20260926.md).
 
 **Atualização posterior:** push autorizado concluído em `ff04f25`; correção Supabase autorizada e aplicada como `20260926160028_secure_attempt_delivery`. Smoke test remoto aprovado com rollback. Veja [evidências atuais](REVISAO_MIGRATION_REMOTA.md). O relatório abaixo preserva a auditoria anterior; os bloqueios remotos ali descritos foram resolvidos. Flutter permanece pendente.

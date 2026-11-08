@@ -127,7 +127,8 @@ Medidas em 2026-11-03 (SHA `05a8fc1` limpo):
   permissão.
 - Há arquivos de ambiente locais ignorados (`.env.p0` e `.env.supabase.json`).
   Os valores não foram lidos nem copiados para o vault.
-- Não foi localizada licença de nível raiz. A licença de
+- Licença de nível raiz decidida em 2026-11-08: **todos os direitos
+  reservados**, com `LICENSE` e ADR-0007 aceito. A licença de
   `packages/paddleocr_android` não licencia automaticamente o aplicativo.
 - Configuração e migrations locais não provam o estado do Supabase remoto.
 
@@ -136,12 +137,12 @@ Medidas em 2026-11-03 (SHA `05a8fc1` limpo):
 1. Corrigir o gate de formatação e tornar os probes portáveis em tarefa
    autorizada de código (Lote 0 da síntese); repetir o CI e confirmar `main`
    verde.
-2. Atualizar a fonte documental — `AGENTS.md` com duas seções 15, README,
-   `DESIGN_SYSTEM.md`, `DEPENDENCY_COMPATIBILITY.md`, `LICENSE` — e versionar o
-   vault com `.gitignore` próprio (Lote 1).
-3. Aprovar ADRs de identidade, domínio, persistência, distribuição, licença e
-   vault antes de qualquer mudança estrutural.
+2. Atualizar a fonte documental — `AGENTS.md` (numeração corrigida no Lote 1),
+   README, `DESIGN_SYSTEM.md` e `DEPENDENCY_COMPATIBILITY.md`; o vault está
+   versionado e a licença foi resolvida no Lote 1.
+3. Aprovar ADRs de identidade, domínio, persistência, distribuição e vault
+   antes de qualquer mudança estrutural.
 4. Fechar contratos de domínio, publicação e RLS (Lote 2) e só então avançar
    para Focus/offline, importação, identidade, distribuição e social.
-5. Decidir licença e obter ground truth autorizado para benchmark e OCR; não
-   promover fixture de terceiros a conteúdo de produto.
+5. Obter ground truth autorizado para benchmark e OCR; não promover fixture de
+   terceiros a conteúdo de produto.

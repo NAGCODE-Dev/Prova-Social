@@ -25,7 +25,6 @@ Transforme provas em aprendizado real. Não é apenas outro app de estudos — �
 
 ### 💾 Importação
 - PDFs (com OCR local no Android)
-- Imagens
 - Criação manual de questões
 - Dashboard de progresso da importação
 - Questões completas podem ser resolvidas sem concluir toda a revisão; questões incompletas ficam de fora da tentativa após confirmação
@@ -84,7 +83,6 @@ O aplicativo foi desenvolvido para celular primeiro:
 # Como visitante (sem conta)
 # - Acesse o site ou abra o Flutter Web
 # - Busque por provas públicas
-# - Teste o modo de demonstração
 
 # Para desenvolvedores
 git clone https://github.com/NAGCODE-Dev/Prova-Social.git
@@ -152,17 +150,30 @@ Listado para que a promessa do produto e o estado real do app não se confundam:
 - **Comunidades**: não há entidade, tela ou consulta de comunidade.
 - **Questões discursivas**: o modelo de questão aceita uma única alternativa correta.
 - **Tema claro**: `AppTheme.light` existe, mas o app força `ThemeMode.dark` e o Modo Foco ainda usa cores escuras fixas. Uma tela de preferência é pré-requisito.
+- **Importação de imagens**: o README anterior listava imagens, mas o fluxo atual importa PDF, JSON ou criação manual. Câmera/galeria continuam no escopo P1 do `AGENTS.md`, sem implementação.
+- **Modo de demonstração**: não existe catálogo demonstrativo embutido; o app usa conteúdo real do backend ou provas locais importadas.
 
 ## 📦 Distribuição
 
 - **Flutter Web**: `/app/` ou rota oficial
-- **APK por arquitetura**: releases novas distribuem apenas os APKs menores (`arm64-v8a`, `armeabi-v7a` e `x86_64`); o atualizador escolhe o compatível com o aparelho. O APK universal continua como fallback para releases antigas.
-- **Site**: `https://prova-social.pages.dev/`
+- **APK por arquitetura**: as releases atuais distribuem apenas os APKs por ABI (`arm64-v8a`, `armeabi-v7a` e `x86_64`). O APK universal é requisito pendente do `AGENTS.md` §17.
+- **Site**: `https://prova-social.pages.dev/` — hoje o download padrão aponta para `arm64-v8a`; a escolha por ABI ainda não está implementada.
 - **Atualizações**: O app consulta releases do GitHub de forma resiliente
+
+## 📚 Documentação
+
+- **Fonte normativa**: [`AGENTS.md`](AGENTS.md) — requisitos de produto, design, arquitetura e processo.
+- **Estado e auditoria vigentes**: [`knowledge-base/`](knowledge-base/) — vault Obsidian com baseline, 18 áreas auditadas, decisões e roadmap.
+- **Relatórios históricos**: os arquivos `AUDIT.md`, `IMPLEMENTATION_REPORT.md` e `SECOND_PHASE_REPORT.md` são evidência datada, não estado atual.
 
 ## 📜 Licença
 
-Prova Social - Código aberto para fins educacionais.
+**Todos os direitos reservados.** O repositório e o aplicativo não concedem
+licença de uso, cópia, modificação ou redistribuição sem autorização prévia e
+expressa do titular. Consulte [`LICENSE`](LICENSE) e o
+[`ADR-0007`](knowledge-base/06%20-%20Decis%C3%B5es/ADR/ADR-0007%20-%20Licen%C3%A7a%20do%20app%20e%20pol%C3%ADtica%20de%20fixtures%20de%20terceiros.md).
+Dependências de terceiros mantêm suas próprias licenças.
+
 Não publicar, fazer commit, criar tag, release ou push sem autorização explícita.
 
 ---

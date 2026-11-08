@@ -13,8 +13,9 @@ atualizado: 2026-11-04
 # ADRs propostos
 
 Este índice reúne as decisões que a auditoria das 18 áreas identificou como
-necessárias antes de mudanças estruturais. **Nenhum ADR abaixo foi aprovado.**
-O status é sempre `proposto` até validação explícita do responsável.
+necessárias antes de mudanças estruturais. A regra é status `proposto` até
+validação explícita do responsável. Exceção: o **ADR-0007 foi aceito em
+2026-11-08** (todos os direitos reservados e política de fixtures).
 
 O template está em [[ADR|ADR]]. A síntese que originou a lista está em
 [[../../09 - Auditoria/Síntese da Refatoração|Síntese da Refatoração]].
@@ -37,8 +38,8 @@ O template está em [[ADR|ADR]]. A síntese que originou a lista está em
 | ADR-0004 | Persistência local: JSON/SharedPreferences vs SQLite transacional | 7, 8 | Alta | proposto |
 | ADR-0005 | Distribuição Android: APK universal + splits e seleção de ABI no site | 15, 17 | Alta | proposto |
 | ADR-0006 | Escopo de importação por câmera: implementar ou remover do README | 9, 13, 18 | Média | proposto |
-| ADR-0007 | Licença do app e política de fixtures de terceiros | 9, 14, 17, 18 | Alta | proposto |
-| ADR-0008 | Hierarquia documental e versionamento do vault | 18 | Alta | proposto |
+| [[ADR-0007 - Licença do app e política de fixtures de terceiros\|ADR-0007]] | Licença do app e política de fixtures de terceiros | 9, 14, 17, 18 | Alta | **aceito** |
+| [[ADR-0008 - Hierarquia documental e versionamento do vault\|ADR-0008]] | Hierarquia documental e versionamento do vault | 18 | Alta | proposto |
 | ADR-0009 | Política de dependências, pins e cadência de atualização | 17 | Média | proposto |
 | ADR-0010 | Comunidades, moderação e ciclo de vida | 11, 12 | Média | proposto |
 | ADR-0011 | Tamanho de APK, modelos sob demanda e componentes nativos | 13, 17 | Média | proposto |

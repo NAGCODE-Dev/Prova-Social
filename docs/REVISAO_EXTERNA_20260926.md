@@ -1,5 +1,7 @@
 # Relatório consolidado para revisão externa — Prova Social
 
+> **Documento histórico.** Escrito em 26/09/2026. Não é fonte vigente de requisitos nem retrato do estado atual. Consulte [`knowledge-base/00 - Central/Estado Atual.md`](../knowledge-base/00%20-%20Central/Estado%20Atual.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](../knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 Data: 26/09/2026. Estado do código analisado: `4be6972a3f6b37aff035a9c750aa7b6f301d7360`, branch `main`.
 
 ## 1. Conclusão e alcance

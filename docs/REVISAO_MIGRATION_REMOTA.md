@@ -1,5 +1,7 @@
 # Revisão de mídia por questão — 31/10/2026
 
+> **Documento histórico.** Registro de uma migration aplicada em 31/10/2026. Não prova o estado atual do Supabase remoto. Consulte [`knowledge-base/00 - Central/Estado Atual.md`](../knowledge-base/00%20-%20Central/Estado%20Atual.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](../knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 Foi aplicada ao projeto Supabase **Prova Social** a migration local
 `20261031120000_exam_media_publication.sql`. O histórico remoto registrou a
 versão `20261101002428` com o nome `exam_media_publication`. A inspeção anterior

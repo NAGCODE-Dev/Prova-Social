@@ -3,6 +3,7 @@
 Abra esta pasta (`knowledge-base/`) como vault no Obsidian.
 
 - Navegação inicial: [[00 - Central/Índice]]
+- Precedência documental: [[00 - Central/Hierarquia Documental]]
 - Plano de execução: [[00 - Central/Plano Mestre]]
 - Baseline auditada: [[00 - Central/Estado Atual]]
 - Síntese da refatoração: [[09 - Auditoria/Síntese da Refatoração]]

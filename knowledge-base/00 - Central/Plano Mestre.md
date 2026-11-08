@@ -32,7 +32,7 @@ plano foi aprovado em todos os detalhes. Ver também [[Roadmap]].
 
 | Fase | Objetivo | Estado em 2026-11-04 |
 |---|---|---|
-| 1. Auditoria e congelamento | Estado real, testes, CI, documentação e licença | **Concluída:** baseline medida, 18 áreas auditadas, 18 notas e síntese global. Licença e ground truth continuam pendentes de decisão externa. |
+| 1. Auditoria e congelamento | Estado real, testes, CI, documentação e licença | **Concluída:** baseline medida, 18 áreas auditadas, 18 notas e síntese global. Licença do app decidida em 2026-11-08 (todos os direitos reservados); ground truth continua pendente de decisão externa. |
 | 2. Obsidian e arquitetura | Vault, fluxos, módulos e ADRs | **Parcial:** vault funcionando e auditoria profunda concluída; arquitetura-alvo e ADRs ainda não aprovados. |
 | 3. Fundação e confiabilidade | Persistência transacional SQLite, migração gradual e testes | **Não iniciada;** decisão de persistência precisa de ADR. |
 | 4. Refatoração modular | Separar responsabilidades preservando API | **Não iniciada;** depende dos contratos de domínio e dos testes de caracterização. |
@@ -47,7 +47,7 @@ plano foi aprovado em todos os detalhes. Ver também [[Roadmap]].
 1. **Lote 0 — destravar a esteira:** formatar ou retirar os probes da suíte,
    remover caminhos absolutos, ligar testes do site e conferir `main` verde.
 2. **Lote 1 — fonte única e decisões:** corrigir a numeração do `AGENTS.md`,
-   versionar o vault, marcar documentos históricos, decidir licença e registrar
+   versionar o vault, marcar documentos históricos e registrar
    ADRs de identidade, domínio, persistência e distribuição.
 3. **Lote 2 — contratos de domínio, publicação e backend:** objetiva/discursiva,
    gabarito, versão, tema/procedência, RLS social e `publish_exam`.

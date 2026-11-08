@@ -1,5 +1,7 @@
 # Diagnóstico atual
 
+> **Documento histórico.** Diagnóstico de 26/09/2026. Não é retrato do estado atual. Consulte [`knowledge-base/00 - Central/Estado Atual.md`](../knowledge-base/00%20-%20Central/Estado%20Atual.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](../knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 Data: 26/09/2026. Código consolidado: `main`, `4be6972`. Trabalho preexistente preservado e enviado; migration corretiva aplicada e smoke remoto aprovado com rollback. Ver [relatório consolidado para revisão externa](REVISAO_EXTERNA_20260926.md).
 
 ## Verificação local — 09/10/2026

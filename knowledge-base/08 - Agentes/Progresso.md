@@ -12,6 +12,12 @@ atualizado: 2026-11-05
 
 # Progresso da auditoria e preparação
 
+- **Lote 1 iniciado (2026-11-08):** trabalho em worktree separado
+  (`lote1/fonte-unica`, base `2c62e30`), sem tocar no Lote 0. Correções:
+  `AGENTS.md` §25, hierarquia documental, banners históricos, README sem
+  promessas de imagens/demonstração. Licença definida como **todos os direitos
+  reservados**, com `LICENSE` na raiz e ADR-0007 `aceito`; ADR-0008
+  (hierarquia/vault) segue `proposto`. Nada foi commitado ou enviado.
 - **Fase atual:** Fase 2 do Plano Mestre — decisões e arquitetura, após a
   auditoria profunda das 18 áreas.
 - **Vault:** funcionando em `knowledge-base/`, com configuração Obsidian mínima
@@ -266,7 +272,7 @@ atualizado: 2026-11-05
   qualquer que seja o modelo Dart.
 - **Lote 0 e vault no Git do fork (2026-11-05):** quatro commits em
   `NAGC-Student/main` — `27403be` (probes portáveis + site no gate + `qa-full` no
-  schedule), `eebb2b0` (vault: 76 arquivos versionados, `AGENTS.md` §15 apontando
+  schedule), `eebb2b0` (vault: 76 arquivos versionados, `AGENTS.md` §25 apontando
   para `knowledge-base/`), `46eb9a0` (fix do analyzer) e `ff3be0c`
   (caracterização). `git push upstream main` retornou **403**: `NAGC-Student` não
   tem escrita em `NAGCODE-Dev`, e o fork não registra nenhum run de Actions — o

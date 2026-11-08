@@ -15,6 +15,7 @@ requisitos sem autorização.
 
 - [[Visão Geral]]
 - [[Estado Atual]]
+- [[Hierarquia Documental]] — qual documento é fonte vigente e qual é histórico.
 - [[../05 - Qualidade/Critério de Prontidão para Refatoração Global|Critério de prontidão]] — responde "já dá para planejar o app novo?".
 - [[../09 - Auditoria/Síntese da Refatoração|Síntese da Refatoração]]
 - [[Roadmap]]

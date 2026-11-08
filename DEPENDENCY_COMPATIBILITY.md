@@ -1,5 +1,7 @@
 # Matriz de compatibilidade — Prova Social 0.5.0
 
+> **Documento histórico.** Matriz da versão 0.5.0, verificada em 17/09/2026. Não descreve o app atual (`0.7.5+15`). Consulte [`knowledge-base/00 - Central/Hierarquia Documental.md`](knowledge-base/00%20-%20Central/Hierarquia%20Documental.md) e [`pubspec.lock`](pubspec.lock) para o estado vigente.
+
 Versões verificadas nos `pubspec` publicados em 17/09/2026.
 
 | Dependência direta | Versão | Restrição compartilhada relevante |

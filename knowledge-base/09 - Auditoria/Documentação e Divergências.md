@@ -7,7 +7,7 @@ nivel: {correcao: 0, testes: 0, acoplamento: 0, clareza: 0, seguranca: 0, robust
 fonte_codigo: [AGENTS.md, PROVA_SOCIAL_CONTEXT.md, DEPENDENCY_COMPATIBILITY.md, pubspec.yaml]
 sha: 05a8fc1aab92d43f58ad7da8b24e710f9874d281
 confianca: alta
-atualizado: 2026-11-04
+atualizado: 2026-11-08
 ---
 
 # Documentação e Divergências Conhecidas
@@ -72,6 +72,39 @@ atualizado: 2026-11-04
 - **Plano detalhado:** [[Áreas/18 - Documentação e divergências código × docs|Área
   18 — Documentação]].
 
+## Lote 1 — o que foi corrigido em 2026-11-08
+
+O trabalho foi feito em worktree separado, sobre `origin/main` em `2c62e30`,
+sem commit/push. Ele não altera código do app.
+
+- **`AGENTS.md`:** a segunda seção 15 (“Base de conhecimento do projeto”) passou
+  a ser a seção **25**. A fonte normativa não tem mais numeração duplicada.
+- **Hierarquia documental:** criada em
+  [[../00 - Central/Hierarquia Documental|Hierarquia Documental]], com
+  precedência, lista de documentos vigentes e histórico, regras de manutenção e
+  vínculo com o ADR-0008.
+- **Banners:** `AUDIT.md`, `IMPLEMENTATION_REPORT.md`,
+  `SECOND_PHASE_REPORT.md`, `PROVA_SOCIAL_CONTEXT.md`,
+  `DEPENDENCY_COMPATIBILITY.md`, `CODEX_P0_GOAL.md`,
+  `CODEX_QA_COMPLETO_PROVA_SOCIAL.md` e os relatórios datados em `docs/`
+  receberam banner de documento histórico.
+- **README:** removida a promessa de importação de imagens e de “modo de
+  demonstração”; a seção “O que ainda não existe” agora lista os dois. A
+  distribuição foi corrigida para dizer que o site ainda usa `arm64-v8a` como
+  padrão e que o APK universal é pendência. A seção de licença agora declara
+  **todos os direitos reservados** e aponta para o `LICENSE`.
+- **Licença:** `LICENSE` criado na raiz com todos os direitos reservados; a
+  decisão foi aprovada pelo responsável e registrada no
+  [[../06 - Decisões/ADR/ADR-0007 - Licença do app e política de fixtures de terceiros|ADR-0007]]
+  como `aceito`.
+- **ADRs:** o ADR-0007 (licença e fixtures) foi aceito; o
+  [[../06 - Decisões/ADR/ADR-0008 - Hierarquia documental e versionamento do vault|ADR-0008]]
+  (hierarquia e vault) segue `proposto`.
+
+Ainda não resolvido neste lote: aprovação do ADR-0008, ADRs de paleta/
+distribuição/persistência/câmera/dependências, revisão dos notices de
+dependências e a varredura automática de links.
+
 ## Pendências
 
 - Auditar os Markdown restantes da raiz e de `docs/` que ainda não foram
@@ -80,8 +113,9 @@ atualizado: 2026-11-04
   evidências de `pubspec.lock`.
 - Não eliminar fontes históricas; adicionar banner, data e link para a nota
   vigente antes de substituir afirmações.
-- Criar `.gitignore` no vault e versioná-lo com autorização.
 - Adicionar verificação automática de links, frontmatter e segredos no CI.
-- Corrigir a numeração do `AGENTS.md` e registrar a hierarquia documental.
-- Decidir licença do app e política de fixtures de terceiros.
-- Registrar ADRs de paleta, distribuição, persistência, câmera e dependências.
+- Aprovar o ADR-0008 e registrar os ADRs de paleta, distribuição,
+  persistência, câmera e dependências.
+- Revisar notices de dependências e confirmar o titular legal do copyright.
+- Auditar guias operacionais restantes em `docs/` e decidir quais continuam
+  vigentes, quais viram nota no vault e quais permanecem apenas históricos.

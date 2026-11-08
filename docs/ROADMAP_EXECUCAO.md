@@ -1,5 +1,7 @@
 # Roadmap de execução — atualização 26/09/2026
 
+> **Documento histórico.** Roadmap de 26/09/2026. Não é o plano vigente. Consulte [`knowledge-base/00 - Central/Roadmap.md`](../knowledge-base/00%20-%20Central/Roadmap.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](../knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 Consulte [diagnóstico](DIAGNOSTICO_ATUAL.md) e [relatório P0](RELATORIO_P0_20260926.md). O texto histórico abaixo não comprova validação.
 
 ## Gate imediato P0

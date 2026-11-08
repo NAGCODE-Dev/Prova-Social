@@ -1,5 +1,7 @@
 # PROVA SOCIAL — CONTEXTO DO PROJETO
 
+> **Documento histórico.** Escrito em 27/09/2026. Não é fonte vigente de requisitos nem retrato do estado atual. Para o estado vigente, consulte [`knowledge-base/00 - Central/Estado Atual.md`](knowledge-base/00%20-%20Central/Estado%20Atual.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 > Documento raiz de contexto técnico, produto, arquitetura e roadmap.
 > Atualizado em 27/09/2026.
 

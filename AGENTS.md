@@ -703,7 +703,7 @@ Não começar implementando tudo. Primeiro produzir um diagnóstico do estado at
 
 Depois propor o próximo lote P0 com o menor conjunto de mudanças capaz de entregar uma melhoria completa e testável.
 
-## 15. Base de conhecimento do projeto
+## 25. Base de conhecimento do projeto
 
 A documentação de engenharia é organizada no vault Obsidian versionado em:
 

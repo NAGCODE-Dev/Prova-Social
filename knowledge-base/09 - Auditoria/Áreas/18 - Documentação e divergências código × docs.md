@@ -7,10 +7,15 @@ nivel: {correcao: 3, testes: 2, acoplamento: 3, clareza: 2, seguranca: 3, robust
 fonte_codigo: [AGENTS.md, README.md, AUDIT.md, DESIGN_SYSTEM.md, DEPENDENCY_COMPATIBILITY.md, PROVA_SOCIAL_CONTEXT.md, IMPLEMENTATION_REPORT.md, SECOND_PHASE_REPORT.md, CHANGELOG_*.md, knowledge-base/]
 sha: 05a8fc1aab92d43f58ad7da8b24e710f9874d281
 confianca: alta
-atualizado: 2026-11-04
+atualizado: 2026-11-08
 ---
 
 # Documentação e divergências código × docs
+
+> **Atualização de 2026-11-08 (Lote 1):** numeração do `AGENTS.md`, banners
+> históricos, README e hierarquia documental foram corrigidos. O diagnóstico
+> abaixo preserva a medição de 2026-11-04; o estado do Lote 1 está em
+> [[../../09 - Auditoria/Documentação e Divergências|Documentação e Divergências]].
 
 ## Resumo
 
@@ -114,7 +119,10 @@ voltar a divergir.
 
 ## O que está parcial
 
-### `AGENTS.md` tem duas seções 15
+### `AGENTS.md` tinha duas seções 15 (resolvido em 2026-11-08)
+
+> Correção aplicada no Lote 1: a seção final passou a ser `## 25`. O diagnóstico
+> abaixo permanece como evidência histórica.
 
 A estrutura é:
 
@@ -214,7 +222,7 @@ A raiz tem:
 - `GOOGLE_AUTH_SETUP.md`, `GUIA_ACODE_SUPABASE.md`,
   `GUIA_REDIRECT_LOGIN.md`.
 
-O `AGENTS.md` §15 diz para mantê-los como fontes históricas até revisão, mas
+O `AGENTS.md` §25 diz para mantê-los como fontes históricas até revisão, mas
 não há:
 
 - banner “documento histórico, ver vault”;
@@ -433,7 +441,7 @@ continuidade.
 | Clareza | 2 | Duas seções 15, README contraditório e relatórios sem banner. |
 | Segurança | 3 | Sem segredos encontrados; falta varredura automática. |
 | Robustez | 2 | Vault fora do Git e sem `.gitignore`; links quebram. |
-| Aderência | 2 | §15 promete vault versionado; §19 pede changelog coerente; ambos parciais. |
+| Aderência | 2 | §25 promete vault versionado; §19 pede changelog coerente; ambos parciais. |
 | Portabilidade | 4 | Markdown e Obsidian funcionam bem; sem dependência proprietária. |
 
 Classificação resultante: **EVOLUIR** — o acervo é valioso e pode ser mantido,

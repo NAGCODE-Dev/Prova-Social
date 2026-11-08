@@ -1,5 +1,7 @@
 # CODEX QA COMPLETO --- PROVA SOCIAL
 
+> **Documento histórico.** Instrução de uma tarefa anterior. Não é fonte vigente de requisitos. Consulte [`AGENTS.md`](AGENTS.md) e [`knowledge-base/00 - Central/Hierarquia Documental.md`](knowledge-base/00%20-%20Central/Hierarquia%20Documental.md).
+
 ## Missão
 
 Execute uma auditoria completa e uma bateria de testes do Prova Social.
