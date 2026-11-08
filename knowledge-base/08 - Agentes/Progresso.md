@@ -20,6 +20,11 @@ atualizado: 2026-11-05
   `proposto` os ADR-0001 (paleta), 0004 (persistência), 0005 (distribuição),
   0006 (câmera), 0008 (hierarquia/vault) e 0009 (dependências). Commit local
   criado; push bloqueado por falta de credencial do GitHub neste ambiente.
+- **Lote 2 documental iniciado (2026-11-08):** criados como `proposto` o
+  ADR-0002 (modelo de questão, gabarito e publicação) e o ADR-0003
+  (versionamento de conteúdo e vínculo da tentativa), com base nos contratos
+  C1–C7. Nenhuma migration ou tipo de domínio foi alterado; a implementação
+  depende da aprovação desses ADRs.
 - **Fase atual:** Fase 2 do Plano Mestre — decisões e arquitetura, após a
   auditoria profunda das 18 áreas.
 - **Vault:** funcionando em `knowledge-base/`, com configuração Obsidian mínima

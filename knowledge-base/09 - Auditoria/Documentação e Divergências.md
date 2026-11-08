@@ -100,11 +100,13 @@ sem commit/push. Ele não altera código do app.
 - **ADRs:** o ADR-0007 (licença e fixtures) foi aceito. Foram criados como
   `proposto` o ADR-0008 (hierarquia/vault), o ADR-0001 (paleta/tema), o
   ADR-0004 (persistência), o ADR-0005 (distribuição/ABI), o ADR-0006
-  (câmera/imagem) e o ADR-0009 (dependências/atualização).
+  (câmera/imagem) e o ADR-0009 (dependências/atualização), além do ADR-0002
+  (questão/gabarito/publicação) e do ADR-0003 (versionamento/tentativa) no
+  início do Lote 2.
 
-Ainda não resolvido neste lote: **aprovação** dos ADR-0001, 0004, 0005, 0006,
-0008 e 0009, revisão dos notices de dependências e a varredura automática de
-links.
+Ainda não resolvido neste lote: **aprovação** dos ADR-0001, 0002, 0003, 0004,
+0005, 0006, 0008 e 0009, revisão dos notices de dependências e a varredura
+automática de links.
 
 ## Pendências
 
@@ -115,7 +117,8 @@ links.
 - Não eliminar fontes históricas; adicionar banner, data e link para a nota
   vigente antes de substituir afirmações.
 - Adicionar verificação automática de links, frontmatter e segredos no CI.
-- Aprovar os ADR-0001, 0004, 0005, 0006, 0008 e 0009, que estão propostos.
+- Aprovar os ADR-0001, 0002, 0003, 0004, 0005, 0006, 0008 e 0009, que estão
+  propostos.
 - Revisar notices de dependências e confirmar o titular legal do copyright.
 - Auditar guias operacionais restantes em `docs/` e decidir quais continuam
   vigentes, quais viram nota no vault e quais permanecem apenas históricos.

@@ -341,9 +341,12 @@ correr em paralelo apenas quando não compartilham arquivo ou decisão.
 
 ### Lote 2 — Contratos de domínio, publicação e backend
 
-- Definir no modelo: objetiva/discursiva, gabarito oficial/ausente, versão do
-  conteúdo, tema/tópico e procedência.
-- Vincular tentativa à versão exata do conteúdo resolvido.
+- [x] Registrar como propostos o ADR-0002 (questão, gabarito e publicação) e o
+      ADR-0003 (versionamento e vínculo da tentativa).
+- [ ] Aprovar o ADR-0002 e o ADR-0003 antes de alterar tipos de domínio.
+- [ ] Definir no modelo: objetiva/discursiva, gabarito oficial/ausente, versão
+      do conteúdo, tema/tópico e procedência.
+- [ ] Vincular tentativa à versão exata do conteúdo resolvido.
 - Publicação: discursiva publicável sem correção automática; objetiva sem
   gabarito só como rascunho/privada.
 - Revisar migrations e RLS; ampliar PGlite para `profiles`, `posts`,
